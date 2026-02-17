@@ -216,6 +216,17 @@
         }
       }
     });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach((node) => {
+      const key = node.getAttribute('data-i18n-aria-label');
+      if (!key) {
+        return;
+      }
+      const fallback = node.getAttribute('aria-label') || '';
+      const message = getMessage(key, fallback);
+      if (message) {
+        node.setAttribute('aria-label', message);
+      }
+    });
   }
 
   function ensureTooltipElement() {
@@ -2166,16 +2177,16 @@
       const templateRaw = String(siteSearchTemplateInput ? siteSearchTemplateInput.value : '').trim();
       const aliases = normalizeAliases(siteSearchAliasInput ? siteSearchAliasInput.value : '');
       if (!key) {
-        setSiteSearchError('请填写触发词。');
+        setSiteSearchError(getMessage('shortcuts_error_key', '请填写触发词。'));
         return;
       }
       if (/\s/.test(key)) {
-        setSiteSearchError('触发词不能包含空格。');
+        setSiteSearchError(getMessage('shortcuts_error_key_space', '触发词不能包含空格。'));
         return;
       }
       const template = normalizeSiteSearchTemplate(templateRaw);
       if (!template || !template.includes('{query}')) {
-        setSiteSearchError('搜索模板必须包含 {query}。');
+        setSiteSearchError(getMessage('toast_error_template', '搜索模板必须包含 {query}。'));
         return;
       }
       const normalizedKey = key.toLowerCase();

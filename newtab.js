@@ -27,11 +27,30 @@
   let currentThemeMode = 'system';
   let modeBadge = null;
   const recentCards = [];
+  const bookmarkCards = [];
+  const bookmarkCardElementCache = new Map();
   let currentMessages = null;
   let currentLanguageMode = 'system';
   let defaultPlaceholderText = '搜索或输入网址...';
   let currentRecentMode = 'latest';
   let currentRecentCount = 4;
+  let searchLayer = null;
+  const BOOKMARK_LIMIT = 16;
+  let bookmarkCurrentPage = 0;
+  let bookmarkAllItems = [];
+  let bookmarkCurrentFolderId = '1';
+  let bookmarkRootFolderId = '1';
+  let bookmarkFolderPath = [];
+  let bookmarkRootTotalCount = 0;
+  let bookmarkRootVisibleCount = 0;
+  const bookmarkNodeMap = new Map();
+  let bookmarkTitleWrap = null;
+  let bookmarkBreadcrumb = null;
+  let bookmarkPagerPrevButton = null;
+  let bookmarkPagerNextButton = null;
+  let bookmarkPageAnimating = false;
+  const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
+  const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
 
   // 使用系统字体，避免外链字体依赖。
   let defaultSearchEngineState = {
@@ -234,6 +253,720 @@
     return `<svg class="ri-icon ${size}${extra}" aria-hidden="true" focusable="false"><use href="${RI_SPRITE_URL}#${id}"></use></svg>`;
   }
 
+  function getFigmaFolderSvg(idSuffix) {
+    const suffix = String(idSuffix || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const baseLowerFilterId = `x-nt-folder-filter-lower-base-${suffix}`;
+    const baseUpperFilterId = `x-nt-folder-filter-upper-base-${suffix}`;
+    const hoverLowerFilterId = `x-nt-folder-filter-lower-hover-${suffix}`;
+    const hoverUpperFilterId = `x-nt-folder-filter-upper-hover-${suffix}`;
+    const baseLowerGradientId = `x-nt-folder-gradient-lower-base-${suffix}`;
+    const baseUpperGradientId = `x-nt-folder-gradient-upper-base-${suffix}`;
+    const hoverLowerGradientId = `x-nt-folder-gradient-lower-hover-${suffix}`;
+    const hoverUpperGradientId = `x-nt-folder-gradient-upper-hover-${suffix}`;
+    const hoverUpperOverlayGradientId = `x-nt-folder-gradient-upper-overlay-hover-${suffix}`;
+    const morphUpperGradientId = `x-nt-folder-gradient-upper-morph-${suffix}`;
+    const morphUpperOverlayGradientId = `x-nt-folder-gradient-upper-overlay-morph-${suffix}`;
+    return `
+      <svg viewBox="0 0 31 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+        <g data-folder-layer="lower">
+          <g class="x-nt-folder-shape x-nt-folder-shape--base" filter="url(#${baseLowerFilterId})">
+            <path data-folder-part="lower-body" data-folder-fill-base="url(#${baseLowerGradientId})" data-folder-fill-hover="url(#${hoverLowerGradientId})" d="M7.24 2C6.08213 2 5.5032 2 5.06414 2.23247C4.70983 2.42007 4.42007 2.70983 4.23247 3.06414C4 3.5032 4 4.08213 4 5.24V19.76C4 20.9179 4 21.4968 4.23247 21.9359C4.42007 22.2902 4.70983 22.5799 5.06414 22.7675C5.5032 23 6.08213 23 7.24 23H23.76C24.9179 23 25.4968 23 25.9359 22.7675C26.2902 22.5799 26.5799 22.2902 26.7675 21.9359C27 21.4968 27 20.9179 27 19.76V8.24C27 7.08213 27 6.5032 26.7675 6.06414C26.5799 5.70983 26.2902 5.42007 25.9359 5.23247C25.4968 5 24.9179 5 23.76 5H16.2872C15.7668 5 15.5067 5 15.2631 4.93779C15.0647 4.88712 14.8753 4.80628 14.7014 4.69811C14.488 4.56531 14.308 4.37746 13.948 4.00178L12.9862 2.99822C12.6262 2.62254 12.4462 2.43469 12.2327 2.30189C12.0589 2.19372 11.8694 2.11288 11.6711 2.06221C11.4275 2 11.1673 2 10.647 2H7.24Z" fill="url(#${baseLowerGradientId})"/>
+            <path data-folder-part="lower-outline" d="M7.24023 2.5H10.6465C11.1918 2.5 11.3785 2.50393 11.5469 2.54688C11.6957 2.58488 11.8384 2.64543 11.9688 2.72656C12.1163 2.8184 12.2478 2.95016 12.625 3.34375L13.5869 4.34766C13.9294 4.70501 14.1583 4.94931 14.4375 5.12305C14.6547 5.25816 14.8918 5.35857 15.1396 5.42188C15.4582 5.50321 15.7923 5.5 16.2871 5.5H23.7598C24.3471 5.5 24.7568 5.50049 25.0752 5.52734C25.3875 5.5537 25.5669 5.60319 25.7021 5.6748C25.9676 5.81544 26.1846 6.03242 26.3252 6.29785C26.3968 6.4331 26.4463 6.61249 26.4727 6.9248C26.4995 7.24322 26.5 7.65291 26.5 8.24023V19.7598C26.5 20.3471 26.4995 20.7568 26.4727 21.0752C26.4463 21.3875 26.3968 21.5669 26.3252 21.7021C26.1846 21.9676 25.9676 22.1846 25.7021 22.3252C25.5669 22.3968 25.3875 22.4463 25.0752 22.4727C24.7568 22.4995 24.3471 22.5 23.7598 22.5H7.24023C6.65291 22.5 6.24322 22.4995 5.9248 22.4727C5.61249 22.4463 5.4331 22.3968 5.29785 22.3252C5.03242 22.1846 4.81544 21.9676 4.6748 21.7021C4.60319 21.5669 4.5537 21.3875 4.52734 21.0752C4.50049 20.7568 4.5 20.3471 4.5 19.7598V5.24023C4.5 4.65291 4.50049 4.24322 4.52734 3.9248C4.5537 3.61249 4.60319 3.4331 4.6748 3.29785C4.81544 3.03242 5.03242 2.81544 5.29785 2.6748C5.4331 2.60319 5.61249 2.5537 5.9248 2.52734C6.24322 2.50049 6.65291 2.5 7.24023 2.5Z" stroke="var(--stroke-0, #5393FF)"/>
+          </g>
+          <g class="x-nt-folder-shape x-nt-folder-shape--hover" filter="url(#${hoverLowerFilterId})">
+            <path data-folder-part-hover="lower-body" d="M7.27966 3C6.06845 3 5.46284 3 5.01299 3.24717C4.65028 3.44648 4.35832 3.75339 4.17738 4.12561C3.95298 4.58724 3.98322 5.19209 4.04371 6.4018L4.71971 19.9218C4.77497 21.027 4.8026 21.5797 5.04189 21.9962C5.23514 22.3326 5.52208 22.6056 5.86774 22.7818C6.29572 23 6.84904 23 7.95566 23H24.4374C25.6583 23 26.2687 23 26.7204 22.7502C27.0846 22.5488 27.3769 22.2388 27.5565 21.8635C27.7794 21.3979 27.7435 20.7885 27.6718 19.5697L27.053 9.04974C26.9885 7.95383 26.9563 7.40587 26.716 6.99327C26.5218 6.65999 26.2354 6.38996 25.8913 6.21572C25.4653 6 24.9164 6 23.8186 6H16.1608C15.6405 6 15.3803 6 15.1367 5.93779C14.9383 5.88712 14.7489 5.80628 14.5751 5.69811C14.3616 5.56531 14.1816 5.37746 13.8216 5.00178L12.8598 3.99822C12.4998 3.62254 12.3198 3.43469 12.1063 3.30189C11.9325 3.19372 11.7431 3.11288 11.5447 3.06221C11.3011 3 11.0409 3 10.5206 3H7.27966Z" fill="url(#${hoverLowerGradientId})"/>
+            <path data-folder-part-hover="lower-outline" d="M7.27987 3.5H10.5201C11.0655 3.5 11.2521 3.50393 11.4205 3.54688C11.5693 3.58488 11.712 3.64543 11.8424 3.72656C11.9899 3.8184 12.1214 3.95016 12.4986 4.34375L13.4605 5.34766C13.803 5.70501 14.0319 5.94931 14.3111 6.12305C14.5283 6.25816 14.7654 6.35857 15.0133 6.42188C15.3318 6.50321 15.6659 6.5 16.1607 6.5H23.8189C24.3759 6.5 24.7636 6.50051 25.066 6.52539C25.362 6.54976 25.5338 6.59535 25.6656 6.66211C25.9236 6.7928 26.1382 6.99524 26.2838 7.24512C26.3581 7.37281 26.4139 7.54183 26.4556 7.83594C26.4982 8.13633 26.5216 8.5232 26.5543 9.0791L27.1724 19.5986C27.2088 20.2168 27.2344 20.6491 27.2252 20.9854C27.2161 21.3158 27.1734 21.5048 27.1051 21.6475C26.9703 21.929 26.7512 22.1615 26.4781 22.3125C26.3398 22.389 26.1537 22.4423 25.8248 22.4707C25.4896 22.4996 25.0563 22.5 24.4371 22.5H7.95565C7.3943 22.5 7.00355 22.4998 6.69881 22.4746C6.40048 22.45 6.22764 22.4034 6.09529 22.3359C5.83605 22.2038 5.62012 21.9994 5.47518 21.7471C5.40123 21.6183 5.34672 21.4481 5.30721 21.1514C5.26684 20.8482 5.24736 20.4574 5.21932 19.8965L4.54354 6.37695C4.51286 5.76336 4.49152 5.33461 4.5035 5.00098C4.51527 4.67332 4.5587 4.48532 4.62752 4.34375C4.7632 4.06493 4.98177 3.83493 5.2535 3.68555C5.39147 3.60973 5.57715 3.55741 5.90389 3.5293C6.23648 3.50069 6.66562 3.5 7.27987 3.5Z" stroke="var(--stroke-0, #5393FF)"/>
+          </g>
+        </g>
+        <g data-folder-layer="file">
+          <g class="x-nt-folder-shape x-nt-folder-shape--base">
+            <path data-folder-part="file-body" d="M7 10C7 9.44772 7.44772 9 8 9H23C23.5523 9 24 9.44772 24 10V17C24 17.5523 23.5523 18 23 18H8C7.44772 18 7 17.5523 7 17V10Z" fill="var(--fill-0, white)"/>
+            <path data-folder-part="file-line" d="M13 11L18 11" stroke="var(--stroke-0, #DDE8FB)" stroke-linecap="round"/>
+          </g>
+          <g class="x-nt-folder-shape x-nt-folder-shape--hover">
+            <path data-folder-part-hover="file-body" d="M7.87362 10C7.87362 9.44772 8.32133 9 8.87362 9H23.8736C24.4259 9 24.8736 9.44772 24.8736 10V17C24.8736 17.5523 24.4259 18 23.8736 18H8.87362C8.32133 18 7.87362 17.5523 7.87362 17V10Z" fill="var(--fill-0, white)"/>
+            <path data-folder-part-hover="file-line" d="M13.8736 11L18.8736 11" stroke="var(--stroke-0, #DDE8FB)" stroke-linecap="round"/>
+          </g>
+        </g>
+        <g data-folder-layer="upper">
+          <g class="x-nt-folder-shape x-nt-folder-shape--base">
+            <g filter="url(#${baseUpperFilterId})">
+              <path data-folder-part="upper-body" data-folder-fill-base="url(#${morphUpperGradientId})" data-folder-fill-hover="url(#${morphUpperGradientId})" d="M7.24 5C6.08213 5 5.5032 5 5.06414 5.23247C4.70983 5.42007 4.42007 5.70983 4.23247 6.06414C4 6.5032 4 7.08213 4 8.24V19.76C4 20.9179 4 21.4968 4.23247 21.9359C4.42007 22.2902 4.70983 22.5799 5.06414 22.7675C5.5032 23 6.08213 23 7.24 23H23.76C24.9179 23 25.4968 23 25.9359 22.7675C26.2902 22.5799 26.5799 22.2902 26.7675 21.9359C27 21.4968 27 20.9179 27 19.76V8.24C27 7.08213 27 6.5032 26.7675 6.06414C26.5799 5.70983 26.2902 5.42007 25.9359 5.23247C25.4968 5 24.9179 5 23.76 5H14.9046H7.24Z" fill="url(#${morphUpperGradientId})"/>
+              <path data-folder-part="upper-overlay" data-folder-fill-base="url(#${morphUpperOverlayGradientId})" data-folder-fill-hover="url(#${morphUpperOverlayGradientId})" data-folder-opacity-base="0" data-folder-opacity-hover="1" d="M7.24 5C6.08213 5 5.5032 5 5.06414 5.23247C4.70983 5.42007 4.42007 5.70983 4.23247 6.06414C4 6.5032 4 7.08213 4 8.24V19.76C4 20.9179 4 21.4968 4.23247 21.9359C4.42007 22.2902 4.70983 22.5799 5.06414 22.7675C5.5032 23 6.08213 23 7.24 23H23.76C24.9179 23 25.4968 23 25.9359 22.7675C26.2902 22.5799 26.5799 22.2902 26.7675 21.9359C27 21.4968 27 20.9179 27 19.76V8.24C27 7.08213 27 6.5032 26.7675 6.06414C26.5799 5.70983 26.2902 5.42007 25.9359 5.23247C25.4968 5 24.9179 5 23.76 5H14.9046H7.24Z" fill="url(#${morphUpperOverlayGradientId})" opacity="0"/>
+            </g>
+            <path data-folder-part="upper-outline" d="M7.24023 5.5H23.7598C24.3471 5.5 24.7568 5.50049 25.0752 5.52734C25.3875 5.5537 25.5669 5.60319 25.7021 5.6748C25.9676 5.81544 26.1846 6.03242 26.3252 6.29785C26.3968 6.4331 26.4463 6.61249 26.4727 6.9248C26.4995 7.24322 26.5 7.65291 26.5 8.24023V19.7598C26.5 20.3471 26.4995 20.7568 26.4727 21.0752C26.4463 21.3875 26.3968 21.5669 26.3252 21.7021C26.1846 21.9676 25.9676 22.1846 25.7021 22.3252C25.5669 22.3968 25.3875 22.4463 25.0752 22.4727C24.7568 22.4995 24.3471 22.5 23.7598 22.5H7.24023C6.65291 22.5 6.24322 22.4995 5.9248 22.4727C5.61249 22.4463 5.4331 22.3968 5.29785 22.3252C5.03242 22.1846 4.81544 21.9676 4.6748 21.7021C4.60319 21.5669 4.5537 21.3875 4.52734 21.0752C4.50049 20.7568 4.5 20.3471 4.5 19.7598V8.24023C4.5 7.65291 4.50049 7.24322 4.52734 6.9248C4.5537 6.61249 4.60319 6.4331 4.6748 6.29785C4.81544 6.03242 5.03242 5.81544 5.29785 5.6748C5.4331 5.60319 5.61249 5.5537 5.9248 5.52734C6.24322 5.50049 6.65291 5.5 7.24023 5.5Z" stroke="var(--stroke-0, #5393FF)"/>
+          </g>
+          <g class="x-nt-folder-shape x-nt-folder-shape--hover">
+            <g filter="url(#${hoverUpperFilterId})">
+              <path data-folder-part-hover="upper-body" d="M9.52978 13C8.56387 13 8.08092 13 7.68721 13.1785C7.36853 13.3231 7.09334 13.5487 6.88913 13.8328C6.63684 14.1839 6.54213 14.6574 6.3527 15.6046L5.6487 19.1246C5.37742 20.481 5.24179 21.1591 5.43499 21.6872C5.59036 22.1119 5.88507 22.4713 6.27102 22.707C6.75093 23 7.44255 23 8.82578 23H25.2175C26.1834 23 26.6663 23 27.06 22.8215C27.3787 22.6769 27.6539 22.4513 27.8581 22.1672C28.1104 21.8161 28.2051 21.3426 28.3945 20.3954L29.0985 16.8754C29.3698 15.519 29.5054 14.8409 29.3122 14.3128C29.1569 13.8881 28.8622 13.5287 28.4762 13.293C27.9963 13 27.3047 13 25.9215 13H17.7782H9.52978Z" fill="url(#${hoverUpperGradientId})"/>
+              <path data-folder-part-hover="upper-overlay" d="M9.52978 13C8.56387 13 8.08092 13 7.68721 13.1785C7.36853 13.3231 7.09334 13.5487 6.88913 13.8328C6.63684 14.1839 6.54213 14.6574 6.3527 15.6046L5.6487 19.1246C5.37742 20.481 5.24179 21.1591 5.43499 21.6872C5.59036 22.1119 5.88507 22.4713 6.27102 22.707C6.75093 23 7.44255 23 8.82578 23H25.2175C26.1834 23 26.6663 23 27.06 22.8215C27.3787 22.6769 27.6539 22.4513 27.8581 22.1672C28.1104 21.8161 28.2051 21.3426 28.3945 20.3954L29.0985 16.8754C29.3698 15.519 29.5054 14.8409 29.3122 14.3128C29.1569 13.8881 28.8622 13.5287 28.4762 13.293C27.9963 13 27.3047 13 25.9215 13H17.7782H9.52978Z" fill="url(#${hoverUpperOverlayGradientId})"/>
+            </g>
+            <path data-folder-part-hover="upper-outline" d="M9.52987 13.5H25.9215C26.6224 13.5 27.1147 13.5001 27.4928 13.5342C27.866 13.5679 28.0704 13.6312 28.2154 13.7197C28.5048 13.8964 28.7258 14.166 28.8424 14.4844C28.9007 14.6439 28.9225 14.8569 28.8824 15.2295C28.8417 15.6069 28.7455 16.09 28.608 16.7773L27.9039 20.2969C27.8077 20.7777 27.741 21.1113 27.6685 21.3691C27.5978 21.6206 27.5306 21.7653 27.4517 21.875C27.2986 22.0881 27.0921 22.2578 26.8531 22.3662C26.7301 22.4219 26.5753 22.4595 26.315 22.4795C26.0479 22.5 25.7079 22.5 25.2174 22.5H8.82576C8.12483 22.5 7.63254 22.4999 7.25447 22.4658C6.88123 22.4321 6.67684 22.3688 6.53182 22.2803C6.24245 22.1036 6.02143 21.834 5.90487 21.5156C5.84649 21.3561 5.8247 21.1431 5.86483 20.7705C5.90551 20.3931 6.00177 19.91 6.13924 19.2227L6.84334 15.7031C6.93951 15.2223 7.00623 14.8887 7.07869 14.6309C7.14939 14.3794 7.21668 14.2347 7.29549 14.125C7.44865 13.9119 7.65511 13.7422 7.89412 13.6338C8.0171 13.5781 8.17191 13.5405 8.43221 13.5205C8.69934 13.5 9.03932 13.5 9.52987 13.5Z" stroke="var(--stroke-0, #5393FF)"/>
+          </g>
+        </g>
+        <defs>
+          <filter id="${baseLowerFilterId}" x="0" y="0" width="31" height="29" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dy="2"/>
+            <feGaussianBlur stdDeviation="2"/>
+            <feComposite in2="hardAlpha" operator="out"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 0.541176 0 0 0 0 0.713726 0 0 0 0 1 0 0 0 0.21 0"/>
+            <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+          </filter>
+          <filter id="${hoverLowerFilterId}" x="0" y="1" width="31.7267" height="28" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dy="2"/>
+            <feGaussianBlur stdDeviation="2"/>
+            <feComposite in2="hardAlpha" operator="out"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 0.541176 0 0 0 0 0.713726 0 0 0 0 1 0 0 0 0.21 0"/>
+            <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+          </filter>
+          <filter id="${baseUpperFilterId}" x="3.5" y="5" width="26" height="18.8" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dy="0.8"/>
+            <feGaussianBlur stdDeviation="0.7"/>
+            <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.72 0"/>
+            <feBlend mode="normal" in2="shape" result="effect1_innerShadow"/>
+          </filter>
+          <filter id="${hoverUpperFilterId}" x="5.34419" y="13" width="24.0589" height="10.8" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dy="0.8"/>
+            <feGaussianBlur stdDeviation="0.7"/>
+            <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.72 0"/>
+            <feBlend mode="normal" in2="shape" result="effect1_innerShadow"/>
+          </filter>
+          <linearGradient id="${baseLowerGradientId}" x1="15.5" y1="2" x2="15.5" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#93BBFF"/>
+            <stop offset="0.884515" stop-color="#81B0FF"/>
+            <stop offset="0.884615" stop-color="#4389FF"/>
+            <stop offset="1" stop-color="#97BEFF"/>
+          </linearGradient>
+          <linearGradient id="${baseUpperGradientId}" x1="15.5" y1="2" x2="15.5" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#CCDFFF"/>
+            <stop offset="0.884515" stop-color="#B2CEFF"/>
+            <stop offset="0.884615" stop-color="#89B5FF"/>
+            <stop offset="1" stop-color="#97BEFF"/>
+          </linearGradient>
+          <linearGradient id="${hoverLowerGradientId}" x1="16.3736" y1="2" x2="16.3736" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#93BBFF"/>
+            <stop offset="0.884515" stop-color="#81B0FF"/>
+            <stop offset="0.884615" stop-color="#4389FF"/>
+            <stop offset="1" stop-color="#97BEFF"/>
+          </linearGradient>
+          <linearGradient id="${hoverUpperGradientId}" x1="16.3736" y1="2" x2="16.3736" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#93BBFF"/>
+            <stop offset="0.884515" stop-color="#81B0FF"/>
+            <stop offset="0.884615" stop-color="#4389FF"/>
+            <stop offset="1" stop-color="#97BEFF"/>
+          </linearGradient>
+          <linearGradient id="${hoverUpperOverlayGradientId}" x1="17.3736" y1="11.3333" x2="17.3736" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#CCDFFF"/>
+            <stop offset="0.884515" stop-color="#B2CEFF"/>
+            <stop offset="0.884615" stop-color="#89B5FF"/>
+            <stop offset="1" stop-color="#97BEFF"/>
+          </linearGradient>
+          <linearGradient id="${morphUpperGradientId}" data-folder-gradient-morph="upper-main" x1="15.5" y1="2" x2="15.5" y2="23" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#CCDFFF"></stop>
+            <stop offset="0.884515" stop-color="#B2CEFF"></stop>
+            <stop offset="0.884615" stop-color="#89B5FF"></stop>
+            <stop offset="1" stop-color="#97BEFF"></stop>
+          </linearGradient>
+          <linearGradient id="${morphUpperOverlayGradientId}" data-folder-gradient-morph="upper-overlay" x1="15.5" y1="2" x2="15.5" y2="23" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#CCDFFF"></stop>
+            <stop offset="0.884515" stop-color="#B2CEFF"></stop>
+            <stop offset="0.884615" stop-color="#89B5FF"></stop>
+            <stop offset="1" stop-color="#97BEFF"></stop>
+          </linearGradient>
+        </defs>
+      </svg>
+    `;
+  }
+
+  const FOLDER_PATH_MORPH_DURATION_MS = 460;
+  const FOLDER_PATH_MORPH_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const FOLDER_PATH_MORPH_POINT_SAMPLE_COUNT = 140;
+  const FOLDER_PATH_MORPH_BEZIER = {
+    x1: 0.22,
+    y1: 1,
+    x2: 0.36,
+    y2: 1
+  };
+
+  function cubicBezierSampleCurveX(t, x1, x2) {
+    const inv = 1 - t;
+    return 3 * inv * inv * t * x1 + 3 * inv * t * t * x2 + t * t * t;
+  }
+
+  function cubicBezierSampleCurveY(t, y1, y2) {
+    const inv = 1 - t;
+    return 3 * inv * inv * t * y1 + 3 * inv * t * t * y2 + t * t * t;
+  }
+
+  function cubicBezierSampleCurveDerivativeX(t, x1, x2) {
+    const inv = 1 - t;
+    return 3 * inv * inv * x1 + 6 * inv * t * (x2 - x1) + 3 * t * t * (1 - x2);
+  }
+
+  function cubicBezierEase(progress, bezier) {
+    const clamped = Math.max(0, Math.min(1, progress));
+    if (clamped === 0 || clamped === 1) {
+      return clamped;
+    }
+    let t = clamped;
+    for (let i = 0; i < 8; i += 1) {
+      const x = cubicBezierSampleCurveX(t, bezier.x1, bezier.x2) - clamped;
+      const dx = cubicBezierSampleCurveDerivativeX(t, bezier.x1, bezier.x2);
+      if (Math.abs(x) < 1e-6 || Math.abs(dx) < 1e-6) {
+        break;
+      }
+      t -= x / dx;
+    }
+    t = Math.max(0, Math.min(1, t));
+    return cubicBezierSampleCurveY(t, bezier.y1, bezier.y2);
+  }
+
+  function buildPathMorphTemplate(fromD, toD) {
+    const numberPattern = /-?\d*\.?\d+(?:e[-+]?\d+)?/gi;
+    const fromNumbers = (String(fromD || '').match(numberPattern) || []).map((value) => Number(value));
+    const toNumbers = (String(toD || '').match(numberPattern) || []).map((value) => Number(value));
+    if (!fromNumbers.length || fromNumbers.length !== toNumbers.length) {
+      return null;
+    }
+    const fromMask = String(fromD).replace(numberPattern, '#');
+    const toMask = String(toD).replace(numberPattern, '#');
+    if (fromMask !== toMask) {
+      return null;
+    }
+    const segments = String(fromD).split(numberPattern);
+    return { type: 'number', segments, fromNumbers, toNumbers };
+  }
+
+  function composeNumberPathD(segments, numbers) {
+    let output = '';
+    for (let i = 0; i < numbers.length; i += 1) {
+      output += `${segments[i]}${Number(numbers[i].toFixed(6))}`;
+    }
+    output += segments[numbers.length] || '';
+    return output;
+  }
+
+  function isClosedPathData(d) {
+    return /[zZ]\s*$/.test(String(d || '').trim());
+  }
+
+  function samplePathPoints(svgEl, d, sampleCount) {
+    if (!svgEl || !d) {
+      return null;
+    }
+    const count = Math.max(8, sampleCount | 0);
+    const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tempPath.setAttribute('d', d);
+    tempPath.setAttribute('fill', 'none');
+    tempPath.setAttribute('stroke', 'none');
+    tempPath.style.opacity = '0';
+    tempPath.style.pointerEvents = 'none';
+    svgEl.appendChild(tempPath);
+    try {
+      const total = tempPath.getTotalLength();
+      if (!Number.isFinite(total) || total <= 0) {
+        return null;
+      }
+      const closed = isClosedPathData(d);
+      const points = [];
+      const divisor = closed ? count : Math.max(1, count - 1);
+      for (let i = 0; i < count; i += 1) {
+        const ratio = i / divisor;
+        const len = Math.max(0, Math.min(total, total * ratio));
+        const point = tempPath.getPointAtLength(len);
+        points.push({ x: point.x, y: point.y });
+      }
+      return { points, closed };
+    } catch (error) {
+      return null;
+    } finally {
+      svgEl.removeChild(tempPath);
+    }
+  }
+
+  function buildPointMorphTemplate(pathEl, fromD, toD) {
+    if (!pathEl) {
+      return null;
+    }
+    const svgEl = pathEl.closest('svg');
+    if (!svgEl) {
+      return null;
+    }
+    const sampleCount = FOLDER_PATH_MORPH_POINT_SAMPLE_COUNT;
+    const fromData = samplePathPoints(svgEl, fromD, sampleCount);
+    const toData = samplePathPoints(svgEl, toD, sampleCount);
+    if (!fromData || !toData || fromData.points.length !== toData.points.length) {
+      return null;
+    }
+    const closed = fromData.closed && toData.closed;
+    let fromPoints = fromData.points;
+    let toPoints = toData.points;
+    if (closed && fromPoints.length > 4) {
+      const alignClosedPoints = (sourcePoints, targetPoints) => {
+        const rotatePoints = (points, shift) => {
+          const len = points.length;
+          const normalizedShift = ((shift % len) + len) % len;
+          if (!normalizedShift) {
+            return points.slice();
+          }
+          return points.slice(normalizedShift).concat(points.slice(0, normalizedShift));
+        };
+        const reversePoints = (points) => points.slice().reverse();
+        const calcScore = (aPoints, bPoints) => {
+          let total = 0;
+          for (let i = 0; i < aPoints.length; i += 1) {
+            const dx = aPoints[i].x - bPoints[i].x;
+            const dy = aPoints[i].y - bPoints[i].y;
+            total += dx * dx + dy * dy;
+          }
+          return total;
+        };
+        let best = targetPoints.slice();
+        let bestScore = Number.POSITIVE_INFINITY;
+        const directions = [targetPoints, reversePoints(targetPoints)];
+        for (let dirIndex = 0; dirIndex < directions.length; dirIndex += 1) {
+          const dirPoints = directions[dirIndex];
+          for (let shift = 0; shift < dirPoints.length; shift += 1) {
+            const candidate = rotatePoints(dirPoints, shift);
+            const score = calcScore(sourcePoints, candidate);
+            if (score < bestScore) {
+              bestScore = score;
+              best = candidate;
+            }
+          }
+        }
+        return best;
+      };
+      toPoints = alignClosedPoints(fromPoints, toPoints);
+    }
+    return {
+      type: 'point',
+      fromPoints,
+      toPoints,
+      closed
+    };
+  }
+
+  function composePointPathD(points, closed) {
+    if (!Array.isArray(points) || !points.length) {
+      return '';
+    }
+    let d = `M ${Number(points[0].x.toFixed(6))} ${Number(points[0].y.toFixed(6))}`;
+    for (let i = 1; i < points.length; i += 1) {
+      d += ` L ${Number(points[i].x.toFixed(6))} ${Number(points[i].y.toFixed(6))}`;
+    }
+    if (closed) {
+      d += ' Z';
+    }
+    return d;
+  }
+
+  function cancelFolderPathMorph(part) {
+    if (!part) {
+      return;
+    }
+    if (part.animationFrameId) {
+      cancelAnimationFrame(part.animationFrameId);
+      part.animationFrameId = 0;
+    }
+  }
+
+  function hexToRgb(hex) {
+    const raw = String(hex || '').trim();
+    const normalized = raw.startsWith('#') ? raw.slice(1) : raw;
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+      return null;
+    }
+    return {
+      r: Number.parseInt(normalized.slice(0, 2), 16),
+      g: Number.parseInt(normalized.slice(2, 4), 16),
+      b: Number.parseInt(normalized.slice(4, 6), 16)
+    };
+  }
+
+  function rgbToHex(rgb) {
+    const toHex = (value) => {
+      const v = Math.max(0, Math.min(255, Math.round(value)));
+      return v.toString(16).padStart(2, '0');
+    };
+    return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+  }
+
+  function lerpNumber(fromValue, toValue, t) {
+    return fromValue + (toValue - fromValue) * t;
+  }
+
+  function applyGradientMorphConfig(gradientEl, config) {
+    if (!gradientEl || !config) {
+      return;
+    }
+    gradientEl.setAttribute('x1', String(config.x1));
+    gradientEl.setAttribute('y1', String(config.y1));
+    gradientEl.setAttribute('x2', String(config.x2));
+    gradientEl.setAttribute('y2', String(config.y2));
+    const stops = gradientEl.querySelectorAll('stop');
+    config.stops.forEach((stopConfig, index) => {
+      const stopEl = stops[index];
+      if (!stopEl) {
+        return;
+      }
+      stopEl.setAttribute('offset', String(stopConfig.offset));
+      stopEl.setAttribute('stop-color', stopConfig.color);
+    });
+  }
+
+  function interpolateGradientConfig(fromConfig, toConfig, t) {
+    const progress = Math.max(0, Math.min(1, t));
+    const next = {
+      x1: Number(lerpNumber(fromConfig.x1, toConfig.x1, progress).toFixed(6)),
+      y1: Number(lerpNumber(fromConfig.y1, toConfig.y1, progress).toFixed(6)),
+      x2: Number(lerpNumber(fromConfig.x2, toConfig.x2, progress).toFixed(6)),
+      y2: Number(lerpNumber(fromConfig.y2, toConfig.y2, progress).toFixed(6)),
+      stops: []
+    };
+    for (let i = 0; i < fromConfig.stops.length; i += 1) {
+      const fromStop = fromConfig.stops[i];
+      const toStop = toConfig.stops[i];
+      if (!fromStop || !toStop) {
+        continue;
+      }
+      const fromRgb = hexToRgb(fromStop.color);
+      const toRgb = hexToRgb(toStop.color);
+      const color = (fromRgb && toRgb)
+        ? rgbToHex({
+          r: lerpNumber(fromRgb.r, toRgb.r, progress),
+          g: lerpNumber(fromRgb.g, toRgb.g, progress),
+          b: lerpNumber(fromRgb.b, toRgb.b, progress)
+        })
+        : (progress < 0.5 ? fromStop.color : toStop.color);
+      next.stops.push({
+        offset: Number(lerpNumber(fromStop.offset, toStop.offset, progress).toFixed(6)),
+        color
+      });
+    }
+    return next;
+  }
+
+  function initFolderUpperGradientMorph(folderIcon) {
+    if (!folderIcon || folderIcon._xUpperGradientMorph) {
+      return;
+    }
+    const svg = folderIcon.querySelector('svg');
+    if (!svg) {
+      return;
+    }
+    const mainGradientEl = svg.querySelector('[data-folder-gradient-morph="upper-main"]');
+    const overlayGradientEl = svg.querySelector('[data-folder-gradient-morph="upper-overlay"]');
+    if (!mainGradientEl || !overlayGradientEl) {
+      return;
+    }
+    const baseMain = {
+      x1: 15.5, y1: 2, x2: 15.5, y2: 23,
+      stops: [
+        { offset: 0, color: '#CCDFFF' },
+        { offset: 0.884515, color: '#B2CEFF' },
+        { offset: 0.884615, color: '#89B5FF' },
+        { offset: 1, color: '#97BEFF' }
+      ]
+    };
+    const hoverMain = {
+      x1: 16.3736, y1: 2, x2: 16.3736, y2: 23,
+      stops: [
+        { offset: 0, color: '#93BBFF' },
+        { offset: 0.884515, color: '#81B0FF' },
+        { offset: 0.884615, color: '#4389FF' },
+        { offset: 1, color: '#97BEFF' }
+      ]
+    };
+    const baseOverlay = {
+      x1: 15.5, y1: 2, x2: 15.5, y2: 23,
+      stops: [
+        { offset: 0, color: '#CCDFFF' },
+        { offset: 0.884515, color: '#B2CEFF' },
+        { offset: 0.884615, color: '#89B5FF' },
+        { offset: 1, color: '#97BEFF' }
+      ]
+    };
+    const hoverOverlay = {
+      x1: 17.3736, y1: 11.3333, x2: 17.3736, y2: 23,
+      stops: [
+        { offset: 0, color: '#CCDFFF' },
+        { offset: 0.827284, color: '#B2CEFF' },
+        { offset: 0.85339, color: '#89B5FF' },
+        { offset: 1, color: '#97BEFF' }
+      ]
+    };
+    folderIcon._xUpperGradientMorph = {
+      mainGradientEl,
+      overlayGradientEl,
+      baseMain,
+      hoverMain,
+      baseOverlay,
+      hoverOverlay,
+      state: 'base',
+      rafId: 0
+    };
+    applyGradientMorphConfig(mainGradientEl, baseMain);
+    applyGradientMorphConfig(overlayGradientEl, baseOverlay);
+  }
+
+  function playFolderUpperGradientMorph(folderIcon, toHover) {
+    if (!folderIcon) {
+      return;
+    }
+    if (!folderIcon._xUpperGradientMorph) {
+      initFolderUpperGradientMorph(folderIcon);
+    }
+    const morphState = folderIcon._xUpperGradientMorph;
+    if (!morphState) {
+      return;
+    }
+    const targetState = toHover ? 'hover' : 'base';
+    if (morphState.state === targetState) {
+      return;
+    }
+    morphState.state = targetState;
+    if (morphState.rafId) {
+      cancelAnimationFrame(morphState.rafId);
+      morphState.rafId = 0;
+    }
+    const fromMain = toHover ? morphState.baseMain : morphState.hoverMain;
+    const toMain = toHover ? morphState.hoverMain : morphState.baseMain;
+    const fromOverlay = toHover ? morphState.baseOverlay : morphState.hoverOverlay;
+    const toOverlay = toHover ? morphState.hoverOverlay : morphState.baseOverlay;
+    const startTime = performance.now();
+    const tick = (now) => {
+      const rawProgress = Math.max(0, Math.min(1, (now - startTime) / FOLDER_PATH_MORPH_DURATION_MS));
+      const eased = cubicBezierEase(rawProgress, FOLDER_PATH_MORPH_BEZIER);
+      applyGradientMorphConfig(morphState.mainGradientEl, interpolateGradientConfig(fromMain, toMain, eased));
+      applyGradientMorphConfig(morphState.overlayGradientEl, interpolateGradientConfig(fromOverlay, toOverlay, eased));
+      if (rawProgress < 1) {
+        morphState.rafId = requestAnimationFrame(tick);
+        return;
+      }
+      morphState.rafId = 0;
+      applyGradientMorphConfig(morphState.mainGradientEl, toMain);
+      applyGradientMorphConfig(morphState.overlayGradientEl, toOverlay);
+    };
+    morphState.rafId = requestAnimationFrame(tick);
+  }
+
+  function setFolderUpperFilterSuspended(folderIcon, suspended) {
+    if (!folderIcon) {
+      return;
+    }
+    const svg = folderIcon.querySelector('svg');
+    if (!svg) {
+      return;
+    }
+    const upperFilterGroup = svg.querySelector('g[data-folder-layer="upper"] .x-nt-folder-shape--base > g[filter]');
+    if (!upperFilterGroup) {
+      return;
+    }
+    if (suspended) {
+      if (typeof upperFilterGroup._xOriginalFilterAttr === 'undefined') {
+        upperFilterGroup._xOriginalFilterAttr = upperFilterGroup.getAttribute('filter');
+      }
+      upperFilterGroup.setAttribute('filter', 'none');
+      return;
+    }
+    const original = upperFilterGroup._xOriginalFilterAttr;
+    if (typeof original === 'string' && original) {
+      upperFilterGroup.setAttribute('filter', original);
+    } else {
+      upperFilterGroup.removeAttribute('filter');
+    }
+  }
+
+  function animatePathDWithCurve(part, fromD, toD) {
+    let template = buildPathMorphTemplate(fromD, toD);
+    if (!template) {
+      template = buildPointMorphTemplate(part.pathEl, fromD, toD);
+    }
+    if (!template) {
+      part.pathEl.setAttribute('d', toD);
+      return false;
+    }
+    cancelFolderPathMorph(part);
+    const startTime = performance.now();
+    const syncFollowers = (dValue) => {
+      if (!part || !Array.isArray(part.linkedFollowers) || !part.linkedFollowers.length) {
+        return;
+      }
+      part.linkedFollowers.forEach((el) => {
+        if (el && typeof el.setAttribute === 'function') {
+          el.setAttribute('d', dValue);
+        }
+      });
+    };
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const rawProgress = Math.max(0, Math.min(1, elapsed / FOLDER_PATH_MORPH_DURATION_MS));
+      const eased = cubicBezierEase(rawProgress, FOLDER_PATH_MORPH_BEZIER);
+      if (template.type === 'number') {
+        const values = template.fromNumbers.map((fromValue, index) => {
+          const toValue = template.toNumbers[index];
+          return fromValue + (toValue - fromValue) * eased;
+        });
+        const nextD = composeNumberPathD(template.segments, values);
+        part.pathEl.setAttribute('d', nextD);
+        syncFollowers(nextD);
+      } else {
+        const points = template.fromPoints.map((fromPoint, index) => {
+          const toPoint = template.toPoints[index];
+          return {
+            x: fromPoint.x + (toPoint.x - fromPoint.x) * eased,
+            y: fromPoint.y + (toPoint.y - fromPoint.y) * eased
+          };
+        });
+        const nextD = composePointPathD(points, template.closed);
+        part.pathEl.setAttribute('d', nextD);
+        syncFollowers(nextD);
+      }
+      if (rawProgress < 1) {
+        part.animationFrameId = requestAnimationFrame(tick);
+        return;
+      }
+      part.pathEl.setAttribute('d', toD);
+      syncFollowers(toD);
+      part.animationFrameId = 0;
+    };
+    part.animationFrameId = requestAnimationFrame(tick);
+    return true;
+  }
+
+  function initFolderPathMorph(folderIcon) {
+    if (!folderIcon || folderIcon._xFolderMorphParts) {
+      return;
+    }
+    const svg = folderIcon.querySelector('svg');
+    if (!svg) {
+      folderIcon._xFolderMorphParts = [];
+      return;
+    }
+    const hoverPathMap = new Map();
+    svg.querySelectorAll('[data-folder-part-hover]').forEach((pathEl) => {
+      const partName = pathEl.getAttribute('data-folder-part-hover');
+      const partD = pathEl.getAttribute('d');
+      if (!partName || !partD) {
+        return;
+      }
+      hoverPathMap.set(partName, partD);
+    });
+    const parts = [];
+    svg.querySelectorAll('[data-folder-part]').forEach((pathEl) => {
+      const partName = pathEl.getAttribute('data-folder-part');
+      const baseD = pathEl.getAttribute('d');
+      const hoverD = hoverPathMap.get(partName);
+      if (!partName || !baseD || !hoverD) {
+        return;
+      }
+      parts.push({
+        partName,
+        pathEl,
+        baseD,
+        hoverD,
+        fillBase: pathEl.getAttribute('data-folder-fill-base') || '',
+        fillHover: pathEl.getAttribute('data-folder-fill-hover') || '',
+        opacityBase: Number.parseFloat(pathEl.getAttribute('data-folder-opacity-base')),
+        opacityHover: Number.parseFloat(pathEl.getAttribute('data-folder-opacity-hover')),
+        linkedFollowers: [],
+        animationFrameId: 0
+      });
+    });
+    const partMap = new Map();
+    parts.forEach((part) => {
+      partMap.set(part.partName, part);
+    });
+    const upperBodyPart = partMap.get('upper-body');
+    const upperOverlayPart = partMap.get('upper-overlay');
+    if (upperBodyPart && upperOverlayPart) {
+      upperBodyPart.linkedFollowers.push(upperOverlayPart.pathEl);
+    }
+    parts.forEach((part) => {
+      if (part.fillBase) {
+        part.pathEl.setAttribute('fill', part.fillBase);
+      }
+      if (Number.isFinite(part.opacityBase)) {
+        part.pathEl.style.opacity = String(part.opacityBase);
+      }
+    });
+    folderIcon._xFolderMorphParts = parts;
+    folderIcon._xFolderMorphState = 'base';
+  }
+
+  function playFolderPathMorph(folderIcon, toHover) {
+    if (!folderIcon) {
+      return;
+    }
+    if (!folderIcon._xFolderMorphParts) {
+      initFolderPathMorph(folderIcon);
+    }
+    const parts = Array.isArray(folderIcon._xFolderMorphParts) ? folderIcon._xFolderMorphParts : [];
+    if (!parts.length) {
+      return;
+    }
+    const targetState = toHover ? 'hover' : 'base';
+    if (folderIcon._xFolderMorphState === targetState) {
+      return;
+    }
+    setFolderUpperFilterSuspended(folderIcon, true);
+    playFolderUpperGradientMorph(folderIcon, toHover);
+    if (folderIcon._xUpperFilterRestoreTimerId) {
+      clearTimeout(folderIcon._xUpperFilterRestoreTimerId);
+      folderIcon._xUpperFilterRestoreTimerId = 0;
+    }
+    folderIcon._xUpperFilterRestoreTimerId = window.setTimeout(() => {
+      folderIcon._xUpperFilterRestoreTimerId = 0;
+      setFolderUpperFilterSuspended(folderIcon, false);
+    }, FOLDER_PATH_MORPH_DURATION_MS + 48);
+    folderIcon._xFolderMorphState = targetState;
+    parts.forEach((part) => {
+      const currentD = part.pathEl && typeof part.pathEl.getAttribute === 'function'
+        ? (part.pathEl.getAttribute('d') || '')
+        : '';
+      const fromD = currentD || (toHover ? part.baseD : part.hoverD);
+      const toD = toHover ? part.hoverD : part.baseD;
+      if (!part.pathEl || !fromD || !toD) {
+        return;
+      }
+      const targetFill = toHover ? part.fillHover : part.fillBase;
+      if (targetFill) {
+        part.pathEl.setAttribute('fill', targetFill);
+      }
+      if (Number.isFinite(part.opacityBase) && Number.isFinite(part.opacityHover)) {
+        part.pathEl.style.transition = `opacity ${FOLDER_PATH_MORPH_DURATION_MS}ms ${FOLDER_PATH_MORPH_EASING}`;
+        part.pathEl.style.opacity = String(toHover ? part.opacityHover : part.opacityBase);
+      }
+      if (part.partName === 'upper-overlay') {
+        const upperBodyPart = parts.find((item) => item.partName === 'upper-body');
+        if (upperBodyPart && upperBodyPart.pathEl) {
+          part.pathEl.setAttribute('d', upperBodyPart.pathEl.getAttribute('d') || toD);
+          return;
+        }
+      }
+      const animated = animatePathDWithCurve(part, fromD, toD);
+      if (!animated) {
+        part.pathEl.setAttribute('d', toD);
+        part.animationFrameId = 0;
+      }
+    });
+  }
+
   function getSearchEngineById(id) {
     if (!id) {
       return null;
@@ -303,9 +1036,107 @@
     recentHeading.textContent = t(key, fallback);
   }
 
+  function updateBookmarkHeading() {
+    if (!bookmarkHeading) {
+      return;
+    }
+    bookmarkHeading.textContent = t('bookmarks_heading', '书签');
+  }
+
+  function navigateBookmarkFolder(targetId) {
+    const id = String(targetId || '').trim();
+    if (!id) {
+      return;
+    }
+    bookmarkCurrentFolderId = id;
+    bookmarkCurrentPage = 0;
+    bookmarkRenderSignature = '';
+    loadBookmarks();
+  }
+
+  function updateBookmarkHeadingRootLinkState(isNested) {
+    if (!bookmarkHeading) {
+      return;
+    }
+    const nested = !!isNested;
+    bookmarkHeading.classList.toggle('x-nt-bookmarks-heading--link', nested);
+    bookmarkHeading._xCanNavigateRoot = nested;
+    if (nested) {
+      const rootLabel = t('bookmarks_heading', '书签');
+      bookmarkHeading.setAttribute('role', 'button');
+      bookmarkHeading.setAttribute('tabindex', '0');
+      bookmarkHeading.setAttribute('aria-label', rootLabel);
+      bookmarkHeading.title = rootLabel;
+    } else {
+      bookmarkHeading.removeAttribute('role');
+      bookmarkHeading.removeAttribute('tabindex');
+      bookmarkHeading.removeAttribute('aria-label');
+      bookmarkHeading.title = '';
+    }
+  }
+
+  function updateBookmarkPagerLabels() {
+    if (bookmarkPagerPrevButton) {
+      const prevLabel = t('bookmarks_page_prev', '上一页');
+      bookmarkPagerPrevButton.title = prevLabel;
+      bookmarkPagerPrevButton.setAttribute('aria-label', prevLabel);
+    }
+    if (bookmarkPagerNextButton) {
+      const nextLabel = t('bookmarks_page_next', '下一页');
+      bookmarkPagerNextButton.title = nextLabel;
+      bookmarkPagerNextButton.setAttribute('aria-label', nextLabel);
+    }
+  }
+
+  function updateBookmarkBreadcrumb() {
+    if (!bookmarkBreadcrumb) {
+      return;
+    }
+    const path = Array.isArray(bookmarkFolderPath) ? bookmarkFolderPath : [];
+    bookmarkBreadcrumb.innerHTML = '';
+    if (path.length <= 1) {
+      bookmarkBreadcrumb.style.setProperty('display', 'none');
+      updateBookmarkHeadingRootLinkState(false);
+      return;
+    }
+    updateBookmarkHeadingRootLinkState(true);
+    const pathWithoutRoot = path.slice(1);
+    bookmarkBreadcrumb.style.setProperty('display', 'inline-flex');
+    pathWithoutRoot.forEach((crumb, index) => {
+      const isCurrent = index === (pathWithoutRoot.length - 1);
+      const separator = document.createElement('span');
+      separator.className = 'x-nt-bookmarks-crumb-sep';
+      separator.textContent = '/';
+      bookmarkBreadcrumb.appendChild(separator);
+      const crumbButton = document.createElement('button');
+      crumbButton.type = 'button';
+      crumbButton.className = 'x-nt-bookmarks-crumb';
+      const title = String(crumb && crumb.title ? crumb.title : '').trim() || t('bookmarks_heading', '书签');
+      crumbButton.textContent = title;
+      crumbButton.title = title;
+      crumbButton.setAttribute('aria-label', title);
+      if (isCurrent) {
+        crumbButton.setAttribute('aria-current', 'page');
+        crumbButton.disabled = true;
+      } else {
+        crumbButton.addEventListener('click', () => {
+          const targetId = crumb && crumb.id ? String(crumb.id) : '';
+          if (!targetId) {
+            return;
+          }
+          navigateBookmarkFolder(targetId);
+        });
+      }
+      bookmarkBreadcrumb.appendChild(crumbButton);
+    });
+  }
+
   function applyLanguageStrings() {
     document.title = t('newtab_page_title', 'New Tab');
     updateRecentHeading();
+    updateBookmarkHeading();
+    updateBookmarkPagerLabels();
+    updateBookmarkBreadcrumb();
     if (inputParts && inputParts.input) {
       defaultPlaceholderText = t('search_placeholder', defaultPlaceholderText);
       if (!siteSearchState) {
@@ -322,6 +1153,14 @@
         return;
       }
       card._xActionText.textContent = t('visit_label', '访问');
+      card.setAttribute('aria-label', formatMessage('open_prefix', '打开 {title}', {
+        title: card._xTitleText
+      }));
+    });
+    bookmarkCards.forEach((card) => {
+      if (!card || !card._xTitleText) {
+        return;
+      }
       card.setAttribute('aria-label', formatMessage('open_prefix', '打开 {title}', {
         title: card._xTitleText
       }));
@@ -376,6 +1215,12 @@
         return;
       }
       applyRecentCardTheme(card, card._xTheme, card._xHost);
+    });
+    bookmarkCards.forEach((card) => {
+      if (!card || !card._xHost || !card._xTheme) {
+        return;
+      }
+      applyBookmarkCardTheme(card, card._xTheme, card._xHost);
     });
     applyLanguageStrings();
     updateSelection();
@@ -654,6 +1499,16 @@
       Math.round(color[1] + (target[1] - color[1]) * amount),
       Math.round(color[2] + (target[2] - color[2]) * amount)
     ];
+  }
+
+  function stableHashCode(text) {
+    const input = String(text || '');
+    let hash = 0;
+    for (let i = 0; i < input.length; i += 1) {
+      hash = ((hash << 5) - hash) + input.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
   }
 
   function rgbToCss(rgb) {
@@ -1327,6 +2182,25 @@
       return node;
     }
     node = document.createElement('span');
+    const isFolderPreview = !!(img.classList && img.classList.contains('x-nt-folder-preview-favicon'));
+    const isBookmarkLeadingIcon = !!(
+      img.classList &&
+      img.classList.contains('x-nt-bookmark-icon') &&
+      img.parentElement &&
+      img.parentElement.classList &&
+      img.parentElement.classList.contains('x-nt-bookmark-card')
+    );
+    if (isFolderPreview) {
+      node.className = 'x-nt-folder-preview-favicon x-nt-folder-preview-favicon--fallback _x_extension_favicon_fallback_2024_unique_';
+      node.style.cssText = `
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      `;
+      node.innerHTML = getRiSvg('ri-link-m', 'ri-size-12');
+      img.parentElement.insertBefore(node, img);
+      return node;
+    }
     node.className = '_x_extension_favicon_fallback_2024_unique_';
     node.style.cssText = `
       display: inline-flex !important;
@@ -1335,7 +2209,7 @@
       width: ${img.clientWidth || 25}px !important;
       height: ${img.clientHeight || 25}px !important;
       border-radius: 6px !important;
-      background: var(--x-nt-tag-bg, #F3F4F6) !important;
+      background: ${isBookmarkLeadingIcon ? '#FFFFFF' : 'var(--x-nt-tag-bg, #F3F4F6)'} !important;
       color: var(--x-nt-tag-text, #6B7280) !important;
       box-sizing: border-box !important;
       padding: 3px !important;
@@ -1715,6 +2589,14 @@
     }
   }
 
+  function openBookmarkFolder(nodeId) {
+    const id = String(nodeId || '').trim();
+    if (!id) {
+      return;
+    }
+    navigateBookmarkFolder(id);
+  }
+
   function markCurrentTabForSearchTracking() {
     if (!chrome || !chrome.tabs || !chrome.tabs.getCurrent || !chrome.runtime || !chrome.runtime.sendMessage) {
       return;
@@ -1769,13 +2651,16 @@
   suggestionsContainer.style.cssText = `
     all: unset !important;
     width: 100% !important;
-    margin-top: 8px !important;
+    margin-top: 0 !important;
     position: relative !important;
-    z-index: 3 !important;
-    background: var(--x-nt-suggestions-bg, #FFFFFF) !important;
-    border-radius: 20px !important;
-    border: 1px solid var(--x-nt-suggestions-border, rgba(0, 0, 0, 0.06)) !important;
-    box-shadow: var(--x-nt-suggestions-shadow, 0 18px 44px rgba(0, 0, 0, 0.08)) !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    z-index: 1 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     padding: 8px !important;
     box-sizing: border-box !important;
     display: none !important;
@@ -1797,9 +2682,68 @@
     vertical-align: baseline !important;
   `;
 
+  const bookmarkSection = document.createElement('section');
+  bookmarkSection.id = '_x_extension_newtab_bookmarks_2024_unique_';
+  bookmarkSection.style.setProperty('display', 'none', 'important');
+  bookmarkSection.style.setProperty('margin', '0', 'important');
+  bookmarkSection.style.setProperty('width', '100%', 'important');
+  bookmarkSection.style.setProperty('pointer-events', 'auto', 'important');
+  const bookmarkHeader = document.createElement('div');
+  bookmarkHeader.className = 'x-nt-bookmarks-header';
+  bookmarkTitleWrap = document.createElement('div');
+  bookmarkTitleWrap.className = 'x-nt-bookmarks-title-wrap';
+  const bookmarkHeading = document.createElement('div');
+  bookmarkHeading.className = 'x-nt-bookmarks-heading';
+  updateBookmarkHeading();
+  bookmarkBreadcrumb = document.createElement('div');
+  bookmarkBreadcrumb.className = 'x-nt-bookmarks-breadcrumb';
+  bookmarkBreadcrumb.style.setProperty('display', 'none');
+  const bookmarkPager = document.createElement('div');
+  bookmarkPager.className = 'x-nt-bookmarks-pager';
+  bookmarkPagerPrevButton = document.createElement('button');
+  bookmarkPagerPrevButton.type = 'button';
+  bookmarkPagerPrevButton.className = 'x-nt-bookmarks-pager-btn';
+  bookmarkPagerPrevButton.innerHTML = getRiSvg('ri-arrow-left-s-line', 'ri-size-16');
+  bookmarkPagerNextButton = document.createElement('button');
+  bookmarkPagerNextButton.type = 'button';
+  bookmarkPagerNextButton.className = 'x-nt-bookmarks-pager-btn';
+  bookmarkPagerNextButton.innerHTML = getRiSvg('ri-arrow-right-s-line', 'ri-size-16');
+  bookmarkPager.appendChild(bookmarkPagerPrevButton);
+  bookmarkPager.appendChild(bookmarkPagerNextButton);
+  bookmarkTitleWrap.appendChild(bookmarkHeading);
+  bookmarkTitleWrap.appendChild(bookmarkBreadcrumb);
+  bookmarkHeader.appendChild(bookmarkTitleWrap);
+  bookmarkHeader.appendChild(bookmarkPager);
+  bookmarkHeading.addEventListener('click', () => {
+    if (!bookmarkHeading._xCanNavigateRoot) {
+      return;
+    }
+    navigateBookmarkFolder(bookmarkRootFolderId);
+  });
+  bookmarkHeading.addEventListener('keydown', (event) => {
+    if (!bookmarkHeading._xCanNavigateRoot) {
+      return;
+    }
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    event.preventDefault();
+    navigateBookmarkFolder(bookmarkRootFolderId);
+  });
+  updateBookmarkPagerLabels();
+  updateBookmarkBreadcrumb();
+  const bookmarkGrid = document.createElement('div');
+  bookmarkGrid.id = '_x_extension_newtab_bookmarks_grid_2024_unique_';
+  bookmarkSection.appendChild(bookmarkHeader);
+  bookmarkSection.appendChild(bookmarkGrid);
+  let bookmarkRenderSignature = '';
+
   const recentSection = document.createElement('section');
   recentSection.id = '_x_extension_newtab_recent_sites_2024_unique_';
   recentSection.style.setProperty('display', 'none', 'important');
+  recentSection.style.setProperty('margin', '0', 'important');
+  recentSection.style.setProperty('width', '100%', 'important');
+  recentSection.style.setProperty('pointer-events', 'auto', 'important');
   const recentHeading = document.createElement('div');
   recentHeading.className = 'x-nt-recent-heading';
   updateRecentHeading();
@@ -1808,6 +2752,344 @@
   recentSection.appendChild(recentHeading);
   recentSection.appendChild(recentGrid);
   let recentRenderSignature = '';
+  const bottomDock = document.createElement('div');
+  bottomDock.id = '_x_extension_newtab_bottom_dock_2024_unique_';
+  bottomDock.style.cssText = `
+    all: unset !important;
+    position: fixed !important;
+    left: 50% !important;
+    bottom: 0 !important;
+    transform: translateX(-50%) !important;
+    width: min(96vw, 1040px) !important;
+    max-height: calc(100vh - 240px) !important;
+    display: none !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 32px !important;
+    padding: 0 0 60px 0 !important;
+    box-sizing: border-box !important;
+    z-index: 2 !important;
+    pointer-events: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+  `;
+
+  bookmarkPagerPrevButton.addEventListener('click', () => {
+    if (bookmarkCurrentPage <= 0) {
+      return;
+    }
+    switchBookmarkPage(bookmarkCurrentPage - 1);
+  });
+  bookmarkPagerNextButton.addEventListener('click', () => {
+    const pageCount = getBookmarkPageCount();
+    if (bookmarkCurrentPage >= (pageCount - 1)) {
+      return;
+    }
+    switchBookmarkPage(bookmarkCurrentPage + 1);
+  });
+
+  function getBookmarksSignature(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return '';
+    }
+    return items.map((item, index) => {
+      const id = item && item.id ? String(item.id) : '';
+      const type = item && item.type ? String(item.type) : '';
+      const title = item && item.title ? String(item.title) : '';
+      const url = item && item.url ? String(item.url) : '';
+      const themeUrl = item && item.themeUrl ? String(item.themeUrl) : '';
+      return `${index}::${id}::${type}::${title}::${url}::${themeUrl}`;
+    }).join('\n');
+  }
+
+  function getBookmarkCacheKey(item) {
+    if (!item) {
+      return '';
+    }
+    const id = item.id ? String(item.id) : '';
+    const type = item.type ? String(item.type) : '';
+    const title = item.title ? String(item.title) : '';
+    const url = item.url ? String(item.url) : '';
+    const themeUrl = item.themeUrl ? String(item.themeUrl) : '';
+    return `${id}::${type}::${title}::${url}::${themeUrl}`;
+  }
+
+  function syncBookmarkCardElementCache(items) {
+    // Keep cache across folder levels so entering subfolders does not reload favicons.
+    // Soft-limit cache size to avoid unbounded growth.
+    const MAX_CACHE_SIZE = 1500;
+    if (bookmarkCardElementCache.size <= MAX_CACHE_SIZE) {
+      return;
+    }
+    const keys = Array.from(bookmarkCardElementCache.keys());
+    const removeCount = Math.max(1, bookmarkCardElementCache.size - MAX_CACHE_SIZE);
+    for (let i = 0; i < removeCount && i < keys.length; i += 1) {
+      bookmarkCardElementCache.delete(keys[i]);
+    }
+  }
+
+  function getBookmarkPageCount() {
+    const total = Array.isArray(bookmarkAllItems) ? bookmarkAllItems.length : 0;
+    return Math.max(1, Math.ceil(total / BOOKMARK_LIMIT));
+  }
+
+  function getBookmarkPageItems() {
+    if (!Array.isArray(bookmarkAllItems) || bookmarkAllItems.length === 0) {
+      return [];
+    }
+    const pageCount = getBookmarkPageCount();
+    bookmarkCurrentPage = Math.min(Math.max(0, bookmarkCurrentPage), pageCount - 1);
+    const start = bookmarkCurrentPage * BOOKMARK_LIMIT;
+    return bookmarkAllItems.slice(start, start + BOOKMARK_LIMIT);
+  }
+
+  function updateBookmarkPagerState() {
+    if (!bookmarkPagerPrevButton || !bookmarkPagerNextButton) {
+      return;
+    }
+    const pageCount = getBookmarkPageCount();
+    const atStart = bookmarkCurrentPage <= 0;
+    const atEnd = bookmarkCurrentPage >= (pageCount - 1);
+    bookmarkPagerPrevButton.disabled = atStart;
+    bookmarkPagerNextButton.disabled = atEnd;
+    bookmarkPagerPrevButton.setAttribute('aria-disabled', atStart ? 'true' : 'false');
+    bookmarkPagerNextButton.setAttribute('aria-disabled', atEnd ? 'true' : 'false');
+  }
+
+  function updateBookmarkGridHeightLock() {
+    if (!bookmarkGrid) {
+      return;
+    }
+    const total = Array.isArray(bookmarkAllItems) ? bookmarkAllItems.length : 0;
+    const cols = window.innerWidth <= 860 ? 2 : 4;
+    const firstCard = bookmarkGrid.querySelector('.x-nt-bookmark-card');
+    const cardHeight = firstCard ? firstCard.getBoundingClientRect().height : 51;
+    const gridStyle = window.getComputedStyle(bookmarkGrid);
+    const rowGap = Number.parseFloat(gridStyle.rowGap) || 16;
+    const isAtRoot = String(bookmarkCurrentFolderId || '') === String(bookmarkRootFolderId || '1');
+    let targetItemCount = 0;
+
+    if (isAtRoot) {
+      if (total <= BOOKMARK_LIMIT) {
+        bookmarkGrid.style.removeProperty('min-height');
+        return;
+      }
+      targetItemCount = BOOKMARK_LIMIT;
+    } else {
+      if (bookmarkRootTotalCount > BOOKMARK_LIMIT) {
+        targetItemCount = BOOKMARK_LIMIT;
+      } else {
+        targetItemCount = Math.max(0, bookmarkRootVisibleCount);
+      }
+      if (targetItemCount <= 0) {
+        if (total <= BOOKMARK_LIMIT) {
+          bookmarkGrid.style.removeProperty('min-height');
+          return;
+        }
+        targetItemCount = BOOKMARK_LIMIT;
+      }
+    }
+
+    const rowsPerPage = Math.max(1, Math.ceil(targetItemCount / cols));
+    const minHeight = (rowsPerPage * cardHeight) + ((rowsPerPage - 1) * rowGap);
+    bookmarkGrid.style.setProperty('min-height', `${Math.ceil(minHeight)}px`);
+  }
+
+  function renderCurrentBookmarkPage() {
+    renderBookmarks(getBookmarkPageItems());
+    updateBookmarkPagerState();
+  }
+
+  function switchBookmarkPage(nextPage) {
+    const pageCount = getBookmarkPageCount();
+    const targetPage = Math.min(Math.max(0, Number(nextPage) || 0), pageCount - 1);
+    if (targetPage === bookmarkCurrentPage) {
+      return;
+    }
+    if (bookmarkPageAnimating) {
+      return;
+    }
+    if (!bookmarkGrid) {
+      bookmarkCurrentPage = targetPage;
+      renderCurrentBookmarkPage();
+      updateBookmarkSectionPosition();
+      return;
+    }
+    const direction = targetPage > bookmarkCurrentPage ? 1 : -1;
+    const offsetPx = 34;
+    const durationMs = 220;
+    const fadeBlurDurationMs = 150;
+    const colStaggerMs = 24;
+    const rowStaggerMs = 10;
+    const randomJitterRangeMs = 6;
+    const handoffOverlapMs = 70;
+    const cols = window.innerWidth <= 860 ? 2 : 4;
+    const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
+    bookmarkPageAnimating = true;
+    const getCards = () => Array.from(bookmarkGrid.children || []);
+    const getDelayByIndex = (card, index, pageSeed) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const seedText = `${pageSeed || 0}|${index}|${card && card._xTitleText ? card._xTitleText : ''}`;
+      const seed = Math.abs(stableHashCode(seedText));
+      const jitter = (seed % (randomJitterRangeMs * 2 + 1)) - randomJitterRangeMs;
+      return Math.max(0, (col * colStaggerMs) + (row * rowStaggerMs) + jitter);
+    };
+
+    const cleanupCards = (cards) => {
+      cards.forEach((card) => {
+        card.style.removeProperty('transition');
+        card.style.removeProperty('transform');
+        card.style.removeProperty('opacity');
+        card.style.removeProperty('filter');
+        card.style.removeProperty('will-change');
+      });
+    };
+
+    const cleanup = (cards) => {
+      cleanupCards(cards);
+      bookmarkPageAnimating = false;
+    };
+
+    const enterNextPage = () => {
+      bookmarkCurrentPage = targetPage;
+      renderCurrentBookmarkPage();
+      updateBookmarkSectionPosition();
+      const nextCards = getCards();
+      if (nextCards.length === 0) {
+        cleanup(nextCards);
+        return;
+      }
+      nextCards.forEach((card, index) => {
+        card.style.setProperty('will-change', 'transform, opacity, filter');
+        card.style.setProperty('transition', 'none');
+        card.style.setProperty('opacity', '0');
+        card.style.setProperty('filter', 'blur(5px)');
+        card.style.setProperty('transform', `translateX(${direction * offsetPx}px)`);
+      });
+      void bookmarkGrid.offsetHeight;
+      let maxInDelay = 0;
+      nextCards.forEach((card, index) => {
+        const delay = getDelayByIndex(card, index, targetPage);
+        if (delay > maxInDelay) {
+          maxInDelay = delay;
+        }
+        card.style.setProperty(
+          'transition',
+          `transform ${durationMs}ms ${easing} ${delay}ms, opacity ${fadeBlurDurationMs}ms ${easing} ${delay}ms, filter ${fadeBlurDurationMs}ms ${easing} ${delay}ms`
+        );
+        card.style.setProperty('opacity', '1');
+        card.style.setProperty('filter', 'blur(0px)');
+        card.style.setProperty('transform', 'translateX(0)');
+      });
+      const inTotalMs = durationMs + maxInDelay;
+      window.setTimeout(() => cleanup(nextCards), inTotalMs + 20);
+    };
+
+    const currentCards = getCards();
+    if (currentCards.length === 0) {
+      enterNextPage();
+      return;
+    }
+    let maxOutDelay = 0;
+    currentCards.forEach((card, index) => {
+      const delay = getDelayByIndex(card, index, bookmarkCurrentPage);
+      if (delay > maxOutDelay) {
+        maxOutDelay = delay;
+      }
+      card.style.setProperty('will-change', 'transform, opacity, filter');
+      card.style.setProperty(
+        'transition',
+        `transform ${durationMs}ms ${easing} ${delay}ms, opacity ${fadeBlurDurationMs}ms ${easing} ${delay}ms, filter ${fadeBlurDurationMs}ms ${easing} ${delay}ms`
+      );
+      card.style.setProperty('opacity', '0');
+      card.style.setProperty('filter', 'blur(5px)');
+      card.style.setProperty('transform', `translateX(${direction * -offsetPx}px)`);
+    });
+    const outTotalMs = durationMs + maxOutDelay;
+    const handoffDelayMs = Math.max(0, outTotalMs - handoffOverlapMs);
+    window.setTimeout(() => {
+      cleanupCards(currentCards);
+      enterNextPage();
+    }, handoffDelayMs);
+  }
+
+  function updateBookmarkSectionPosition() {
+    if (!document.body || !bookmarkSection || !recentSection || !bottomDock) {
+      return;
+    }
+    const bottomDockMaxHeight = Math.max(0, window.innerHeight - 240);
+    const bookmarkVisible = bookmarkSection.style.getPropertyValue('display') !== 'none';
+    const recentVisible = recentSection.style.getPropertyValue('display') !== 'none';
+    document.body.classList.remove('x-nt-stack-layout');
+    document.body.classList.add('x-nt-bottom-layout');
+    document.body.classList.toggle('x-nt-no-bookmarks', !bookmarkVisible);
+    bottomDock.style.setProperty('max-height', `${bottomDockMaxHeight}px`, 'important');
+    bottomDock.style.setProperty('display', (bookmarkVisible || recentVisible) ? 'flex' : 'none', 'important');
+    updateSuggestionsFloatingLayout();
+  }
+
+  function renderBookmarks(items) {
+    const normalizedItems = Array.isArray(items) ? items : [];
+    const nextSignature = `${bookmarkCurrentFolderId}##${getBookmarksSignature(normalizedItems)}`;
+    const isAtRoot = String(bookmarkCurrentFolderId || '') === String(bookmarkRootFolderId || '1');
+    const appendEmptyFolderState = () => {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'x-nt-bookmark-empty';
+      emptyState.innerHTML = `${getRiSvg('ri-file-3-line', 'ri-size-16')}<span>${t('bookmarks_empty_folder', '暂无内容')}</span>`;
+      bookmarkGrid.appendChild(emptyState);
+    };
+    if (nextSignature === bookmarkRenderSignature) {
+      if (normalizedItems.length === 0) {
+        if (isAtRoot) {
+          bookmarkSection.style.setProperty('display', 'none', 'important');
+        } else {
+          bookmarkSection.style.setProperty('display', 'flex', 'important');
+          bookmarkGrid.innerHTML = '';
+          appendEmptyFolderState();
+        }
+      } else {
+        bookmarkSection.style.setProperty('display', 'flex', 'important');
+        updateBookmarkGridHeightLock();
+        updateBookmarkSectionPosition();
+      }
+      updateBookmarkPagerState();
+      return;
+    }
+    bookmarkRenderSignature = nextSignature;
+    bookmarkGrid.innerHTML = '';
+    bookmarkCards.length = 0;
+    if (normalizedItems.length === 0) {
+      if (isAtRoot) {
+        bookmarkSection.style.setProperty('display', 'none', 'important');
+      } else {
+        bookmarkSection.style.setProperty('display', 'flex', 'important');
+        appendEmptyFolderState();
+      }
+      updateBookmarkGridHeightLock();
+      updateBookmarkSectionPosition();
+      updateBookmarkPagerState();
+      return;
+    }
+    normalizedItems.forEach((item, index) => {
+      const cacheKey = getBookmarkCacheKey(item);
+      let card = cacheKey ? bookmarkCardElementCache.get(cacheKey) : null;
+      if (!card) {
+        card = buildBookmarkCard(item, index);
+        if (card && cacheKey) {
+          bookmarkCardElementCache.set(cacheKey, card);
+        }
+      }
+      if (card) {
+        bookmarkGrid.appendChild(card);
+      }
+    });
+    bookmarkSection.style.setProperty('display', 'flex', 'important');
+    updateBookmarkPagerState();
+    updateBookmarkGridHeightLock();
+    updateBookmarkSectionPosition();
+  }
 
   function getRecentSitesSignature(items) {
     if (!Array.isArray(items) || items.length === 0) {
@@ -1832,6 +3114,7 @@
       } else {
         recentSection.style.setProperty('display', 'flex', 'important');
       }
+      updateBookmarkSectionPosition();
       return;
     }
     recentRenderSignature = nextSignature;
@@ -1839,6 +3122,7 @@
     recentCards.length = 0;
     if (normalizedItems.length === 0) {
       recentSection.style.setProperty('display', 'none', 'important');
+      updateBookmarkSectionPosition();
       return;
     }
     normalizedItems.forEach((item, index) => {
@@ -1848,6 +3132,28 @@
       }
     });
     recentSection.style.setProperty('display', 'flex', 'important');
+    updateBookmarkSectionPosition();
+  }
+
+  function loadBookmarks() {
+    getTopBookmarks(0, bookmarkCurrentFolderId).then((items) => {
+      bookmarkAllItems = Array.isArray(items) ? items : [];
+      const isAtRoot = String(bookmarkCurrentFolderId || '') === String(bookmarkRootFolderId || '1');
+      if (isAtRoot) {
+        bookmarkRootTotalCount = bookmarkAllItems.length;
+        bookmarkRootVisibleCount = Math.min(BOOKMARK_LIMIT, bookmarkAllItems.length);
+      }
+      syncBookmarkCardElementCache(bookmarkAllItems);
+      const pageCount = getBookmarkPageCount();
+      if (bookmarkCurrentPage > (pageCount - 1)) {
+        bookmarkCurrentPage = pageCount - 1;
+      }
+      if (bookmarkCurrentPage < 0) {
+        bookmarkCurrentPage = 0;
+      }
+      updateBookmarkBreadcrumb();
+      renderCurrentBookmarkPage();
+    });
   }
 
   function loadRecentSites() {
@@ -1856,6 +3162,7 @@
       recentCards.length = 0;
       recentGrid.innerHTML = '';
       recentSection.style.setProperty('display', 'none', 'important');
+      updateBookmarkSectionPosition();
       return;
     }
     getRecentSites(currentRecentCount, currentRecentMode).then((items) => {
@@ -1866,21 +3173,69 @@
   function handleRecentVisibilityChange() {
     if (document.visibilityState === 'visible') {
       loadRecentSites();
+      loadBookmarks();
+      updateBookmarkSectionPosition();
     }
   }
 
   function forceReloadRecentSitesForI18n() {
     recentRenderSignature = '';
+    bookmarkRenderSignature = '';
     loadRecentSites();
+    loadBookmarks();
   }
 
   function setSuggestionsVisible(visible) {
+    if (visible) {
+      updateSuggestionsFloatingLayout();
+    }
+    if (searchLayer) {
+      searchLayer.style.setProperty('z-index', visible ? '20' : '12', 'important');
+      searchLayer.style.setProperty('border-radius', visible ? '24px' : '24px', 'important');
+      searchLayer.style.setProperty('background', visible
+        ? 'var(--x-nt-suggestions-bg, rgba(255, 255, 255, 0.96))'
+        : 'var(--x-nt-input-bg, rgba(255, 255, 255, 0.9))', 'important');
+      searchLayer.style.setProperty('border', visible
+        ? '1px solid transparent'
+        : '1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06))', 'important');
+      searchLayer.style.setProperty('box-shadow', visible
+        ? 'none'
+        : 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))', 'important');
+    }
+    if (inputParts && inputParts.container) {
+      inputParts.container.style.setProperty('border-radius', '0', 'important');
+      inputParts.container.style.setProperty('border', 'none', 'important');
+      inputParts.container.style.setProperty('border-bottom', 'none', 'important');
+      inputParts.container.style.setProperty('box-shadow', 'none', 'important');
+      inputParts.container.style.setProperty('background', 'transparent', 'important');
+      inputParts.container.style.setProperty('z-index', '2', 'important');
+    }
+    if (inputParts && inputParts.divider) {
+      inputParts.divider.style.setProperty('display', 'none', 'important');
+      inputParts.divider.style.setProperty('opacity', '0', 'important');
+    }
     suggestionsContainer.style.setProperty('display', visible ? 'block' : 'none', 'important');
-    suggestionsContainer.style.setProperty('margin-top', visible ? '8px' : '0', 'important');
+    suggestionsContainer.style.setProperty('margin-top', visible ? '10px' : '0', 'important');
     suggestionsContainer.style.setProperty('opacity', visible ? '1' : '0', 'important');
     suggestionsContainer.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
     suggestionsContainer.style.setProperty('pointer-events', visible ? 'auto' : 'none', 'important');
     suggestionsContainer.style.setProperty('transform', visible ? 'translateY(0)' : 'translateY(-4px)', 'important');
+    suggestionsContainer.style.setProperty('border', 'none', 'important');
+    suggestionsContainer.style.setProperty('border-top', 'none', 'important');
+    suggestionsContainer.style.setProperty('border-radius', '0', 'important');
+    suggestionsContainer.style.setProperty('box-shadow', 'none', 'important');
+  }
+
+  function updateSuggestionsFloatingLayout() {
+    if (!suggestionsContainer || !inputParts || !inputParts.container) {
+      return;
+    }
+    const anchor = inputParts.container;
+    const anchorRect = anchor.getBoundingClientRect();
+    const dropdownTopViewport = anchorRect.bottom - 1;
+    const available = window.innerHeight - dropdownTopViewport - 14;
+    const maxHeight = Math.max(120, Math.floor(available));
+    suggestionsContainer.style.setProperty('max-height', `${maxHeight}px`, 'important');
   }
 
   function isEnglishQuery(query) {
@@ -2200,6 +3555,207 @@
     });
   }
 
+  function findBookmarksBarNode(treeNodes) {
+    if (!Array.isArray(treeNodes)) {
+      return null;
+    }
+    for (let i = 0; i < treeNodes.length; i += 1) {
+      const root = treeNodes[i];
+      const rootChildren = Array.isArray(root && root.children) ? root.children : [];
+      const directMatch = rootChildren.find((child) => String(child && child.id || '') === '1');
+      if (directMatch) {
+        return directMatch;
+      }
+      for (let j = 0; j < rootChildren.length; j += 1) {
+        const child = rootChildren[j];
+        const title = String(child && child.title || '').toLowerCase();
+        if (title === 'bookmarks bar' || title === '书签栏' || title === '書籤列') {
+          return child;
+        }
+      }
+    }
+    return null;
+  }
+
+  function findFirstUrlInFolder(node) {
+    if (!node) {
+      return '';
+    }
+    const directUrl = node && node.url ? String(node.url) : '';
+    if (directUrl) {
+      return directUrl;
+    }
+    const children = Array.isArray(node.children) ? node.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      const nested = findFirstUrlInFolder(children[i]);
+      if (nested) {
+        return nested;
+      }
+    }
+    return '';
+  }
+
+  function collectFolderUrls(node, limit, collected, seen) {
+    if (!node || collected.length >= limit) {
+      return;
+    }
+    const nodeUrl = node && node.url ? String(node.url) : '';
+    if (nodeUrl && !seen.has(nodeUrl)) {
+      seen.add(nodeUrl);
+      collected.push(nodeUrl);
+      if (collected.length >= limit) {
+        return;
+      }
+    }
+    const children = Array.isArray(node.children) ? node.children : [];
+    for (let i = 0; i < children.length; i += 1) {
+      collectFolderUrls(children[i], limit, collected, seen);
+      if (collected.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  function buildBookmarkNodeMap(nodes) {
+    bookmarkNodeMap.clear();
+    const walk = (node, parentId) => {
+      if (!node) {
+        return;
+      }
+      const nodeId = String(node.id || '');
+      if (nodeId) {
+        node.parentId = node.parentId || parentId || '';
+        bookmarkNodeMap.set(nodeId, node);
+      }
+      const children = Array.isArray(node.children) ? node.children : [];
+      for (let i = 0; i < children.length; i += 1) {
+        walk(children[i], nodeId);
+      }
+    };
+    const rootNodes = Array.isArray(nodes) ? nodes : [];
+    for (let i = 0; i < rootNodes.length; i += 1) {
+      walk(rootNodes[i], '');
+    }
+  }
+
+  function buildBookmarkFolderPath(folderId) {
+    const rootLabel = t('bookmarks_heading', '书签');
+    const rootId = String(bookmarkRootFolderId || '1');
+    const targetId = String(folderId || rootId);
+    const path = [{ id: rootId, title: rootLabel }];
+    if (targetId === rootId) {
+      return path;
+    }
+    const chain = [];
+    let cursor = bookmarkNodeMap.get(targetId);
+    let guard = 0;
+    while (cursor && guard < 64) {
+      const cursorId = String(cursor.id || '');
+      if (!cursorId || cursorId === rootId) {
+        break;
+      }
+      chain.push({
+        id: cursorId,
+        title: String(cursor.title || '').trim() || rootLabel
+      });
+      const parentId = String(cursor.parentId || '');
+      cursor = parentId ? bookmarkNodeMap.get(parentId) : null;
+      guard += 1;
+    }
+    chain.reverse().forEach((item) => path.push(item));
+    return path;
+  }
+
+  function getTopBookmarks(limit, folderId) {
+    return new Promise((resolve) => {
+      const parsedLimit = Number.parseInt(limit, 10);
+      const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 0;
+      if (!chrome.bookmarks || !chrome.bookmarks.getTree) {
+        bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+        resolve([]);
+        return;
+      }
+      chrome.bookmarks.getTree((nodes) => {
+        if (chrome.runtime.lastError || !Array.isArray(nodes) || nodes.length === 0) {
+          bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+          resolve([]);
+          return;
+        }
+        buildBookmarkNodeMap(nodes);
+        const barNode = findBookmarksBarNode(nodes);
+        if (!barNode) {
+          bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+          resolve([]);
+          return;
+        }
+        bookmarkRootFolderId = String(barNode.id || '1');
+        const targetFolderId = String(folderId || bookmarkCurrentFolderId || bookmarkRootFolderId);
+        const targetNode = bookmarkNodeMap.get(targetFolderId) || barNode;
+        bookmarkCurrentFolderId = String(targetNode.id || bookmarkRootFolderId);
+        bookmarkFolderPath = buildBookmarkFolderPath(bookmarkCurrentFolderId);
+
+        const children = Array.isArray(targetNode.children) ? targetNode.children : [];
+        const results = [];
+        const seenUrls = new Set();
+        for (let index = 0; index < children.length; index += 1) {
+          if (safeLimit > 0 && results.length >= safeLimit) {
+            break;
+          }
+          const item = children[index];
+          if (!item) {
+            continue;
+          }
+          const title = String(item.title || '').trim();
+          const url = item.url ? String(item.url) : '';
+          const itemChildren = Array.isArray(item.children) ? item.children : [];
+          if (url) {
+            if (seenUrls.has(url)) {
+              continue;
+            }
+            let host = '';
+            try {
+              host = normalizeHost(new URL(url).hostname);
+            } catch (error) {
+              host = '';
+            }
+            seenUrls.add(url);
+            results.push({
+              id: String(item.id || ''),
+              type: 'bookmark',
+              title: title,
+              url: url,
+              host: host,
+              themeUrl: url
+            });
+            continue;
+          }
+          const themeUrl = findFirstUrlInFolder(item);
+          const previewUrls = [];
+          collectFolderUrls(item, 4, previewUrls, new Set());
+          let host = '';
+          if (themeUrl) {
+            try {
+              host = normalizeHost(new URL(themeUrl).hostname);
+            } catch (error) {
+              host = '';
+            }
+          }
+          results.push({
+            id: String(item.id || ''),
+            type: 'folder',
+            title: title,
+            url: '',
+            host: host,
+            childCount: itemChildren.length,
+            themeUrl: themeUrl,
+            previewUrls: previewUrls
+          });
+        }
+        resolve(safeLimit > 0 ? results.slice(0, safeLimit) : results);
+      });
+    });
+  }
+
   function getSiteDisplayName(hostname, title) {
     const rawTitle = String(title || '').trim();
     const host = String(hostname || '').toLowerCase().replace(/^(www|m)\./i, '');
@@ -2400,6 +3956,45 @@
     card.style.setProperty('--x-nt-recent-card-color', colors.base);
     card.style.setProperty('--x-nt-recent-card-border-color', colors.border);
     card.style.setProperty('--x-nt-recent-inner-tint-rgb', colors.innerTint);
+  }
+
+  function getBookmarkCardColors(theme, host) {
+    const fallbackTheme = theme || buildFallbackThemeForHost(host) || defaultTheme;
+    const resolvedTheme = getThemeForMode(fallbackTheme);
+    const accentRgb = resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent) || defaultAccentColor;
+    const isDark = document.body && document.body.getAttribute('data-theme') === 'dark';
+    const baseTarget = isDark ? [24, 24, 24] : [255, 255, 255];
+    const base = mixColor(accentRgb, baseTarget, isDark ? 0.9 : 0.94);
+    const border = mixColor(base, isDark ? [255, 255, 255] : [0, 0, 0], isDark ? 0.12 : 0.07);
+    const icon = mixColor(accentRgb, baseTarget, isDark ? 0.92 : 0.96);
+    const shadow = isDark
+      ? mixColor(accentRgb, [18, 26, 40], 0.62)
+      : mixColor(accentRgb, [138, 146, 160], 0.46);
+    return {
+      base: rgbToCss(base),
+      border: rgbToCss(border),
+      iconBg: rgbToCss(icon),
+      shadowRgb: rgbToCssParts(shadow)
+    };
+  }
+
+  function applyBookmarkCardTheme(card, theme, host) {
+    if (!card) {
+      return;
+    }
+    if (card._xNoThemeTint) {
+      card.style.removeProperty('--x-nt-bookmark-card-color');
+      card.style.removeProperty('--x-nt-bookmark-card-border-color');
+      card.style.removeProperty('--x-nt-bookmark-icon-color');
+      const isDark = document.body && document.body.getAttribute('data-theme') === 'dark';
+      card.style.setProperty('--x-nt-bookmark-shadow-rgb', isDark ? '52, 96, 180' : '86, 138, 220');
+      return;
+    }
+    const colors = getBookmarkCardColors(theme, host);
+    card.style.setProperty('--x-nt-bookmark-card-color', colors.base);
+    card.style.setProperty('--x-nt-bookmark-card-border-color', colors.border);
+    card.style.setProperty('--x-nt-bookmark-icon-color', colors.iconBg);
+    card.style.setProperty('--x-nt-bookmark-shadow-rgb', colors.shadowRgb);
   }
 
   function updateRecentActionOffset(card, actionLine) {
@@ -2621,6 +4216,138 @@
       }
     });
 
+    return card;
+  }
+
+  function buildBookmarkCard(item, index) {
+    if (!item || (!item.url && item.type !== 'folder')) {
+      return null;
+    }
+    const isFolder = item.type === 'folder';
+    const themeUrl = item.themeUrl || item.url || '';
+    const host = item.host || getHostFromUrl(themeUrl) || '';
+    const siteName = getSiteDisplayName(host, item.title);
+    const titleText = item.title || siteName || (item.url ? getUrlDisplay(item.url) : t('bookmarks_heading', '书签'));
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'x-nt-bookmark-card';
+    if (isFolder) {
+      card.classList.add('x-nt-bookmark-card--folder');
+    }
+    card.title = titleText;
+    card._xTitleText = titleText;
+    card.setAttribute('aria-label', formatMessage('open_prefix', '打开 {title}', {
+      title: titleText
+    }));
+    card._xNoThemeTint = isFolder;
+
+    const themeSuggestion = { type: isFolder ? 'bookmark' : 'bookmark', url: themeUrl, title: titleText };
+    const immediateTheme = getImmediateThemeForSuggestion(themeSuggestion);
+    card._xTheme = immediateTheme;
+    card._xHost = host;
+    applyBookmarkCardTheme(card, immediateTheme, host);
+    if (themeUrl) {
+      getThemeForSuggestion(themeSuggestion).then((theme) => {
+        if (!card.isConnected) {
+          return;
+        }
+        card._xTheme = theme || card._xTheme;
+        applyBookmarkCardTheme(card, card._xTheme, host);
+      });
+    }
+
+    let icon = null;
+    if (isFolder) {
+      const folderIcon = document.createElement('span');
+      folderIcon.className = 'x-nt-bookmark-icon x-nt-bookmark-icon--figma';
+      folderIcon.innerHTML = getFigmaFolderSvg(`${item.id || 'folder'}-${index}`);
+      folderIcon.setAttribute('aria-hidden', 'true');
+      initFolderPathMorph(folderIcon);
+      card.addEventListener('mouseenter', () => {
+        playFolderPathMorph(folderIcon, true);
+      });
+      card.addEventListener('mouseleave', () => {
+        playFolderPathMorph(folderIcon, false);
+      });
+      card.addEventListener('focus', () => {
+        playFolderPathMorph(folderIcon, true);
+      });
+      card.addEventListener('blur', () => {
+        playFolderPathMorph(folderIcon, false);
+      });
+      icon = folderIcon;
+    } else {
+      const favicon = document.createElement('img');
+      favicon.className = 'x-nt-bookmark-icon';
+      favicon.alt = siteName || t('site_icon_alt', '站点');
+      favicon.loading = index < 4 ? 'eager' : 'lazy';
+      if (index < 4) {
+        favicon.fetchPriority = 'high';
+      }
+      attachFaviconWithFallbacks(favicon, item.url, host);
+      favicon.onerror = function() {
+        reportMissingIcon('bookmark-panel', item.url, favicon.src);
+        applyFallbackIcon(favicon);
+      };
+      icon = favicon;
+    }
+
+    const title = document.createElement('span');
+    title.className = 'x-nt-bookmark-title';
+    title.textContent = titleText;
+
+    card.appendChild(icon);
+    card.appendChild(title);
+    if (isFolder && Array.isArray(item.previewUrls) && item.previewUrls.length > 0) {
+      const previewWrap = document.createElement('span');
+      previewWrap.className = 'x-nt-folder-preview';
+      const maxPreview = Math.min(4, item.previewUrls.length);
+      for (let i = 0; i < maxPreview; i += 1) {
+        const url = item.previewUrls[i];
+        if (!url) {
+          continue;
+        }
+        let previewHost = '';
+        try {
+          previewHost = normalizeHost(new URL(url).hostname);
+        } catch (error) {
+          previewHost = '';
+        }
+        const previewFavicon = document.createElement('img');
+        previewFavicon.className = 'x-nt-folder-preview-favicon';
+        const rotationSeed = stableHashCode(`${url}|${i}|${item.id || ''}`);
+        const rotationDeg = ((rotationSeed % 13) - 6) * 0.5;
+        previewFavicon.style.setProperty('--x-nt-folder-favicon-rot', `${rotationDeg.toFixed(2)}deg`);
+        previewFavicon.style.zIndex = String(10 + i);
+        previewFavicon.alt = '';
+        previewFavicon.loading = 'lazy';
+        previewFavicon.setAttribute('aria-hidden', 'true');
+        attachFaviconWithFallbacks(previewFavicon, url, previewHost);
+        previewFavicon.onerror = function() {
+          applyFallbackIcon(previewFavicon);
+        };
+        previewWrap.appendChild(previewFavicon);
+      }
+      card.appendChild(previewWrap);
+    }
+    card.addEventListener('click', () => {
+      if (isFolder) {
+        openBookmarkFolder(item.id);
+        return;
+      }
+      navigateToUrl(item.url);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (isFolder) {
+          openBookmarkFolder(item.id);
+          return;
+        }
+        navigateToUrl(item.url);
+      }
+    });
+    bookmarkCards.push(card);
     return card;
   }
 
@@ -4407,7 +6134,7 @@
             textWrapper.appendChild(urlLine);
           }
           const historyTag = document.createElement('span');
-          historyTag.textContent = '历史';
+          historyTag.textContent = t('search_tag_history', '历史');
           historyTag._xDefaultBg = 'var(--x-nt-tag-bg, #F3F4F6)';
           historyTag._xDefaultText = 'var(--x-nt-tag-text, #6B7280)';
           historyTag._xDefaultBorder = 'transparent';
@@ -4440,7 +6167,7 @@
             textWrapper.appendChild(urlLine);
           }
           const topSiteTag = document.createElement('span');
-          topSiteTag.textContent = '常用';
+          topSiteTag.textContent = t('search_tag_top_site', '常用');
           topSiteTag._xDefaultBg = 'var(--x-nt-tag-bg, #F3F4F6)';
           topSiteTag._xDefaultText = 'var(--x-nt-tag-text, #6B7280)';
           topSiteTag._xDefaultBorder = 'transparent';
@@ -4491,7 +6218,7 @@
             textWrapper.appendChild(bookmarkPath);
           }
           const bookmarkTag = document.createElement('span');
-          bookmarkTag.textContent = '书签';
+          bookmarkTag.textContent = t('search_tag_bookmark', '书签');
           bookmarkTag._xDefaultBg = 'var(--x-nt-bookmark-tag-bg, #FEF3C7)';
           bookmarkTag._xDefaultText = 'var(--x-nt-bookmark-tag-text, #D97706)';
           bookmarkTag._xDefaultBorder = 'transparent';
@@ -4594,15 +6321,8 @@
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
-            const theme = this._xTheme;
-            if (theme && theme._xIsBrand) {
-              const hover = getHoverColors(theme);
-              this.style.setProperty('background', hover.bg, 'important');
-              this.style.setProperty('border', `1px solid ${hover.border}`, 'important');
-            } else {
-              this.style.setProperty('background', 'var(--x-nt-hover-bg, #F3F4F6)', 'important');
-              this.style.setProperty('border', '1px solid transparent', 'important');
-            }
+            this.style.setProperty('background', 'var(--x-nt-hover-bg, #F3F4F6)', 'important');
+            this.style.setProperty('border', '1px solid transparent', 'important');
           }
         });
 
@@ -4707,11 +6427,11 @@
     placeholder: t('search_placeholder', defaultPlaceholderText),
     containerStyleOverrides: {
       'border-radius': '24px',
-      'background': 'var(--x-nt-input-bg, rgba(255, 255, 255, 0.9))',
-      'border': '1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06))',
-      'box-shadow': 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))',
+      'background': 'transparent',
+      'border': 'none',
+      'box-shadow': 'none',
       'position': 'relative',
-      'z-index': '3'
+      'z-index': '2'
     },
     inputStyleOverrides: {
       'border-bottom': 'none',
@@ -5029,6 +6749,23 @@
   const searchInput = inputParts.input;
   const inputContainer = inputParts.container;
   const rightIcon = inputParts.rightIcon;
+  searchLayer = document.createElement('div');
+  searchLayer.id = '_x_extension_newtab_search_layer_2024_unique_';
+  searchLayer.style.cssText = `
+    all: unset !important;
+    position: relative !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    border-radius: 24px !important;
+    background: var(--x-nt-input-bg, rgba(255, 255, 255, 0.9)) !important;
+    border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06)) !important;
+    box-shadow: var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08)) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 12 !important;
+  `;
 
   if (rightIcon) {
     rightIcon.addEventListener('click', function(event) {
@@ -5110,7 +6847,12 @@
     updateSiteSearchPrefixLayout();
   }
 
-  window.addEventListener('resize', updateSiteSearchPrefixLayout);
+  window.addEventListener('resize', () => {
+    updateSiteSearchPrefixLayout();
+    updateBookmarkGridHeightLock();
+    updateBookmarkSectionPosition();
+    updateSuggestionsFloatingLayout();
+  });
 
   handleTabKey = function(event) {
     if (siteSearchState) {
@@ -5228,9 +6970,14 @@
     requestSuggestions(query);
   });
 
-  root.appendChild(inputParts.container);
-  root.appendChild(suggestionsContainer);
-  document.body.appendChild(recentSection);
+  searchLayer.appendChild(inputParts.container);
+  searchLayer.appendChild(suggestionsContainer);
+  root.appendChild(searchLayer);
+  bottomDock.appendChild(bookmarkSection);
+  bottomDock.appendChild(recentSection);
+  document.body.appendChild(bottomDock);
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
+  loadBookmarks();
+  updateBookmarkSectionPosition();
 
 })();

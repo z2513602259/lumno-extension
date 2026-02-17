@@ -6305,7 +6305,7 @@ async function getSearchSuggestions(query) {
               textWrapper.appendChild(urlLine);
             }
             const historyTag = document.createElement('span');
-            historyTag.textContent = '历史';
+            historyTag.textContent = t('search_tag_history', '历史');
             historyTag._xDefaultBg = 'var(--x-ov-tag-bg, #F3F4F6)';
             historyTag._xDefaultText = 'var(--x-ov-tag-text, #6B7280)';
             historyTag._xDefaultBorder = 'transparent';
@@ -6339,7 +6339,7 @@ async function getSearchSuggestions(query) {
               textWrapper.appendChild(urlLine);
             }
             const topSiteTag = document.createElement('span');
-            topSiteTag.textContent = '常用';
+            topSiteTag.textContent = t('search_tag_top_site', '常用');
             topSiteTag._xDefaultBg = 'var(--x-ov-tag-bg, #F3F4F6)';
             topSiteTag._xDefaultText = 'var(--x-ov-tag-text, #6B7280)';
             topSiteTag._xDefaultBorder = 'transparent';
@@ -6391,7 +6391,7 @@ async function getSearchSuggestions(query) {
               textWrapper.appendChild(bookmarkPath);
             }
           const bookmarkTag = document.createElement('span');
-          bookmarkTag.textContent = '书签';
+          bookmarkTag.textContent = t('search_tag_bookmark', '书签');
           bookmarkTag._xDefaultBg = 'var(--x-ov-bookmark-tag-bg, #FEF3C7)';
           bookmarkTag._xDefaultText = 'var(--x-ov-bookmark-tag-text, #D97706)';
           bookmarkTag._xDefaultBorder = 'transparent';
