@@ -92,6 +92,7 @@
   "bookmarks_empty_folder": { "message": "暂无内容" },
   "bookmarks_page_prev": { "message": "上一页" },
   "bookmarks_page_next": { "message": "下一页" },
+  "bookmarks_open_manager": { "message": "打开书签管理页" },
   "search_tag_history": { "message": "历史" },
   "search_tag_top_site": { "message": "常用" },
   "search_tag_bookmark": { "message": "书签" },

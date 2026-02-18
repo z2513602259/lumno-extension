@@ -37,6 +37,59 @@ function openNewtabFallback() {
   chrome.tabs.create({});
 }
 
+function getBookmarkManagerUrls() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent)
+    ? String(navigator.userAgent).toLowerCase()
+    : '';
+  const candidates = [];
+  const pushUnique = (url) => {
+    const value = String(url || '').trim();
+    if (!value || candidates.includes(value)) {
+      return;
+    }
+    candidates.push(value);
+  };
+
+  if (ua.includes('firefox/')) {
+    pushUnique('about:bookmarks');
+    pushUnique('chrome://bookmarks/');
+    return candidates;
+  }
+  if (ua.includes('edg/')) {
+    pushUnique('edge://favorites/');
+    pushUnique('edge://bookmarks/');
+  } else if (ua.includes('vivaldi/')) {
+    pushUnique('vivaldi://bookmarks/');
+  } else if (ua.includes('opr/') || ua.includes('opera')) {
+    pushUnique('opera://bookmarks/');
+  } else if (ua.includes('brave/')) {
+    pushUnique('brave://bookmarks/');
+  }
+  pushUnique('chrome://bookmarks/');
+  return candidates;
+}
+
+function openBookmarkManagerPage() {
+  const urls = getBookmarkManagerUrls();
+  return new Promise((resolve, reject) => {
+    const tryOpen = (index) => {
+      if (index >= urls.length) {
+        reject(new Error('no-bookmark-manager-url'));
+        return;
+      }
+      const targetUrl = urls[index];
+      chrome.tabs.create({ url: targetUrl }, () => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          tryOpen(index + 1);
+          return;
+        }
+        resolve(targetUrl);
+      });
+    };
+    tryOpen(0);
+  });
+}
+
 function logHotkeyDebug(stage, payload) {
   try {
     const detail = payload && typeof payload === 'object' ? payload : {};
@@ -254,6 +307,13 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
     sendResponse({ ok: true });
     return;
+  } else if (request.action === 'openBookmarkManager') {
+    openBookmarkManagerPage().then((url) => {
+      sendResponse({ ok: true, url: url });
+    }).catch(() => {
+      sendResponse({ ok: false });
+    });
+    return true;
   } else if (request.action === 'createTab') {
     chrome.tabs.create({ url: request.url });
   } else if (request.action === 'openNewTab') {

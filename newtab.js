@@ -55,6 +55,7 @@
   let bookmarkBreadcrumb = null;
   let bookmarkPagerPrevButton = null;
   let bookmarkPagerNextButton = null;
+  let bookmarkOpenManagerButton = null;
   let bookmarkPageAnimating = false;
   let bookmarkWheelLastAt = 0;
   const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
@@ -1118,6 +1119,11 @@
       const nextLabel = t('bookmarks_page_next', '下一页');
       bookmarkPagerNextButton.title = nextLabel;
       bookmarkPagerNextButton.setAttribute('aria-label', nextLabel);
+    }
+    if (bookmarkOpenManagerButton) {
+      const managerLabel = t('bookmarks_open_manager', '打开书签管理页');
+      bookmarkOpenManagerButton.title = managerLabel;
+      bookmarkOpenManagerButton.setAttribute('aria-label', managerLabel);
     }
   }
 
@@ -2761,8 +2767,13 @@
   bookmarkPagerNextButton.type = 'button';
   bookmarkPagerNextButton.className = 'x-nt-bookmarks-pager-btn';
   bookmarkPagerNextButton.innerHTML = getRiSvg('ri-arrow-right-s-line', 'ri-size-16');
+  bookmarkOpenManagerButton = document.createElement('button');
+  bookmarkOpenManagerButton.type = 'button';
+  bookmarkOpenManagerButton.className = 'x-nt-bookmarks-pager-btn';
+  bookmarkOpenManagerButton.innerHTML = getRiSvg('ri-bookmark-line', 'ri-size-16');
   bookmarkPager.appendChild(bookmarkPagerPrevButton);
   bookmarkPager.appendChild(bookmarkPagerNextButton);
+  bookmarkPager.appendChild(bookmarkOpenManagerButton);
   bookmarkTitleWrap.appendChild(bookmarkHeading);
   bookmarkTitleWrap.appendChild(bookmarkBreadcrumb);
   bookmarkHeader.appendChild(bookmarkTitleWrap);
@@ -2854,6 +2865,12 @@
       return;
     }
     switchBookmarkPage(bookmarkCurrentPage + 1);
+  });
+  bookmarkOpenManagerButton.addEventListener('click', () => {
+    if (!chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'openBookmarkManager' });
   });
   bookmarkSection.addEventListener('wheel', (event) => {
     if (!event) {

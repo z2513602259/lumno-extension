@@ -92,6 +92,7 @@
   "bookmarks_empty_folder": { "message": "No content" },
   "bookmarks_page_prev": { "message": "Previous page" },
   "bookmarks_page_next": { "message": "Next page" },
+  "bookmarks_open_manager": { "message": "Open bookmark manager" },
   "search_tag_history": { "message": "History" },
   "search_tag_top_site": { "message": "Frequent" },
   "search_tag_bookmark": { "message": "Bookmark" },
