@@ -53,6 +53,7 @@ const storageAreaName = storageArea
   ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
   : null;
 const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
+const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
 let restrictedActionCache = 'default';
 
 if (storageArea) {
@@ -303,6 +304,7 @@ const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024
 const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
 migrateStorageIfNeeded([
   DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
+  OVERLAY_TAB_PRIORITY_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
   SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -1833,6 +1835,7 @@ async function getSearchSuggestions(query) {
   let overlayThemeStorageListener = null;
   let overlayLanguageStorageListener = null;
   let overlaySearchEngineStorageListener = null;
+  let overlayTabPriorityStorageListener = null;
   let overlayThemeMediaListener = null;
   let siteSearchStorageListener = null;
   let keydownHandler = null;
@@ -1842,6 +1845,7 @@ async function getSearchSuggestions(query) {
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
     : (chrome && chrome.storage ? chrome.storage.local : null);
@@ -1915,6 +1919,7 @@ async function getSearchSuggestions(query) {
   }
   let modeBadge = null;
   let overlayLanguageMode = 'system';
+  let overlayTabQuickSwitchEnabled = true;
   let currentMessages = null;
   let defaultPlaceholderText = '搜索或输入网址...';
   let lastSuggestionResponse = [];
@@ -2036,6 +2041,19 @@ async function getSearchSuggestions(query) {
       text = text.replace(new RegExp(`\\{${token}\\}`, 'g'), value);
     });
     return text;
+  }
+
+  function normalizeOverlayTabPriorityMode(mode) {
+    if (mode === 'switchTabFirst') {
+      return true;
+    }
+    if (mode === 'newtabFirst') {
+      return false;
+    }
+    if (mode === false) {
+      return false;
+    }
+    return true;
   }
 
   function getRiSvg(id, sizeClass, extraClass) {
@@ -2220,6 +2238,10 @@ async function getSearchSuggestions(query) {
     if (overlaySearchEngineStorageListener) {
       chrome.storage.onChanged.removeListener(overlaySearchEngineStorageListener);
       overlaySearchEngineStorageListener = null;
+    }
+    if (overlayTabPriorityStorageListener) {
+      chrome.storage.onChanged.removeListener(overlayTabPriorityStorageListener);
+      overlayTabPriorityStorageListener = null;
     }
     if (overlayThemeMediaListener) {
       overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
@@ -3061,6 +3083,22 @@ async function getSearchSuggestions(query) {
       }
     };
     chrome.storage.onChanged.addListener(overlaySearchEngineStorageListener);
+
+    if (storageArea) {
+      storageArea.get([OVERLAY_TAB_PRIORITY_STORAGE_KEY], (result) => {
+        overlayTabQuickSwitchEnabled = normalizeOverlayTabPriorityMode(result[OVERLAY_TAB_PRIORITY_STORAGE_KEY]);
+      });
+    }
+    overlayTabPriorityStorageListener = (changes, areaName) => {
+      if (!storageAreaName || areaName !== storageAreaName || !changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY]) {
+        return;
+      }
+      overlayTabQuickSwitchEnabled = normalizeOverlayTabPriorityMode(changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY].newValue);
+      if (latestOverlayQuery) {
+        updateSearchSuggestions(lastSuggestionResponse, latestOverlayQuery);
+      }
+    };
+    chrome.storage.onChanged.addListener(overlayTabPriorityStorageListener);
 
     function isOverlayDarkMode() {
       return overlay && overlay.getAttribute('data-theme') === 'dark';
@@ -4015,6 +4053,49 @@ async function getSearchSuggestions(query) {
       }
     }
 
+    function normalizeTabMatchUrl(url) {
+      if (!url) {
+        return '';
+      }
+      try {
+        const parsed = new URL(url);
+        const protocol = String(parsed.protocol || '').toLowerCase();
+        if (protocol !== 'http:' && protocol !== 'https:') {
+          return String(url).trim().toLowerCase();
+        }
+        const host = normalizeHost(parsed.hostname);
+        let path = parsed.pathname || '/';
+        path = path.replace(/\/+$/, '');
+        if (!path) {
+          path = '/';
+        }
+        return `${host}${path}${parsed.search || ''}`;
+      } catch (e) {
+        return String(url).trim().toLowerCase();
+      }
+    }
+
+    function getMatchedOpenTabIdForSuggestion(suggestion) {
+      if (!suggestion || !suggestion.url || !Array.isArray(tabs) || tabs.length === 0) {
+        return null;
+      }
+      const target = normalizeTabMatchUrl(suggestion.url);
+      if (!target) {
+        return null;
+      }
+      for (let i = 0; i < tabs.length; i += 1) {
+        const tab = tabs[i];
+        if (!tab || typeof tab.id !== 'number' || !tab.url) {
+          continue;
+        }
+        const current = normalizeTabMatchUrl(tab.url);
+        if (current && current === target) {
+          return tab.id;
+        }
+      }
+      return null;
+    }
+
     function getAutocompleteCandidate(allSuggestions, rawQuery) {
       if (!Array.isArray(allSuggestions) || !rawQuery) {
         return null;
@@ -4850,6 +4931,16 @@ async function getSearchSuggestions(query) {
     function getAutoHighlightIndex() {
       return suggestionItems.findIndex((item) => Boolean(item && item._xIsAutocompleteTop));
     }
+
+    function shouldSwitchMatchedTabSuggestion(suggestion, index) {
+      if (!suggestion || typeof suggestion._xMatchedTabId !== 'number') {
+        return false;
+      }
+      if (!overlayTabQuickSwitchEnabled) {
+        return false;
+      }
+      return index === 0;
+    }
     
     keydownHandler = function(e) {
       if (e && (e.isComposing || isComposing)) {
@@ -4957,7 +5048,12 @@ async function getSearchSuggestions(query) {
               searchInput.focus();
               return;
             }
-            if (selectedSuggestion.forceSearch && selectedSuggestion.searchQuery) {
+            if (shouldSwitchMatchedTabSuggestion(selectedSuggestion, activeSuggestionIndex)) {
+              chrome.runtime.sendMessage({
+                action: 'switchToTab',
+                tabId: selectedSuggestion._xMatchedTabId
+              });
+            } else if (selectedSuggestion.forceSearch && selectedSuggestion.searchQuery) {
               chrome.runtime.sendMessage({
                 action: 'searchOrNavigate',
                 query: selectedSuggestion.searchQuery,
@@ -5862,6 +5958,19 @@ async function getSearchSuggestions(query) {
         let allSuggestions = modeCommandActive
           ? [...preSuggestions]
           : [...preSuggestions, newTabSuggestion, /*chatGptSuggestion, perplexitySuggestion,*/ ...suggestions];
+        allSuggestions.forEach((item) => {
+          if (!item || !item.url) {
+            return;
+          }
+          const matchedTabId = getMatchedOpenTabIdForSuggestion(item);
+          if (typeof matchedTabId === 'number') {
+            item._xMatchedTabId = matchedTabId;
+            return;
+          }
+          if (Object.prototype.hasOwnProperty.call(item, '_xMatchedTabId')) {
+            delete item._xMatchedTabId;
+          }
+        });
         if (!modeCommandActive && siteSearchState && query) {
           const siteUrl = buildSearchUrl(siteSearchState.template, query);
           if (siteUrl) {
@@ -5944,6 +6053,21 @@ async function getSearchSuggestions(query) {
           } else if (!siteSearchPrompt && topSiteMatch) {
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'topSite';
+          }
+          if (!siteSearchState && query && overlayTabQuickSwitchEnabled) {
+            const openTabMatchIndex = allSuggestions.findIndex((item) =>
+              item &&
+              item.type !== 'newtab' &&
+              typeof item._xMatchedTabId === 'number'
+            );
+            if (openTabMatchIndex >= 0) {
+              if (openTabMatchIndex > 0) {
+                const [openTabMatch] = allSuggestions.splice(openTabMatchIndex, 1);
+                allSuggestions.unshift(openTabMatch);
+              }
+              primaryHighlightIndex = 0;
+              primaryHighlightReason = 'openTab';
+            }
           }
           if (query && primaryHighlightIndex < 0 && allSuggestions.length > 0) {
             primaryHighlightIndex = 0;
@@ -6518,18 +6642,25 @@ async function getSearchSuggestions(query) {
           const isDirectHighlight = isPrimaryHighlight &&
             (suggestion.type === 'directUrl' || suggestion.type === 'browserPage');
           const isMergedHighlight = Boolean(mergedProvider && primarySuggestion === suggestion && isPrimaryHighlight);
+          const shouldSwitchMatchedTab = isPrimaryHighlight &&
+            primaryHighlightReason === 'openTab' &&
+            shouldSwitchMatchedTabSuggestion(suggestion, index);
           const shouldShowEnterTag = !isPrimarySearchSuggest && isPrimaryHighlight &&
             !onlyKeywordSuggestions &&
             (primaryHighlightReason === 'topSite' ||
               primaryHighlightReason === 'inline' ||
               primaryHighlightReason === 'autocomplete' ||
+              primaryHighlightReason === 'openTab' ||
               isDirectHighlight ||
               isMergedHighlight);
           const shouldShowSiteSearchTag = !isPrimarySearchSuggest && isPrimaryHighlight &&
             ((siteSearchTrigger && (primaryHighlightReason === 'siteSearchPrompt' || isTopSiteMatch)) ||
               isMergedHighlight);
           if (shouldShowEnterTag) {
-            actionTags.appendChild(createActionTag(t('visit_label', '访问'), 'Enter'));
+            actionTags.appendChild(createActionTag(
+              shouldSwitchMatchedTab ? t('action_switch', '切换') : t('visit_label', '访问'),
+              'Enter'
+            ));
           }
           if (shouldShowSiteSearchTag) {
             actionTags.appendChild(createActionTag(t('action_search', '搜索'), 'Tab'));
@@ -6574,6 +6705,8 @@ async function getSearchSuggestions(query) {
             visitButton.innerHTML = `${t('command_newtab', '新建标签页')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;
           } else if (suggestion.type === 'commandSettings') {
             visitButton.innerHTML = `${formatMessage('command_settings', '打开 Lumno 设置', { name: 'Lumno' })} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;
+          } else if (shouldSwitchMatchedTab) {
+            visitButton.innerHTML = `${t('action_switch', '切换')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;
           } else if (suggestion.type === 'siteSearch') {
             visitButton.innerHTML = `${t('action_search', '搜索')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;
           } else if (suggestion.type === 'directUrl' || suggestion.type === 'browserPage') {
@@ -6628,6 +6761,17 @@ async function getSearchSuggestions(query) {
               searchInput.focus();
               return;
             }
+            if (shouldSwitchMatchedTabSuggestion(suggestion, index)) {
+              chrome.runtime.sendMessage({
+                action: 'switchToTab',
+                tabId: suggestion._xMatchedTabId
+              });
+              removeOverlay(overlay);
+              document.removeEventListener('click', clickOutsideHandler);
+              document.removeEventListener('keydown', keydownHandler);
+              document.removeEventListener('keydown', captureTabHandler, true);
+              return;
+            }
             if (suggestion.forceSearch && suggestion.searchQuery) {
               chrome.runtime.sendMessage({
                 action: 'searchOrNavigate',
@@ -6673,6 +6817,17 @@ async function getSearchSuggestions(query) {
             if (suggestion.type === 'modeSwitch') {
               applyThemeModeChange(suggestion.nextMode);
               searchInput.focus();
+              return;
+            }
+            if (shouldSwitchMatchedTabSuggestion(suggestion, index)) {
+              chrome.runtime.sendMessage({
+                action: 'switchToTab',
+                tabId: suggestion._xMatchedTabId
+              });
+              removeOverlay(overlay);
+              document.removeEventListener('click', clickOutsideHandler);
+              document.removeEventListener('keydown', keydownHandler);
+              document.removeEventListener('keydown', captureTabHandler, true);
               return;
             }
             if (suggestion.forceSearch && suggestion.searchQuery) {

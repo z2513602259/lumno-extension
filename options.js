@@ -12,6 +12,7 @@
   const recentModeSelect = document.getElementById('_x_extension_recent_mode_select_2024_unique_');
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
+  const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
   const syncStatusText = document.getElementById('_x_extension_sync_status_text_2024_unique_');
@@ -69,6 +70,7 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
+  const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
@@ -81,6 +83,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
@@ -181,6 +184,19 @@
       return parsed;
     }
     return 8;
+  }
+
+  function normalizeOverlayTabQuickSwitch(value) {
+    if (value === 'switchTabFirst') {
+      return true;
+    }
+    if (value === 'newtabFirst') {
+      return false;
+    }
+    if (value === false) {
+      return false;
+    }
+    return true;
   }
 
   function applyI18n() {
@@ -1185,6 +1201,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY
@@ -1320,6 +1337,15 @@
         return;
       }
       storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: nextCount });
+    });
+  }
+  if (overlayTabQuickSwitchToggle) {
+    overlayTabQuickSwitchToggle.addEventListener('change', () => {
+      const next = Boolean(overlayTabQuickSwitchToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
     });
   }
 
@@ -1549,6 +1575,17 @@
       }
       if (stored !== count) {
         storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: count });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([OVERLAY_TAB_PRIORITY_STORAGE_KEY], (result) => {
+      const rawValue = result[OVERLAY_TAB_PRIORITY_STORAGE_KEY];
+      const stored = normalizeOverlayTabQuickSwitch(rawValue);
+      if (overlayTabQuickSwitchToggle) {
+        overlayTabQuickSwitchToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: stored });
       }
       refreshCustomSelects();
     });
@@ -2322,6 +2359,7 @@
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
+        changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
         changes[SITE_SEARCH_DISABLED_STORAGE_KEY] ||
@@ -2351,6 +2389,14 @@
     if (changes[BOOKMARK_COUNT_STORAGE_KEY] && bookmarkCountSelect) {
       const stored = normalizeBookmarkCount(changes[BOOKMARK_COUNT_STORAGE_KEY].newValue);
       bookmarkCountSelect.value = String(stored);
+      refreshCustomSelects();
+    }
+    if (changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] && overlayTabQuickSwitchToggle) {
+      const next = normalizeOverlayTabQuickSwitch(changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY].newValue);
+      overlayTabQuickSwitchToggle.checked = next;
+      if (changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY].newValue !== next && storageArea) {
+        storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
+      }
       refreshCustomSelects();
     }
     if (changes[RESTRICTED_ACTION_STORAGE_KEY] && restrictedActionSelect) {

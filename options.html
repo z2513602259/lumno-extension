@@ -124,7 +124,7 @@
         --tab-active-text: #0f172a;
         --tab-border: rgba(15, 23, 42, 0.05);
         --switch-bg: rgba(15, 23, 42, 0.12);
-        --switch-on-bg: #2563eb;
+        --switch-on-bg: #111827;
         --switch-knob: #ffffff;
         --panel-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
         --sync-button-bg: rgba(148, 163, 184, 0.16);
@@ -182,7 +182,7 @@
         --tab-active-text: #111827;
         --tab-border: rgba(255, 255, 255, 0.12);
         --switch-bg: rgba(255, 255, 255, 0.14);
-        --switch-on-bg: #e5e7eb;
+        --switch-on-bg: #2f3847;
         --switch-knob: #111827;
         --sync-button-bg: rgba(255, 255, 255, 0.12);
         --sync-button-hover-bg: rgba(255, 255, 255, 0.2);
@@ -454,6 +454,7 @@
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_:before {
         transform: translateX(20px);
+        background: #f9fafb;
       }
       ._x_extension_settings_placeholder_2024_unique_ {
         padding: 18px;
@@ -1477,6 +1478,20 @@
               </button>
               <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
             </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
+            <div class="_x_extension_setting_left_2024_unique_">
+              <p class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
+                <svg class="ri-icon ri-size-14 _x_extension_setting_icon_hint_2024_unique_" aria-hidden="true" focusable="false">
+                  <use href="remixicon.symbol.svg#ri-arrow-drop-right-line"></use>
+                </svg>
+                <span data-i18n="settings_overlay_tab_priority_title">快速切换已开启标签页</span>
+              </p>
+            </div>
+            <label class="_x_extension_switch_2024_unique_" for="_x_extension_overlay_tab_quick_switch_2024_unique_">
+              <input id="_x_extension_overlay_tab_quick_switch_2024_unique_" type="checkbox" checked>
+              <span class="_x_extension_switch_slider_2024_unique_" aria-hidden="true"></span>
+            </label>
           </div>
           <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
             <div class="_x_extension_setting_divider_2024_unique_"></div>
