@@ -40,8 +40,9 @@
         --x-nt-suggestions-shadow: 0 18px 44px rgba(0, 0, 0, 0.1);
         --x-nt-panel-bg: rgba(255, 255, 255, 0.9);
         --x-nt-panel-border: rgba(0, 0, 0, 0.08);
-        --x-nt-panel-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
-        --x-nt-panel-shadow-focus: 0 4px 8px 0 rgba(0, 0, 0, 0.03);
+        --x-nt-panel-shadow: 0 8px 20px rgba(0, 0, 0, 0.01);
+        --x-nt-panel-shadow-focus: 0 4px 24px 0 rgba(0, 0, 0, 0.01),
+          0 30px 40px 0 rgba(0, 0, 0, 0.05);
         --x-nt-panel-blur: 24px;
         --x-nt-panel-saturate: 165%;
         --x-nt-hover-bg: rgba(200, 208, 218, 0.45);
@@ -108,8 +109,9 @@
         --x-nt-suggestions-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
         --x-nt-panel-bg: rgba(20, 20, 20, 0.82);
         --x-nt-panel-border: rgba(255, 255, 255, 0.08);
-        --x-nt-panel-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
-        --x-nt-panel-shadow-focus: 0 4px 8px 0 rgba(0, 0, 0, 0.24);
+        --x-nt-panel-shadow: 0 8px 20px rgba(0, 0, 0, 0.01);
+        --x-nt-panel-shadow-focus: 0 4px 24px 0 rgba(0, 0, 0, 0.08),
+          0 30px 40px 0 rgba(0, 0, 0, 0.28);
         --x-nt-panel-blur: 32px;
         --x-nt-panel-saturate: 145%;
         --x-nt-hover-bg: rgba(255, 255, 255, 0.08);
@@ -167,12 +169,12 @@
         transition: box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms ease;
         backdrop-filter: blur(var(--x-nt-panel-blur, 24px)) saturate(var(--x-nt-panel-saturate, 165%));
         -webkit-backdrop-filter: blur(var(--x-nt-panel-blur, 24px)) saturate(var(--x-nt-panel-saturate, 165%));
-        padding: 8px;
+        padding: 4px;
         box-sizing: border-box;
         position: relative;
         z-index: 3;
         visibility: hidden;
-        min-height: 64px;
+        min-height: 55px;
       }
       #_x_extension_newtab_root_2024_unique_:focus-within {
         box-shadow: var(--x-nt-panel-shadow-focus, var(--x-nt-panel-shadow));

@@ -7,7 +7,7 @@
   if (document.body) {
     document.body.removeAttribute('data-nt-ready');
   }
-  root.style.setProperty('padding', '8px', 'important');
+  root.style.setProperty('padding', '4px', 'important');
   root.style.setProperty('width', '90vw', 'important');
   root.style.setProperty('max-width', '720px', 'important');
   root.style.setProperty('box-sizing', 'border-box', 'important');
@@ -6890,7 +6890,7 @@
     position: relative !important;
     width: 100% !important;
     min-width: 100% !important;
-    min-height: 44px !important;
+    min-height: 45px !important;
     display: block !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
