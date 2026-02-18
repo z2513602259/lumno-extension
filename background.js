@@ -1837,6 +1837,7 @@ async function getSearchSuggestions(query) {
   let overlayThemeMediaListener = null;
   let siteSearchStorageListener = null;
   let keydownHandler = null;
+  let overlayKeyCaptureHandler = null;
   let clickOutsideHandler = null;
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
@@ -2196,6 +2197,18 @@ async function getSearchSuggestions(query) {
     if (captureTabHandler) {
       document.removeEventListener('keydown', captureTabHandler, true);
       captureTabHandler = null;
+    }
+    if (keydownHandler) {
+      document.removeEventListener('keydown', keydownHandler);
+      keydownHandler = null;
+    }
+    if (clickOutsideHandler) {
+      document.removeEventListener('click', clickOutsideHandler);
+      clickOutsideHandler = null;
+    }
+    if (overlayKeyCaptureHandler) {
+      window.removeEventListener('keydown', overlayKeyCaptureHandler, true);
+      overlayKeyCaptureHandler = null;
     }
     if (overlayThemeStorageListener) {
       chrome.storage.onChanged.removeListener(overlayThemeStorageListener);
@@ -4640,6 +4653,10 @@ async function getSearchSuggestions(query) {
       const rawValue = e.target.value || '';
       const query = rawValue.trim();
       updateModeBadge(rawValue);
+      if (selectedIndex >= 0) {
+        selectedIndex = -1;
+        updateSelection();
+      }
       latestOverlayQuery = query;
       latestRawInputValue = rawValue;
       clearAutocomplete();
@@ -4675,6 +4692,10 @@ async function getSearchSuggestions(query) {
         latestRawInputValue = rawValue;
         latestOverlayQuery = query;
         return;
+      }
+      if (selectedIndex >= 0) {
+        selectedIndex = -1;
+        updateSelection();
       }
       if (!query && siteSearchState) {
         latestOverlayQuery = '';
@@ -4786,6 +4807,9 @@ async function getSearchSuggestions(query) {
     document.addEventListener('keydown', captureTabHandler, true);
 
     searchInput.addEventListener('keydown', function(e) {
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.stopPropagation();
+      }
       if (e.key !== 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         latestRawInputValue = searchInput.value;
         latestOverlayQuery = searchInput.value.trim();
@@ -4805,6 +4829,16 @@ async function getSearchSuggestions(query) {
       }
       if (e.key === 'Tab') {
         handleTabKey(e);
+      }
+    });
+    searchInput.addEventListener('keypress', function(e) {
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.stopPropagation();
+      }
+    });
+    searchInput.addEventListener('keyup', function(e) {
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.stopPropagation();
       }
     });
 
@@ -4836,12 +4870,12 @@ async function getSearchSuggestions(query) {
           selectedIndex = autoIndex >= 0
             ? (autoIndex + 1) % suggestionItems.length
             : 0;
-          searchInput.blur();
         } else {
           // Move to next suggestion
           selectedIndex = (selectedIndex + 1) % suggestionItems.length;
         }
         updateSelection();
+        searchInput.focus();
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         if (suggestionItems.length === 0) {
@@ -4855,20 +4889,19 @@ async function getSearchSuggestions(query) {
           const autoIndex = getAutoHighlightIndex();
           if (autoIndex > 0) {
             selectedIndex = autoIndex - 1;
-            searchInput.blur();
           } else if (autoIndex === 0) {
             selectedIndex = -1;
             searchInput.focus();
           } else {
             // Move from input to last suggestion
             selectedIndex = suggestionItems.length - 1;
-            searchInput.blur();
           }
         } else {
           // Move to previous suggestion
           selectedIndex = selectedIndex - 1;
         }
         updateSelection();
+        searchInput.focus();
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const query = searchInput.value.trim();
@@ -5010,7 +5043,29 @@ async function getSearchSuggestions(query) {
         }
       }
     };
-    
+
+    overlayKeyCaptureHandler = function(e) {
+      if (!overlay || !overlay.isConnected) {
+        return;
+      }
+      if (document.activeElement !== searchInput) {
+        return;
+      }
+      if (e && (e.isComposing || isComposing)) {
+        return;
+      }
+      if (e.key === 'Tab') {
+        handleTabKey(e);
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Escape') {
+        keydownHandler(e);
+        e.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener('keydown', overlayKeyCaptureHandler, true);
     document.addEventListener('keydown', keydownHandler);
     
     function applySearchSuggestionHighlight(item, theme) {
