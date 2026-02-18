@@ -2782,10 +2782,24 @@
     display: none !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 32px !important;
-    padding: 0 0 60px 0 !important;
     box-sizing: border-box !important;
     z-index: 2 !important;
+    pointer-events: auto !important;
+    overflow: visible !important;
+  `;
+  const bottomDockScroller = document.createElement('div');
+  bottomDockScroller.id = '_x_extension_newtab_bottom_dock_scroller_2024_unique_';
+  bottomDockScroller.style.cssText = `
+    all: unset !important;
+    width: calc(100% + 24px) !important;
+    max-height: 100% !important;
+    margin: -24px -12px 0 !important;
+    padding: 24px 12px 60px 12px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 32px !important;
     pointer-events: auto !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -6998,8 +7012,9 @@
   searchLayer.appendChild(inputParts.container);
   searchLayer.appendChild(suggestionsContainer);
   root.appendChild(searchLayer);
-  bottomDock.appendChild(bookmarkSection);
-  bottomDock.appendChild(recentSection);
+  bottomDockScroller.appendChild(bookmarkSection);
+  bottomDockScroller.appendChild(recentSection);
+  bottomDock.appendChild(bottomDockScroller);
   document.body.appendChild(bottomDock);
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
   loadBookmarks();
