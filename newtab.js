@@ -24,6 +24,7 @@
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
+  const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const RI_SPRITE_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL('remixicon.symbol.svg')
@@ -40,8 +41,8 @@
   let defaultPlaceholderText = '搜索或输入网址...';
   let currentRecentMode = 'latest';
   let currentRecentCount = 4;
+  let currentBookmarkCount = 8;
   let searchLayer = null;
-  const BOOKMARK_LIMIT = 16;
   let bookmarkCurrentPage = 0;
   let bookmarkAllItems = [];
   let bookmarkCurrentFolderId = '1';
@@ -55,8 +56,23 @@
   let bookmarkPagerPrevButton = null;
   let bookmarkPagerNextButton = null;
   let bookmarkPageAnimating = false;
+  let bookmarkWheelLastAt = 0;
+  const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
   const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
+
+  function normalizeBookmarkCount(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 0 || parsed === 8 || parsed === 16 || parsed === 32) {
+      return parsed;
+    }
+    return 8;
+  }
+
+  function getBookmarkLimit() {
+    const normalized = normalizeBookmarkCount(currentBookmarkCount);
+    return normalized > 0 ? normalized : 8;
+  }
 
   // 使用系统字体，避免外链字体依赖。
   let defaultSearchEngineState = {
@@ -1293,6 +1309,16 @@
       updateRecentHeading();
       loadRecentSites();
     }
+    if (changes[BOOKMARK_COUNT_STORAGE_KEY]) {
+      const raw = changes[BOOKMARK_COUNT_STORAGE_KEY].newValue;
+      const nextCount = normalizeBookmarkCount(raw);
+      currentBookmarkCount = nextCount;
+      if (storageArea && raw !== nextCount) {
+        storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: nextCount });
+      }
+      bookmarkCurrentPage = 0;
+      loadBookmarks();
+    }
     if (changes[LANGUAGE_MESSAGES_STORAGE_KEY]) {
       const payload = changes[LANGUAGE_MESSAGES_STORAGE_KEY].newValue;
       const targetLocale = currentLanguageMode === 'system' ? getSystemLocale() : normalizeLocale(currentLanguageMode);
@@ -1324,6 +1350,15 @@
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: mode });
       }
       loadRecentSites();
+    });
+    storageArea.get([BOOKMARK_COUNT_STORAGE_KEY], (result) => {
+      const stored = result[BOOKMARK_COUNT_STORAGE_KEY];
+      const count = normalizeBookmarkCount(stored);
+      currentBookmarkCount = count;
+      if (stored !== count) {
+        storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: count });
+      }
+      loadBookmarks();
     });
   }
 
@@ -1481,6 +1516,7 @@
     LANGUAGE_MESSAGES_STORAGE_KEY,
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
+    BOOKMARK_COUNT_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -2819,6 +2855,41 @@
     }
     switchBookmarkPage(bookmarkCurrentPage + 1);
   });
+  bookmarkSection.addEventListener('wheel', (event) => {
+    if (!event) {
+      return;
+    }
+    if (bookmarkSection.style.getPropertyValue('display') === 'none') {
+      return;
+    }
+    const pageCount = getBookmarkPageCount();
+    if (pageCount <= 1) {
+      return;
+    }
+    const deltaY = Number(event.deltaY) || 0;
+    if (Math.abs(deltaY) < 6) {
+      return;
+    }
+    event.preventDefault();
+    if (bookmarkPageAnimating) {
+      return;
+    }
+    const now = Date.now();
+    if ((now - bookmarkWheelLastAt) < BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS) {
+      return;
+    }
+    let targetPage = bookmarkCurrentPage;
+    if (deltaY > 0 && bookmarkCurrentPage < (pageCount - 1)) {
+      targetPage = bookmarkCurrentPage + 1;
+    } else if (deltaY < 0 && bookmarkCurrentPage > 0) {
+      targetPage = bookmarkCurrentPage - 1;
+    }
+    if (targetPage === bookmarkCurrentPage) {
+      return;
+    }
+    bookmarkWheelLastAt = now;
+    switchBookmarkPage(targetPage);
+  }, { passive: false });
 
   function getBookmarksSignature(items) {
     if (!Array.isArray(items) || items.length === 0) {
@@ -2862,7 +2933,7 @@
 
   function getBookmarkPageCount() {
     const total = Array.isArray(bookmarkAllItems) ? bookmarkAllItems.length : 0;
-    return Math.max(1, Math.ceil(total / BOOKMARK_LIMIT));
+    return Math.max(1, Math.ceil(total / getBookmarkLimit()));
   }
 
   function getBookmarkPageItems() {
@@ -2871,8 +2942,9 @@
     }
     const pageCount = getBookmarkPageCount();
     bookmarkCurrentPage = Math.min(Math.max(0, bookmarkCurrentPage), pageCount - 1);
-    const start = bookmarkCurrentPage * BOOKMARK_LIMIT;
-    return bookmarkAllItems.slice(start, start + BOOKMARK_LIMIT);
+    const pageLimit = getBookmarkLimit();
+    const start = bookmarkCurrentPage * pageLimit;
+    return bookmarkAllItems.slice(start, start + pageLimit);
   }
 
   function updateBookmarkPagerState() {
@@ -2899,26 +2971,27 @@
     const gridStyle = window.getComputedStyle(bookmarkGrid);
     const rowGap = Number.parseFloat(gridStyle.rowGap) || 16;
     const isAtRoot = String(bookmarkCurrentFolderId || '') === String(bookmarkRootFolderId || '1');
+    const pageLimit = getBookmarkLimit();
     let targetItemCount = 0;
 
     if (isAtRoot) {
-      if (total <= BOOKMARK_LIMIT) {
+      if (total <= pageLimit) {
         bookmarkGrid.style.removeProperty('min-height');
         return;
       }
-      targetItemCount = BOOKMARK_LIMIT;
+      targetItemCount = pageLimit;
     } else {
-      if (bookmarkRootTotalCount > BOOKMARK_LIMIT) {
-        targetItemCount = BOOKMARK_LIMIT;
+      if (bookmarkRootTotalCount > pageLimit) {
+        targetItemCount = pageLimit;
       } else {
         targetItemCount = Math.max(0, bookmarkRootVisibleCount);
       }
       if (targetItemCount <= 0) {
-        if (total <= BOOKMARK_LIMIT) {
+        if (total <= pageLimit) {
           bookmarkGrid.style.removeProperty('min-height');
           return;
         }
-        targetItemCount = BOOKMARK_LIMIT;
+        targetItemCount = pageLimit;
       }
     }
 
@@ -3167,12 +3240,36 @@
   }
 
   function loadBookmarks() {
+    if (!currentBookmarkCount || currentBookmarkCount <= 0) {
+      bookmarkAllItems = [];
+      bookmarkRootTotalCount = 0;
+      bookmarkRootVisibleCount = 0;
+      bookmarkCurrentPage = 0;
+      bookmarkRenderSignature = '';
+      bookmarkGrid.innerHTML = '';
+      bookmarkCards.length = 0;
+      bookmarkSection.style.setProperty('display', 'none', 'important');
+      updateBookmarkSectionPosition();
+      return;
+    }
     getTopBookmarks(0, bookmarkCurrentFolderId).then((items) => {
+      if (!currentBookmarkCount || currentBookmarkCount <= 0) {
+        bookmarkAllItems = [];
+        bookmarkRootTotalCount = 0;
+        bookmarkRootVisibleCount = 0;
+        bookmarkCurrentPage = 0;
+        bookmarkRenderSignature = '';
+        bookmarkGrid.innerHTML = '';
+        bookmarkCards.length = 0;
+        bookmarkSection.style.setProperty('display', 'none', 'important');
+        updateBookmarkSectionPosition();
+        return;
+      }
       bookmarkAllItems = Array.isArray(items) ? items : [];
       const isAtRoot = String(bookmarkCurrentFolderId || '') === String(bookmarkRootFolderId || '1');
       if (isAtRoot) {
         bookmarkRootTotalCount = bookmarkAllItems.length;
-        bookmarkRootVisibleCount = Math.min(BOOKMARK_LIMIT, bookmarkAllItems.length);
+        bookmarkRootVisibleCount = Math.min(getBookmarkLimit(), bookmarkAllItems.length);
       }
       syncBookmarkCardElementCache(bookmarkAllItems);
       const pageCount = getBookmarkPageCount();

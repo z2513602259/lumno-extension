@@ -11,6 +11,7 @@
   const languageSelect = document.getElementById('_x_extension_language_select_2024_unique_');
   const recentModeSelect = document.getElementById('_x_extension_recent_mode_select_2024_unique_');
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
+  const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
   const syncStatusText = document.getElementById('_x_extension_sync_status_text_2024_unique_');
@@ -67,6 +68,7 @@
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
+  const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
@@ -78,6 +80,7 @@
     LANGUAGE_MESSAGES_STORAGE_KEY,
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
+    BOOKMARK_COUNT_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
@@ -170,6 +173,14 @@
       }
       return match;
     });
+  }
+
+  function normalizeBookmarkCount(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 0 || parsed === 8 || parsed === 16 || parsed === 32) {
+      return parsed;
+    }
+    return 8;
   }
 
   function applyI18n() {
@@ -1173,6 +1184,7 @@
     LANGUAGE_MESSAGES_STORAGE_KEY,
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
+    BOOKMARK_COUNT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY
@@ -1299,6 +1311,15 @@
         return;
       }
       storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
+    });
+  }
+  if (bookmarkCountSelect) {
+    bookmarkCountSelect.addEventListener('change', () => {
+      const nextCount = normalizeBookmarkCount(bookmarkCountSelect.value);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: nextCount });
     });
   }
 
@@ -1517,6 +1538,17 @@
       }
       if (!hasStored) {
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: mode });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([BOOKMARK_COUNT_STORAGE_KEY], (result) => {
+      const stored = result[BOOKMARK_COUNT_STORAGE_KEY];
+      const count = normalizeBookmarkCount(stored);
+      if (bookmarkCountSelect) {
+        bookmarkCountSelect.value = String(count);
+      }
+      if (stored !== count) {
+        storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: count });
       }
       refreshCustomSelects();
     });
@@ -2289,6 +2321,7 @@
         changes[LANGUAGE_STORAGE_KEY] ||
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
+        changes[BOOKMARK_COUNT_STORAGE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
         changes[SITE_SEARCH_DISABLED_STORAGE_KEY] ||
@@ -2313,6 +2346,11 @@
       const nextValue = changes[RECENT_MODE_STORAGE_KEY].newValue;
       const mode = nextValue === 'most' ? 'most' : 'latest';
       recentModeSelect.value = mode;
+      refreshCustomSelects();
+    }
+    if (changes[BOOKMARK_COUNT_STORAGE_KEY] && bookmarkCountSelect) {
+      const stored = normalizeBookmarkCount(changes[BOOKMARK_COUNT_STORAGE_KEY].newValue);
+      bookmarkCountSelect.value = String(stored);
       refreshCustomSelects();
     }
     if (changes[RESTRICTED_ACTION_STORAGE_KEY] && restrictedActionSelect) {
