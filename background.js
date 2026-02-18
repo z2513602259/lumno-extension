@@ -34,8 +34,7 @@ function isRestrictedUrl(url) {
 }
 
 function openNewtabFallback() {
-  const newtabUrl = chrome.runtime.getURL('newtab.html?focus=1');
-  chrome.tabs.create({ url: newtabUrl });
+  chrome.tabs.create({});
 }
 
 function logHotkeyDebug(stage, payload) {
