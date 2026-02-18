@@ -4,7 +4,13 @@
   if (!root || typeof createSearchInput !== 'function') {
     return;
   }
+  if (document.body) {
+    document.body.removeAttribute('data-nt-ready');
+  }
   root.style.setProperty('padding', '8px', 'important');
+  root.style.setProperty('width', '90vw', 'important');
+  root.style.setProperty('max-width', '720px', 'important');
+  root.style.setProperty('box-sizing', 'border-box', 'important');
 
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
@@ -233,6 +239,17 @@
       }
     }
     return fallback || '';
+  }
+
+  function markNewtabReady() {
+    if (!document.body) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.body.setAttribute('data-nt-ready', '1');
+      });
+    });
   }
 
   function formatMessage(key, fallback, params) {
@@ -6430,6 +6447,9 @@
       'background': 'transparent',
       'border': 'none',
       'box-shadow': 'none',
+      'min-width': '100%',
+      'min-height': '44px',
+      'height': '44px',
       'position': 'relative',
       'z-index': '2'
     },
@@ -6437,7 +6457,10 @@
       'border-bottom': 'none',
       'color': 'var(--x-nt-text, #111827)',
       'caret-color': 'var(--x-nt-link, #2563EB)',
-      'padding': '8px 52px 8px 44px'
+      'padding': '8px 52px 8px 44px',
+      'min-height': '44px',
+      'height': '44px',
+      'line-height': '24px'
     },
     iconStyleOverrides: {
       'color': 'var(--x-nt-subtext, #6B7280)'
@@ -6755,6 +6778,8 @@
     all: unset !important;
     position: relative !important;
     width: 100% !important;
+    min-width: 100% !important;
+    min-height: 44px !important;
     display: block !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
@@ -6979,5 +7004,6 @@
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
   loadBookmarks();
   updateBookmarkSectionPosition();
+  markNewtabReady();
 
 })();
