@@ -8,7 +8,7 @@ Remix Icon 规则：以后你给我一个 icon id，我必须按本项目的 Rem
 ## Project Structure & Module Organization
 - `manifest.json` defines the Chrome Extension (Manifest V3) metadata, permissions, and entry points.
 - `background.js` is the service worker that listens for commands, queries tabs/history/bookmarks, and injects UI scripts.
-- `content.js` handles the in-page overlay UI and user interactions.
+- `input-ui.js` provides shared search input UI construction used by injected overlay/newtab pages.
 - `arc.png` provides the extension icon assets.
 
 ## Build, Test, and Development Commands

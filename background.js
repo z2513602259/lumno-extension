@@ -322,7 +322,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     const targetUrl = request.url || '';
     const hostOverride = request.host || '';
     const fallbackUrl = request.fallbackUrl || '';
-    resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl).then((urls) => {
+    const preferredTheme = request.preferredTheme || '';
+    resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme).then((urls) => {
       sendResponse({ urls: Array.isArray(urls) ? urls : [] });
     }).catch(() => {
       sendResponse({ urls: [] });
@@ -1024,10 +1025,111 @@ function getChromeFaviconUrl(url) {
   return `chrome://favicon2/?size=128&scale_factor=2x&show_fallback_monogram=1&url=${encodeURIComponent(url)}`;
 }
 
-function parseHtmlIconCandidates(html, pageUrl) {
+function normalizeThemePreference(theme) {
+  if (theme === 'dark') {
+    return 'dark';
+  }
+  if (theme === 'light') {
+    return 'light';
+  }
+  return '';
+}
+
+function hasThemeTokenInUrl(url, token) {
+  const lower = String(url || '').toLowerCase();
+  return new RegExp(`(^|[._/-])${token}([._/-]|$)`).test(lower);
+}
+
+function shouldSkipThemeUpgradeCandidate(candidateUrl, preferredTheme, currentUrl) {
+  const mode = normalizeThemePreference(preferredTheme);
+  if (!mode) {
+    return false;
+  }
+  const opposite = mode === 'dark' ? 'light' : 'dark';
+  if (hasThemeTokenInUrl(candidateUrl, opposite)) {
+    return true;
+  }
+  const currentHasPreferredToken = hasThemeTokenInUrl(currentUrl, mode);
+  const candidateHasPreferredToken = hasThemeTokenInUrl(candidateUrl, mode);
+  if (currentHasPreferredToken && !candidateHasPreferredToken) {
+    return true;
+  }
+  return false;
+}
+
+function getKnownThemedFaviconCandidates(hostname, preferredTheme) {
+  const host = normalizeFaviconHost(hostname);
+  const mode = normalizeThemePreference(preferredTheme);
+  if (!host) {
+    return [];
+  }
+  if (host === 'github.com' || host.endsWith('.github.com')) {
+    if (mode === 'dark') {
+      return [
+        { url: 'https://github.githubassets.com/favicons/favicon-dark.svg', score: 60 },
+        { url: 'https://github.githubassets.com/favicons/favicon.svg', score: 42 },
+        { url: 'https://github.githubassets.com/favicons/favicon.png', score: 36 }
+      ];
+    }
+    if (mode === 'light') {
+      return [
+        { url: 'https://github.githubassets.com/favicons/favicon.svg', score: 60 },
+        { url: 'https://github.githubassets.com/favicons/favicon-dark.svg', score: 40 },
+        { url: 'https://github.githubassets.com/favicons/favicon.png', score: 36 }
+      ];
+    }
+    return [
+      { url: 'https://github.githubassets.com/favicons/favicon.svg', score: 52 },
+      { url: 'https://github.githubassets.com/favicons/favicon-dark.svg', score: 52 },
+      { url: 'https://github.githubassets.com/favicons/favicon.png', score: 36 }
+    ];
+  }
+  return [];
+}
+
+function getThemeHintScore(url, mediaValue, preferredTheme) {
+  const normalizedTheme = normalizeThemePreference(preferredTheme);
+  if (!normalizedTheme) {
+    return 0;
+  }
+  let score = 0;
+  const lowerMedia = String(mediaValue || '').toLowerCase();
+  if (lowerMedia.includes('prefers-color-scheme')) {
+    const hasDark = /prefers-color-scheme\s*:\s*dark/.test(lowerMedia);
+    const hasLight = /prefers-color-scheme\s*:\s*light/.test(lowerMedia);
+    if ((normalizedTheme === 'dark' && hasDark) || (normalizedTheme === 'light' && hasLight)) {
+      score += 34;
+    }
+    if ((normalizedTheme === 'dark' && hasLight) || (normalizedTheme === 'light' && hasDark)) {
+      score -= 20;
+    }
+  }
+  const lowerUrl = String(url || '').toLowerCase();
+  const hasDarkToken = /(^|[._/-])dark([._/-]|$)/.test(lowerUrl);
+  const hasLightToken = /(^|[._/-])light([._/-]|$)/.test(lowerUrl);
+  if (normalizedTheme === 'dark') {
+    if (hasDarkToken) {
+      score += 16;
+    }
+    if (hasLightToken) {
+      score -= 8;
+    }
+  } else if (normalizedTheme === 'light') {
+    if (hasLightToken) {
+      score += 16;
+    }
+    if (hasDarkToken) {
+      score -= 8;
+    }
+  }
+  return score;
+}
+
+function parseHtmlIconCandidates(html, pageUrl, preferredTheme) {
   if (!html || !pageUrl) {
     return [];
   }
+  const normalizedTheme = normalizeThemePreference(preferredTheme);
   const list = [];
   const linkMatches = String(html).match(/<link\b[^>]*>/gi) || [];
   linkMatches.forEach((tag) => {
@@ -1049,8 +1151,11 @@ function parseHtmlIconCandidates(html, pageUrl) {
     }
     const typeMatch = tag.match(/\btype\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
     const sizesMatch = tag.match(/\bsizes\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const mediaMatch = tag.match(/\bmedia\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const baseHrefMatch = tag.match(/\bdata-base-href\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
     const type = String(typeMatch ? (typeMatch[2] || typeMatch[3] || typeMatch[4] || '') : '').toLowerCase();
     const sizes = String(sizesMatch ? (sizesMatch[2] || sizesMatch[3] || sizesMatch[4] || '') : '').toLowerCase();
+    const media = String(mediaMatch ? (mediaMatch[2] || mediaMatch[3] || mediaMatch[4] || '') : '').toLowerCase();
     let score = 10;
     if (/\bicon\b/.test(rel)) {
       score += 20;
@@ -1067,17 +1172,52 @@ function parseHtmlIconCandidates(html, pageUrl) {
     if (href.toLowerCase().includes('favicon')) {
       score += 6;
     }
+    score += getThemeHintScore(href, media, normalizedTheme);
     const sizeNumbers = sizes.match(/\d+/g);
     if (sizeNumbers && sizeNumbers.length > 0) {
       const size = Math.max(...sizeNumbers.map((n) => Number(n) || 0));
       score += Math.min(20, Math.floor(size / 8));
     }
     list.push({ url: href, score: score });
+    if (normalizedTheme === 'dark' && /\/favicon\.svg(?:[?#].*)?$/i.test(href)) {
+      list.push({
+        url: href.replace(/\/favicon\.svg([?#].*)?$/i, '/favicon-dark.svg$1'),
+        score: score + 14
+      });
+    }
+    if (normalizedTheme === 'light' && /\/favicon-dark\.svg(?:[?#].*)?$/i.test(href)) {
+      list.push({
+        url: href.replace(/\/favicon-dark\.svg([?#].*)?$/i, '/favicon.svg$1'),
+        score: score + 14
+      });
+    }
+    const baseHrefRaw = String(baseHrefMatch ? (baseHrefMatch[2] || baseHrefMatch[3] || baseHrefMatch[4] || '') : '').trim();
+    if (baseHrefRaw) {
+      let baseHref = '';
+      try {
+        baseHref = new URL(baseHrefRaw, pageUrl).href;
+      } catch (e) {
+        baseHref = '';
+      }
+      if (baseHref) {
+        if (normalizedTheme === 'dark') {
+          list.push({ url: `${baseHref}-dark.svg`, score: score + 20 });
+          list.push({ url: `${baseHref}.svg`, score: score + 8 });
+        } else if (normalizedTheme === 'light') {
+          list.push({ url: `${baseHref}.svg`, score: score + 20 });
+          list.push({ url: `${baseHref}-light.svg`, score: score + 12 });
+        } else {
+          list.push({ url: `${baseHref}.svg`, score: score + 12 });
+          list.push({ url: `${baseHref}-dark.svg`, score: score + 12 });
+        }
+      }
+    }
   });
   return list;
 }
 
-function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl) {
+function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl, preferredTheme) {
+  const normalizedTheme = normalizeThemePreference(preferredTheme);
   const candidates = [];
   const inputUrl = String(pageUrl || '').trim();
   const fallback = String(fallbackUrl || '').trim();
@@ -1093,7 +1233,20 @@ function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl) {
     return [];
   }
   if (host) {
-    candidates.push({ url: `https://${host}/favicon.svg`, score: 28 });
+    candidates.push(...getKnownThemedFaviconCandidates(host, normalizedTheme));
+    if (normalizedTheme === 'dark') {
+      candidates.push({ url: `https://${host}/favicon-dark.svg`, score: 34 });
+      candidates.push({ url: `https://${host}/favicon.svg`, score: 28 });
+      candidates.push({ url: `https://${host}/favicon-light.svg`, score: 16 });
+    } else if (normalizedTheme === 'light') {
+      candidates.push({ url: `https://${host}/favicon-light.svg`, score: 32 });
+      candidates.push({ url: `https://${host}/favicon.svg`, score: 29 });
+      candidates.push({ url: `https://${host}/favicon-dark.svg`, score: 15 });
+    } else {
+      candidates.push({ url: `https://${host}/favicon.svg`, score: 28 });
+      candidates.push({ url: `https://${host}/favicon-dark.svg`, score: 20 });
+      candidates.push({ url: `https://${host}/favicon-light.svg`, score: 20 });
+    }
     candidates.push({ url: `https://${host}/favicon.ico`, score: 24 });
     candidates.push({ url: `https://${host}/apple-touch-icon.png`, score: 16 });
     candidates.push({ url: getGoogleFaviconUrl(host), score: 8 });
@@ -1124,7 +1277,7 @@ function dedupeAndSortFaviconCandidates(candidates) {
     .map((item) => item.url);
 }
 
-function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl) {
+function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme) {
   const inputUrl = String(targetUrl || '').trim();
   if (!inputUrl) {
     return Promise.resolve([]);
@@ -1142,11 +1295,12 @@ function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl) {
     logBlockedLocalFavicon(targetUrl || hostOverride || '', 'resolveFaviconCandidates');
     return Promise.resolve([]);
   }
+  const normalizedTheme = normalizeThemePreference(preferredTheme);
   const normalizedHost = normalizeFaviconHost(hostOverride || parsed.hostname);
-  const cacheKey = `${normalizedHost}::${parsed.origin}`;
+  const cacheKey = `${normalizedHost}::${parsed.origin}::${normalizedTheme || 'auto'}`;
   if (faviconResolveCache.has(cacheKey)) {
     const cached = faviconResolveCache.get(cacheKey);
-    const extra = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl);
+    const extra = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
     return Promise.resolve(dedupeAndSortFaviconCandidates([...(cached || []).map((url) => ({ url: url, score: 20 })), ...extra]));
   }
   if (faviconResolvePending.has(cacheKey)) {
@@ -1160,15 +1314,15 @@ function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl) {
       return response.text();
     })
     .then((html) => {
-      const parsedCandidates = parseHtmlIconCandidates(html, inputUrl);
-      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl);
+      const parsedCandidates = parseHtmlIconCandidates(html, inputUrl, normalizedTheme);
+      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
       const resolved = dedupeAndSortFaviconCandidates([...parsedCandidates, ...fallbackCandidates]);
       faviconResolveCache.set(cacheKey, resolved.slice(0, 8));
       faviconResolvePending.delete(cacheKey);
       return resolved;
     })
     .catch(() => {
-      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl);
+      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
       const resolved = dedupeAndSortFaviconCandidates(fallbackCandidates);
       faviconResolveCache.set(cacheKey, resolved.slice(0, 8));
       faviconResolvePending.delete(cacheKey);
@@ -2366,7 +2520,9 @@ async function getSearchSuggestions(query) {
 
     const applyOverlayTheme = (mode) => {
       overlayThemeMode = mode;
+      const previousResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
       applyOverlayThemeVariables(overlay, mode);
+      const nextResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
       suggestionItems.forEach((item) => {
         if (item && item._xTheme) {
           applyThemeVariables(item, item._xTheme);
@@ -2374,10 +2530,14 @@ async function getSearchSuggestions(query) {
       });
       updateSelection();
       updateModeBadge(searchInput ? searchInput.value : '');
+      if (previousResolvedTheme !== nextResolvedTheme) {
+        refreshOverlayThemeAwareFavicons();
+      }
       if (mode === 'system' && !overlayThemeListenerAttached) {
         overlayThemeMediaListener = function() {
           if (overlayThemeMode === 'system') {
-            applyOverlayThemeVariables(overlay, overlayThemeMode);
+            // 仅更新容器变量会导致建议项主题变量滞后，系统主题切换时完整刷新。
+            applyOverlayTheme('system');
           }
         };
         overlayMediaQuery.addEventListener('change', overlayThemeMediaListener);
@@ -3727,57 +3887,167 @@ async function getSearchSuggestions(query) {
       return true;
     }
 
+    function canReuseCurrentFavicon(img, nextSrc) {
+      if (!img || !nextSrc) {
+        return false;
+      }
+      const currentSrc = img.getAttribute('data-favicon-current-src') || img.src || '';
+      if (currentSrc !== nextSrc) {
+        return false;
+      }
+      const currentResolved = img.getAttribute('data-favicon-current-src') || '';
+      if (currentResolved === nextSrc) {
+        return true;
+      }
+      return Boolean(img.complete && img.naturalWidth > 0);
+    }
+
+    function getLastWorkingFaviconSrc(img) {
+      if (!img) {
+        return '';
+      }
+      const resolved = img.getAttribute('data-favicon-current-src') || '';
+      if (resolved) {
+        return resolved;
+      }
+      if (img.complete && img.naturalWidth > 0) {
+        return img.src || '';
+      }
+      return '';
+    }
+
+    function restoreWorkingFaviconOrFail(img, previousSrc, onFailed) {
+      const fallbackSrc = String(previousSrc || '').trim();
+      if (fallbackSrc) {
+        const applied = setFaviconSrcWithAnimation(img, fallbackSrc);
+        if (applied || canReuseCurrentFavicon(img, fallbackSrc)) {
+          return true;
+        }
+      }
+      if (typeof onFailed === 'function') {
+        onFailed();
+      }
+      return false;
+    }
+
     function attachResolvedFaviconWithFallbacks(img, pageUrl, hostKey, fallbackUrl, onFailed) {
       if (!img) {
         return;
       }
       const handleFailed = typeof onFailed === 'function' ? onFailed : function() {};
-      const cacheKey = `${String(hostKey || '')}::${String(pageUrl || '')}::${String(fallbackUrl || '')}`;
+      const preferredTheme = isOverlayDarkMode() ? 'dark' : 'light';
+      const previousWorkingSrc = getLastWorkingFaviconSrc(img);
+      img.setAttribute('data-x-ov-theme-favicon', '1');
+      img.setAttribute('data-x-ov-favicon-page-url', String(pageUrl || ''));
+      img.setAttribute('data-x-ov-favicon-host', String(hostKey || ''));
+      img.setAttribute('data-x-ov-favicon-fallback-url', String(fallbackUrl || ''));
+      const cacheKey = `${String(hostKey || '')}::${String(pageUrl || '')}::${String(fallbackUrl || '')}::${preferredTheme}`;
       const cachedUrl = resolvedFaviconUrlCache.get(cacheKey) || '';
       const safeCachedUrl = isBlockedLocalFaviconUrl(cachedUrl) ? '' : cachedUrl;
       const safeFallbackUrl = isBlockedLocalFaviconUrl(fallbackUrl) ? '' : String(fallbackUrl || '');
       const quickUrl = safeCachedUrl || safeFallbackUrl;
-      if (quickUrl) {
-        setFaviconSrcWithAnimation(img, quickUrl);
-      }
+      const trySetCandidate = (nextUrl) => {
+        if (!nextUrl) {
+          return false;
+        }
+        const applied = setFaviconSrcWithAnimation(img, nextUrl);
+        if (!applied && !canReuseCurrentFavicon(img, nextUrl)) {
+          return false;
+        }
+        return true;
+      };
+      const quickApplied = quickUrl ? trySetCandidate(quickUrl) : false;
       chrome.runtime.sendMessage(
         {
           action: 'resolveFaviconCandidates',
           url: pageUrl || '',
           host: hostKey || '',
-          fallbackUrl: fallbackUrl || ''
+          fallbackUrl: fallbackUrl || '',
+          preferredTheme: preferredTheme
         },
         (response) => {
           const resolved = response && Array.isArray(response.urls) ? response.urls.filter(Boolean) : [];
           const urls = Array.from(new Set([safeCachedUrl, ...resolved, safeFallbackUrl].filter((url) => url && !isBlockedLocalFaviconUrl(url))));
           if (!urls.length) {
-            if (!quickUrl) {
-              handleFailed();
+            if (!quickApplied) {
+              restoreWorkingFaviconOrFail(img, previousWorkingSrc, handleFailed);
             }
             return;
           }
-          let index = quickUrl ? Math.max(0, urls.indexOf(quickUrl) + 1) : 0;
+          let index = quickApplied ? Math.max(0, urls.indexOf(quickUrl) + 1) : 0;
           const tryNext = () => {
             if (!img) {
               return;
             }
             if (index >= urls.length) {
-              handleFailed();
+              restoreWorkingFaviconOrFail(img, previousWorkingSrc, handleFailed);
               return;
             }
             const nextUrl = urls[index];
             index += 1;
-            setFaviconSrcWithAnimation(img, nextUrl);
+            if (!trySetCandidate(nextUrl)) {
+              tryNext();
+              return;
+            }
             resolvedFaviconUrlCache.set(cacheKey, nextUrl);
           };
           img.onerror = () => {
             tryNext();
           };
-          if (!quickUrl) {
+          if (!quickApplied) {
             tryNext();
+            return;
           }
+          const currentUrl = String(quickUrl || (img && img.src ? img.src : '') || '');
+          const upgradeCandidates = urls.filter((candidate) => {
+            if (!candidate || candidate === quickUrl) {
+              return false;
+            }
+            if (shouldSkipThemeUpgradeCandidate(candidate, preferredTheme, currentUrl)) {
+              return false;
+            }
+            return true;
+          });
+          const tryUpgrade = (index) => {
+            if (!img || !img.isConnected || index >= upgradeCandidates.length) {
+              return;
+            }
+            const candidate = upgradeCandidates[index];
+            const probe = new Image();
+            probe.referrerPolicy = 'no-referrer';
+            probe.onload = () => {
+              if (!img || !img.isConnected) {
+                return;
+              }
+              setFaviconSrcWithAnimation(img, candidate);
+              resolvedFaviconUrlCache.set(cacheKey, candidate);
+            };
+            probe.onerror = () => {
+              tryUpgrade(index + 1);
+            };
+            probe.src = candidate;
+          };
+          tryUpgrade(0);
         }
       );
+    }
+
+    function refreshOverlayThemeAwareFavicons() {
+      if (!overlay) {
+        return;
+      }
+      overlay.querySelectorAll('img[data-x-ov-theme-favicon="1"]').forEach((img) => {
+        if (!img || !img.isConnected) {
+          return;
+        }
+        const pageUrl = img.getAttribute('data-x-ov-favicon-page-url') || '';
+        if (!pageUrl) {
+          return;
+        }
+        const hostKey = img.getAttribute('data-x-ov-favicon-host') || '';
+        const fallbackUrl = img.getAttribute('data-x-ov-favicon-fallback-url') || '';
+        attachResolvedFaviconWithFallbacks(img, pageUrl, hostKey, fallbackUrl);
+      });
     }
 
     function attachFaviconData(img, url, hostOverride) {

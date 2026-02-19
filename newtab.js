@@ -15,6 +15,9 @@
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
     : (chrome && chrome.storage ? chrome.storage.local : null);
+  const localStorageArea = (chrome && chrome.storage && chrome.storage.local)
+    ? chrome.storage.local
+    : storageArea;
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
@@ -26,6 +29,16 @@
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
+  const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+  const FAVICON_PERSIST_MAX_ENTRIES = 800;
+  const FAVICON_REVALIDATE_INTERVAL_MS = 1000 * 60 * 60 * 12;
+  const FAVICON_DATA_PERSIST_STORAGE_KEY = '_x_extension_favicon_data_cache_2024_unique_';
+  const FAVICON_DATA_PERSIST_MAX_ENTRIES = 220;
+  const FAVICON_DATA_PERSIST_MAX_LENGTH = 24000;
+  const NEWTAB_RECENT_CACHE_STORAGE_KEY = '_x_extension_newtab_recent_cache_2024_unique_';
+  const NEWTAB_BOOKMARK_CACHE_STORAGE_KEY = '_x_extension_newtab_bookmark_cache_2024_unique_';
+  const NEWTAB_SECTION_CACHE_TTL_MS = 1000 * 60 * 5;
   const RI_SPRITE_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL('remixicon.symbol.svg')
     : 'remixicon.symbol.svg';
@@ -42,6 +55,7 @@
   let currentRecentMode = 'latest';
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
+  let themeFaviconRescueTimer = null;
   let searchLayer = null;
   let bookmarkCurrentPage = 0;
   let bookmarkAllItems = [];
@@ -51,6 +65,10 @@
   let bookmarkRootTotalCount = 0;
   let bookmarkRootVisibleCount = 0;
   const bookmarkNodeMap = new Map();
+  const bookmarkFolderItemsCache = new Map();
+  let bookmarkTreeCacheReady = false;
+  let bookmarkTreeCacheDirty = true;
+  let bookmarkTreeCacheLoadingPromise = null;
   let bookmarkTitleWrap = null;
   let bookmarkBreadcrumb = null;
   let bookmarkPagerPrevButton = null;
@@ -1085,7 +1103,7 @@
     bookmarkCurrentFolderId = id;
     bookmarkCurrentPage = 0;
     bookmarkRenderSignature = '';
-    loadBookmarks();
+    loadBookmarks({ force: true });
   }
 
   function updateBookmarkHeadingRootLinkState(isNested) {
@@ -1242,8 +1260,11 @@
 
   function applyThemeMode(mode) {
     currentThemeMode = mode || 'system';
+    const previousResolved = document.body ? document.body.getAttribute('data-theme') : '';
     const resolved = resolveTheme(mode);
     document.body.setAttribute('data-theme', resolved);
+    const didResolvedThemeChange = previousResolved !== resolved;
+    const hasResolvedThemeBefore = previousResolved === 'dark' || previousResolved === 'light';
     suggestionItems.forEach((item) => {
       if (item && item._xTheme) {
         applyThemeVariables(item, item._xTheme);
@@ -1265,6 +1286,10 @@
     updateSelection();
     updateModeBadge(inputParts && inputParts.input ? inputParts.input.value : '');
     refreshFallbackIcons();
+    if (didResolvedThemeChange && hasResolvedThemeBefore) {
+      refreshThemeAwareFavicons();
+      scheduleThemeAwareFaviconRescue();
+    }
     if (mode === 'system' && !mediaListenerAttached) {
       mediaQuery.addEventListener('change', handleMediaChange);
       mediaListenerAttached = true;
@@ -1277,15 +1302,11 @@
   }
 
   function handleMediaChange() {
-    if (!storageArea) {
+    if (currentThemeMode !== 'system') {
       return;
     }
-    storageArea.get([THEME_STORAGE_KEY], (result) => {
-      const mode = result[THEME_STORAGE_KEY] || 'system';
-      if (mode === 'system') {
-        document.body.setAttribute('data-theme', resolveTheme(mode));
-      }
-    });
+    // 仅更新 data-theme 会遗漏依赖 JS 混色的卡片；系统主题切换时需完整重算。
+    applyThemeMode('system');
   }
 
   if (storageArea) {
@@ -1307,13 +1328,15 @@
     if (changes[RECENT_COUNT_STORAGE_KEY]) {
       const nextCount = Number.parseInt(changes[RECENT_COUNT_STORAGE_KEY].newValue, 10);
       currentRecentCount = Number.isFinite(nextCount) ? nextCount : 4;
-      loadRecentSites();
+      markRecentDataDirty();
+      loadRecentSites({ force: true });
     }
     if (changes[RECENT_MODE_STORAGE_KEY]) {
       const nextMode = changes[RECENT_MODE_STORAGE_KEY].newValue;
       currentRecentMode = nextMode === 'most' ? 'most' : 'latest';
       updateRecentHeading();
-      loadRecentSites();
+      markRecentDataDirty();
+      loadRecentSites({ force: true });
     }
     if (changes[BOOKMARK_COUNT_STORAGE_KEY]) {
       const raw = changes[BOOKMARK_COUNT_STORAGE_KEY].newValue;
@@ -1323,7 +1346,8 @@
         storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: nextCount });
       }
       bookmarkCurrentPage = 0;
-      loadBookmarks();
+      markBookmarkDataDirty();
+      loadBookmarks({ force: true });
     }
     if (changes[LANGUAGE_MESSAGES_STORAGE_KEY]) {
       const payload = changes[LANGUAGE_MESSAGES_STORAGE_KEY].newValue;
@@ -1344,27 +1368,39 @@
     storageArea.get([RECENT_COUNT_STORAGE_KEY], (result) => {
       const stored = result[RECENT_COUNT_STORAGE_KEY];
       const count = Number.isFinite(stored) ? stored : 4;
+      const changed = currentRecentCount !== count;
       currentRecentCount = count;
-      loadRecentSites();
+      if (changed || !recentLoadedOnce) {
+        markRecentDataDirty();
+        loadRecentSites();
+      }
     });
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
       const mode = stored === 'most' ? 'most' : 'latest';
+      const changed = currentRecentMode !== mode;
       currentRecentMode = mode;
       updateRecentHeading();
       if (stored !== mode) {
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: mode });
       }
-      loadRecentSites();
+      if (changed || !recentLoadedOnce) {
+        markRecentDataDirty();
+        loadRecentSites();
+      }
     });
     storageArea.get([BOOKMARK_COUNT_STORAGE_KEY], (result) => {
       const stored = result[BOOKMARK_COUNT_STORAGE_KEY];
       const count = normalizeBookmarkCount(stored);
+      const changed = currentBookmarkCount !== count;
       currentBookmarkCount = count;
       if (stored !== count) {
         storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: count });
       }
-      loadBookmarks();
+      if (changed || !bookmarkLoadedOnce) {
+        markBookmarkDataDirty();
+        loadBookmarks();
+      }
     });
   }
 
@@ -1846,6 +1882,50 @@
     return host;
   }
 
+  function hasThemeTokenInUrl(url, token) {
+    const lower = String(url || '').toLowerCase();
+    return new RegExp(`(^|[._/-])${token}([._/-]|$)`).test(lower);
+  }
+
+  function shouldSkipThemeUpgradeCandidate(candidateUrl, preferredTheme, currentUrl) {
+    const mode = preferredTheme === 'dark' ? 'dark' : (preferredTheme === 'light' ? 'light' : '');
+    if (!mode) {
+      return false;
+    }
+    const opposite = mode === 'dark' ? 'light' : 'dark';
+    if (hasThemeTokenInUrl(candidateUrl, opposite)) {
+      return true;
+    }
+    const currentHasPreferredToken = hasThemeTokenInUrl(currentUrl, mode);
+    const candidateHasPreferredToken = hasThemeTokenInUrl(candidateUrl, mode);
+    if (currentHasPreferredToken && !candidateHasPreferredToken) {
+      return true;
+    }
+    return false;
+  }
+
+  function getKnownThemedFaviconCandidates(hostname, preferredTheme) {
+    const host = normalizeFaviconHost(hostname);
+    if (!host) {
+      return [];
+    }
+    if (host === 'github.com' || host.endsWith('.github.com')) {
+      if (preferredTheme === 'dark') {
+        return [
+          'https://github.githubassets.com/favicons/favicon-dark.svg',
+          'https://github.githubassets.com/favicons/favicon.svg',
+          'https://github.githubassets.com/favicons/favicon.png'
+        ];
+      }
+      return [
+        'https://github.githubassets.com/favicons/favicon.svg',
+        'https://github.githubassets.com/favicons/favicon-dark.svg',
+        'https://github.githubassets.com/favicons/favicon.png'
+      ];
+    }
+    return [];
+  }
+
   function isFaviconProxyUrl(url) {
     if (!url) {
       return false;
@@ -2119,6 +2199,10 @@
     return document.body.getAttribute('data-theme') === 'dark';
   }
 
+  function getFaviconPreferredTheme() {
+    return isNewtabDarkMode() ? 'dark' : 'light';
+  }
+
   function getThemeForMode(theme) {
     if (!theme) {
       return defaultTheme;
@@ -2177,6 +2261,15 @@
   const faviconDataCache = new Map();
   const faviconDataPending = new Map();
   const missingIconCache = new Set();
+  const faviconPersistCache = new Map();
+  const faviconDataPersistCache = new Map();
+  const faviconPersistArea = (chrome && chrome.storage && chrome.storage.local) ? chrome.storage.local : null;
+  let faviconPersistLoaded = false;
+  let faviconPersistLoadPromise = null;
+  let faviconPersistWriteTimer = null;
+  let faviconDataPersistLoaded = false;
+  let faviconDataPersistLoadPromise = null;
+  let faviconDataPersistWriteTimer = null;
 
   function isBlockedLocalFaviconUrl(url) {
     const raw = String(url || '').trim();
@@ -2232,6 +2325,255 @@
     });
   }
 
+  function getValidFaviconPersistEntries(rawEntries) {
+    const now = Date.now();
+    const input = rawEntries && typeof rawEntries === 'object' ? rawEntries : {};
+    const valid = [];
+    Object.keys(input).forEach((key) => {
+      const item = input[key];
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      const url = String(item.url || '').trim();
+      const updatedAt = Number(item.updatedAt || 0);
+      if (!key || !url || !Number.isFinite(updatedAt)) {
+        return;
+      }
+      if (now - updatedAt > FAVICON_PERSIST_TTL_MS) {
+        return;
+      }
+      if (url.startsWith('data:') || isBlockedLocalFaviconUrl(url)) {
+        return;
+      }
+      valid.push({ key, url, updatedAt });
+    });
+    valid.sort((a, b) => b.updatedAt - a.updatedAt);
+    return valid.slice(0, FAVICON_PERSIST_MAX_ENTRIES);
+  }
+
+  function isValidDataUrlIcon(value) {
+    const raw = String(value || '');
+    if (!raw || raw.length > FAVICON_DATA_PERSIST_MAX_LENGTH) {
+      return false;
+    }
+    return /^data:image\/(?:png|webp|svg\+xml|x-icon|jpeg|jpg);base64,/i.test(raw);
+  }
+
+  function getValidFaviconDataPersistEntries(rawEntries) {
+    const now = Date.now();
+    const input = rawEntries && typeof rawEntries === 'object' ? rawEntries : {};
+    const valid = [];
+    Object.keys(input).forEach((key) => {
+      const item = input[key];
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      const dataUrl = String(item.dataUrl || '').trim();
+      const updatedAt = Number(item.updatedAt || 0);
+      if (!key || !isValidDataUrlIcon(dataUrl) || !Number.isFinite(updatedAt)) {
+        return;
+      }
+      if (now - updatedAt > FAVICON_PERSIST_TTL_MS) {
+        return;
+      }
+      valid.push({ key, dataUrl, updatedAt });
+    });
+    valid.sort((a, b) => b.updatedAt - a.updatedAt);
+    return valid.slice(0, FAVICON_DATA_PERSIST_MAX_ENTRIES);
+  }
+
+  function loadFaviconPersistCache() {
+    if (faviconPersistLoadPromise) {
+      return faviconPersistLoadPromise;
+    }
+    if (!faviconPersistArea) {
+      faviconPersistLoaded = true;
+      faviconPersistLoadPromise = Promise.resolve();
+      return faviconPersistLoadPromise;
+    }
+    if (faviconPersistLoaded) {
+      faviconPersistLoadPromise = Promise.resolve();
+      return faviconPersistLoadPromise;
+    }
+    faviconPersistLoaded = true;
+    faviconPersistLoadPromise = new Promise((resolve) => {
+      faviconPersistArea.get([FAVICON_PERSIST_STORAGE_KEY], (result) => {
+        const payload = result && result[FAVICON_PERSIST_STORAGE_KEY];
+        const entries = getValidFaviconPersistEntries(payload && payload.entries ? payload.entries : null);
+        entries.forEach((item) => {
+          faviconPersistCache.set(item.key, { url: item.url, updatedAt: item.updatedAt });
+        });
+        resolve();
+      });
+    });
+    return faviconPersistLoadPromise;
+  }
+
+  function loadFaviconDataPersistCache() {
+    if (faviconDataPersistLoadPromise) {
+      return faviconDataPersistLoadPromise;
+    }
+    if (!faviconPersistArea) {
+      faviconDataPersistLoaded = true;
+      faviconDataPersistLoadPromise = Promise.resolve();
+      return faviconDataPersistLoadPromise;
+    }
+    if (faviconDataPersistLoaded) {
+      faviconDataPersistLoadPromise = Promise.resolve();
+      return faviconDataPersistLoadPromise;
+    }
+    faviconDataPersistLoaded = true;
+    faviconDataPersistLoadPromise = new Promise((resolve) => {
+      faviconPersistArea.get([FAVICON_DATA_PERSIST_STORAGE_KEY], (result) => {
+        const payload = result && result[FAVICON_DATA_PERSIST_STORAGE_KEY];
+        const entries = getValidFaviconDataPersistEntries(payload && payload.entries ? payload.entries : null);
+        entries.forEach((item) => {
+          faviconDataPersistCache.set(item.key, { dataUrl: item.dataUrl, updatedAt: item.updatedAt });
+        });
+        resolve();
+      });
+    });
+    return faviconDataPersistLoadPromise;
+  }
+
+  function schedulePersistFaviconCache() {
+    if (!faviconPersistArea) {
+      return;
+    }
+    if (faviconPersistWriteTimer !== null) {
+      return;
+    }
+    faviconPersistWriteTimer = window.setTimeout(() => {
+      faviconPersistWriteTimer = null;
+      const entries = Array.from(faviconPersistCache.entries())
+        .map(([key, value]) => ({
+          key: String(key || ''),
+          url: String(value && value.url ? value.url : ''),
+          updatedAt: Number(value && value.updatedAt ? value.updatedAt : 0)
+        }))
+        .filter((item) => item.key && item.url && Number.isFinite(item.updatedAt))
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, FAVICON_PERSIST_MAX_ENTRIES);
+      const serialized = {};
+      entries.forEach((item) => {
+        serialized[item.key] = { url: item.url, updatedAt: item.updatedAt };
+      });
+      faviconPersistArea.set({
+        [FAVICON_PERSIST_STORAGE_KEY]: {
+          version: 1,
+          entries: serialized,
+          updatedAt: Date.now()
+        }
+      });
+    }, 600);
+  }
+
+  function schedulePersistFaviconDataCache() {
+    if (!faviconPersistArea) {
+      return;
+    }
+    if (faviconDataPersistWriteTimer !== null) {
+      return;
+    }
+    faviconDataPersistWriteTimer = window.setTimeout(() => {
+      faviconDataPersistWriteTimer = null;
+      const entries = Array.from(faviconDataPersistCache.entries())
+        .map(([key, value]) => ({
+          key: String(key || ''),
+          dataUrl: String(value && value.dataUrl ? value.dataUrl : ''),
+          updatedAt: Number(value && value.updatedAt ? value.updatedAt : 0)
+        }))
+        .filter((item) => item.key && isValidDataUrlIcon(item.dataUrl) && Number.isFinite(item.updatedAt))
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, FAVICON_DATA_PERSIST_MAX_ENTRIES);
+      const serialized = {};
+      entries.forEach((item) => {
+        serialized[item.key] = { dataUrl: item.dataUrl, updatedAt: item.updatedAt };
+      });
+      faviconPersistArea.set({
+        [FAVICON_DATA_PERSIST_STORAGE_KEY]: {
+          version: 1,
+          entries: serialized,
+          updatedAt: Date.now()
+        }
+      });
+    }, 600);
+  }
+
+  function getPersistedFaviconEntry(cacheKey) {
+    if (!cacheKey) {
+      return null;
+    }
+    const cached = faviconPersistCache.get(cacheKey);
+    if (!cached || !cached.url) {
+      return null;
+    }
+    const now = Date.now();
+    if (!Number.isFinite(cached.updatedAt) || now - cached.updatedAt > FAVICON_PERSIST_TTL_MS) {
+      faviconPersistCache.delete(cacheKey);
+      schedulePersistFaviconCache();
+      return null;
+    }
+    return {
+      url: cached.url,
+      updatedAt: cached.updatedAt
+    };
+  }
+
+  function setPersistedFaviconUrl(cacheKey, url) {
+    const key = String(cacheKey || '').trim();
+    const nextUrl = String(url || '').trim();
+    if (!key || !nextUrl || nextUrl.startsWith('data:') || isBlockedLocalFaviconUrl(nextUrl)) {
+      return;
+    }
+    faviconPersistCache.set(key, { url: nextUrl, updatedAt: Date.now() });
+    if (faviconPersistCache.size > FAVICON_PERSIST_MAX_ENTRIES * 2) {
+      const compact = Array.from(faviconPersistCache.entries())
+        .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
+        .slice(0, FAVICON_PERSIST_MAX_ENTRIES);
+      faviconPersistCache.clear();
+      compact.forEach(([k, v]) => faviconPersistCache.set(k, v));
+    }
+    schedulePersistFaviconCache();
+  }
+
+  function getPersistedFaviconDataEntry(cacheKey) {
+    if (!cacheKey) {
+      return null;
+    }
+    const cached = faviconDataPersistCache.get(cacheKey);
+    if (!cached || !isValidDataUrlIcon(cached.dataUrl)) {
+      return null;
+    }
+    const now = Date.now();
+    if (!Number.isFinite(cached.updatedAt) || now - cached.updatedAt > FAVICON_PERSIST_TTL_MS) {
+      faviconDataPersistCache.delete(cacheKey);
+      schedulePersistFaviconDataCache();
+      return null;
+    }
+    return {
+      dataUrl: cached.dataUrl,
+      updatedAt: cached.updatedAt
+    };
+  }
+
+  function setPersistedFaviconData(cacheKey, dataUrl) {
+    const key = String(cacheKey || '').trim();
+    const nextDataUrl = String(dataUrl || '').trim();
+    if (!key || !isValidDataUrlIcon(nextDataUrl)) {
+      return;
+    }
+    faviconDataPersistCache.set(key, { dataUrl: nextDataUrl, updatedAt: Date.now() });
+    if (faviconDataPersistCache.size > FAVICON_DATA_PERSIST_MAX_ENTRIES * 2) {
+      const compact = Array.from(faviconDataPersistCache.entries())
+        .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
+        .slice(0, FAVICON_DATA_PERSIST_MAX_ENTRIES);
+      faviconDataPersistCache.clear();
+      compact.forEach(([k, v]) => faviconDataPersistCache.set(k, v));
+    }
+    schedulePersistFaviconDataCache();
+  }
+
   function ensureFallbackIconNode(img) {
     if (!img || !img.parentElement) {
       return null;
@@ -2278,6 +2620,13 @@
     node.innerHTML = getRiSvg('ri-link-m', 'ri-size-14');
     img.parentElement.insertBefore(node, img.nextSibling);
     return node;
+  }
+
+  function findFallbackIconNode(img) {
+    if (!img || !img.parentElement) {
+      return null;
+    }
+    return img.parentElement.querySelector('._x_extension_favicon_fallback_2024_unique_');
   }
 
   function applyFallbackIcon(img) {
@@ -2341,10 +2690,11 @@
     return promise;
   }
 
-  function setFaviconSrcWithAnimation(img, nextSrc) {
+  function setFaviconSrcWithAnimation(img, nextSrc, options) {
     if (!img || !nextSrc || isBlockedLocalFaviconUrl(nextSrc)) {
       return false;
     }
+    const shouldPersist = !(options && options.persist === false);
     const currentSrc = img.getAttribute('data-favicon-current-src') || '';
     if (currentSrc === nextSrc) {
       return false;
@@ -2357,8 +2707,22 @@
       if (!img || token !== img._xFaviconLoadToken) {
         return;
       }
+      const fallbackNode = findFallbackIconNode(img);
+      if (fallbackNode) {
+        fallbackNode.style.setProperty('display', 'none', 'important');
+      }
+      img.removeAttribute('data-fallback-icon');
+      img.style.setProperty('display', 'block', 'important');
       img.setAttribute('data-favicon-current-src', nextSrc);
       img.setAttribute('data-favicon-has-appeared', 'true');
+      const persistKey = img.getAttribute('data-x-nt-favicon-cache-key') || '';
+      if (shouldPersist && persistKey) {
+        if (nextSrc.startsWith('data:')) {
+          setPersistedFaviconData(persistKey, nextSrc);
+        } else {
+          setPersistedFaviconUrl(persistKey, nextSrc);
+        }
+      }
       if (!shouldAnimate) {
         img.style.setProperty('filter', 'none', 'important');
         img.style.setProperty('opacity', '1', 'important');
@@ -2383,6 +2747,55 @@
       finalize();
     }
     return true;
+  }
+
+  function canReuseCurrentFavicon(img, nextSrc) {
+    if (!img || !nextSrc) {
+      return false;
+    }
+    const currentSrc = img.getAttribute('data-favicon-current-src') || img.src || '';
+    if (currentSrc !== nextSrc) {
+      return false;
+    }
+    const isFallback = img.getAttribute('data-fallback-icon') === 'true';
+    if (isFallback) {
+      return false;
+    }
+    const currentResolved = img.getAttribute('data-favicon-current-src') || '';
+    if (currentResolved === nextSrc) {
+      return true;
+    }
+    return Boolean(img.complete && img.naturalWidth > 0);
+  }
+
+  function getLastWorkingFaviconSrc(img) {
+    if (!img) {
+      return '';
+    }
+    const isFallback = img.getAttribute('data-fallback-icon') === 'true';
+    if (isFallback) {
+      return '';
+    }
+    const resolved = img.getAttribute('data-favicon-current-src') || '';
+    if (resolved) {
+      return resolved;
+    }
+    if (img.complete && img.naturalWidth > 0) {
+      return img.src || '';
+    }
+    return '';
+  }
+
+  function restoreWorkingFaviconOrFallback(img, previousSrc) {
+    const fallbackSrc = String(previousSrc || '').trim();
+    if (fallbackSrc) {
+      const applied = setFaviconSrcWithAnimation(img, fallbackSrc);
+      if (applied || canReuseCurrentFavicon(img, fallbackSrc)) {
+        return true;
+      }
+    }
+    applyFallbackIcon(img);
+    return false;
   }
 
   function attachFaviconData(img, url, hostOverride) {
@@ -2801,6 +3214,9 @@
   bookmarkSection.appendChild(bookmarkHeader);
   bookmarkSection.appendChild(bookmarkGrid);
   let bookmarkRenderSignature = '';
+  let bookmarkLoadToken = 0;
+  let bookmarkDataDirty = true;
+  let bookmarkLoadedOnce = false;
 
   const recentSection = document.createElement('section');
   recentSection.id = '_x_extension_newtab_recent_sites_2024_unique_';
@@ -2816,6 +3232,9 @@
   recentSection.appendChild(recentHeading);
   recentSection.appendChild(recentGrid);
   let recentRenderSignature = '';
+  let recentLoadToken = 0;
+  let recentDataDirty = true;
+  let recentLoadedOnce = false;
   const bottomDock = document.createElement('div');
   bottomDock.id = '_x_extension_newtab_bottom_dock_2024_unique_';
   bottomDock.style.cssText = `
@@ -3256,7 +3675,97 @@
     updateBookmarkSectionPosition();
   }
 
-  function loadBookmarks() {
+  function markBookmarkDataDirty() {
+    bookmarkDataDirty = true;
+  }
+
+  function markBookmarkTreeDirty() {
+    bookmarkDataDirty = true;
+    bookmarkTreeCacheDirty = true;
+    bookmarkTreeCacheReady = false;
+    bookmarkTreeCacheLoadingPromise = null;
+    bookmarkFolderItemsCache.clear();
+  }
+
+  function markRecentDataDirty() {
+    recentDataDirty = true;
+  }
+
+  function readSectionCache(cacheKey) {
+    return new Promise((resolve) => {
+      if (!localStorageArea || !cacheKey) {
+        resolve(null);
+        return;
+      }
+      localStorageArea.get([cacheKey], (result) => {
+        const payload = result && result[cacheKey];
+        if (!payload || typeof payload !== 'object') {
+          resolve(null);
+          return;
+        }
+        const updatedAt = Number(payload.updatedAt || 0);
+        const items = Array.isArray(payload.items) ? payload.items : null;
+        if (!items || !Number.isFinite(updatedAt)) {
+          resolve(null);
+          return;
+        }
+        if ((Date.now() - updatedAt) > NEWTAB_SECTION_CACHE_TTL_MS) {
+          resolve(null);
+          return;
+        }
+        resolve(items);
+      });
+    });
+  }
+
+  function writeSectionCache(cacheKey, items) {
+    if (!localStorageArea || !cacheKey || !Array.isArray(items)) {
+      return;
+    }
+    localStorageArea.set({
+      [cacheKey]: {
+        updatedAt: Date.now(),
+        items: items
+      }
+    });
+  }
+
+  function hydrateSectionsFromCache() {
+    readSectionCache(NEWTAB_RECENT_CACHE_STORAGE_KEY).then((items) => {
+      if (!Array.isArray(items) || items.length === 0) {
+        return;
+      }
+      if (!currentRecentCount || currentRecentCount <= 0) {
+        return;
+      }
+      const cachedItems = items.slice(0, Math.max(0, currentRecentCount));
+      renderRecentSites(cachedItems);
+      recentLoadedOnce = true;
+    });
+    readSectionCache(NEWTAB_BOOKMARK_CACHE_STORAGE_KEY).then((items) => {
+      if (!Array.isArray(items) || items.length === 0) {
+        return;
+      }
+      if (!currentBookmarkCount || currentBookmarkCount <= 0) {
+        return;
+      }
+      bookmarkCurrentPage = 0;
+      bookmarkAllItems = items.slice(0, Math.max(0, getBookmarkLimit()));
+      bookmarkRootTotalCount = bookmarkAllItems.length;
+      bookmarkRootVisibleCount = bookmarkAllItems.length;
+      bookmarkRenderSignature = '';
+      renderCurrentBookmarkPage();
+      bookmarkLoadedOnce = true;
+    });
+  }
+
+  function loadBookmarks(options) {
+    const forceReload = Boolean(options && options.force);
+    if (!forceReload && !bookmarkDataDirty && bookmarkLoadedOnce) {
+      updateBookmarkSectionPosition();
+      return;
+    }
+    const requestToken = ++bookmarkLoadToken;
     if (!currentBookmarkCount || currentBookmarkCount <= 0) {
       bookmarkAllItems = [];
       bookmarkRootTotalCount = 0;
@@ -3266,10 +3775,15 @@
       bookmarkGrid.innerHTML = '';
       bookmarkCards.length = 0;
       bookmarkSection.style.setProperty('display', 'none', 'important');
+      bookmarkDataDirty = false;
+      bookmarkLoadedOnce = true;
       updateBookmarkSectionPosition();
       return;
     }
     getTopBookmarks(0, bookmarkCurrentFolderId).then((items) => {
+      if (requestToken !== bookmarkLoadToken) {
+        return;
+      }
       if (!currentBookmarkCount || currentBookmarkCount <= 0) {
         bookmarkAllItems = [];
         bookmarkRootTotalCount = 0;
@@ -3279,6 +3793,8 @@
         bookmarkGrid.innerHTML = '';
         bookmarkCards.length = 0;
         bookmarkSection.style.setProperty('display', 'none', 'important');
+        bookmarkDataDirty = false;
+        bookmarkLoadedOnce = true;
         updateBookmarkSectionPosition();
         return;
       }
@@ -3298,20 +3814,40 @@
       }
       updateBookmarkBreadcrumb();
       renderCurrentBookmarkPage();
+      if (isAtRoot) {
+        writeSectionCache(NEWTAB_BOOKMARK_CACHE_STORAGE_KEY, bookmarkAllItems.slice(0, getBookmarkLimit()));
+      }
+      bookmarkDataDirty = false;
+      bookmarkLoadedOnce = true;
     });
   }
 
-  function loadRecentSites() {
+  function loadRecentSites(options) {
+    const forceReload = Boolean(options && options.force);
+    if (!forceReload && !recentDataDirty && recentLoadedOnce) {
+      updateBookmarkSectionPosition();
+      return;
+    }
+    const requestToken = ++recentLoadToken;
     if (!currentRecentCount || currentRecentCount <= 0) {
       recentRenderSignature = '';
       recentCards.length = 0;
       recentGrid.innerHTML = '';
       recentSection.style.setProperty('display', 'none', 'important');
+      recentDataDirty = false;
+      recentLoadedOnce = true;
       updateBookmarkSectionPosition();
       return;
     }
     getRecentSites(currentRecentCount, currentRecentMode).then((items) => {
-      renderRecentSites(items);
+      if (requestToken !== recentLoadToken) {
+        return;
+      }
+      const normalizedItems = Array.isArray(items) ? items : [];
+      renderRecentSites(normalizedItems);
+      writeSectionCache(NEWTAB_RECENT_CACHE_STORAGE_KEY, normalizedItems.slice(0, Math.max(0, currentRecentCount)));
+      recentDataDirty = false;
+      recentLoadedOnce = true;
     });
   }
 
@@ -3326,6 +3862,8 @@
   function forceReloadRecentSitesForI18n() {
     recentRenderSignature = '';
     bookmarkRenderSignature = '';
+    markRecentDataDirty();
+    markBookmarkDataDirty();
     loadRecentSites();
     loadBookmarks();
   }
@@ -3482,67 +4020,156 @@
     return false;
   }
 
-  function attachFaviconWithFallbacks(img, url, host) {
+  function attachFaviconWithFallbacks(img, url, host, options) {
     if (!img || !url) {
       return;
     }
+    const forceRevalidate = Boolean(options && options.forceRevalidate);
+    img._xThemeFaviconSession = (img._xThemeFaviconSession || 0) + 1;
+    const session = img._xThemeFaviconSession;
+    const isSessionActive = () => Boolean(img && img.isConnected && img._xThemeFaviconSession === session);
     const hostKey = host || getHostFromUrl(url);
     if (isLocalNetworkHost(hostKey)) {
       applyFallbackIcon(img);
       return;
     }
     const faviconHostKey = normalizeFaviconHost(hostKey);
+    const preferredTheme = getFaviconPreferredTheme();
+    const previousWorkingSrc = getLastWorkingFaviconSrc(img);
+    const faviconCacheKey = faviconHostKey ? `${preferredTheme}::${faviconHostKey}` : '';
+    const persistedDataEntry = getPersistedFaviconDataEntry(faviconCacheKey);
+    const persistedDataUrl = persistedDataEntry && persistedDataEntry.dataUrl ? persistedDataEntry.dataUrl : '';
+    const now = Date.now();
+    const persistedDataAge = persistedDataEntry && Number.isFinite(persistedDataEntry.updatedAt)
+      ? (now - persistedDataEntry.updatedAt)
+      : Number.POSITIVE_INFINITY;
+    const shouldRevalidatePersistedData = forceRevalidate ||
+      !persistedDataUrl ||
+      !Number.isFinite(persistedDataAge) ||
+      persistedDataAge > FAVICON_REVALIDATE_INTERVAL_MS;
+    const persistedEntry = getPersistedFaviconEntry(faviconCacheKey);
+    const persistedFavicon = persistedEntry && persistedEntry.url ? persistedEntry.url : '';
+    const persistedAge = persistedEntry && Number.isFinite(persistedEntry.updatedAt)
+      ? (now - persistedEntry.updatedAt)
+      : Number.POSITIVE_INFINITY;
+    const shouldRevalidatePersisted = forceRevalidate ||
+      !persistedFavicon ||
+      !Number.isFinite(persistedAge) ||
+      persistedAge > FAVICON_REVALIDATE_INTERVAL_MS;
+    img.setAttribute('data-x-nt-theme-favicon', '1');
+    img.setAttribute('data-x-nt-favicon-page-url', String(url || ''));
+    img.setAttribute('data-x-nt-favicon-host', String(hostKey || ''));
+    if (faviconCacheKey) {
+      img.setAttribute('data-x-nt-favicon-cache-key', faviconCacheKey);
+    } else {
+      img.removeAttribute('data-x-nt-favicon-cache-key');
+    }
+    if (persistedDataUrl) {
+      const appliedPersistedData = setFaviconSrcWithAnimation(img, persistedDataUrl, { persist: false }) ||
+        canReuseCurrentFavicon(img, persistedDataUrl);
+      if (appliedPersistedData && !shouldRevalidatePersistedData) {
+        return;
+      }
+    }
     const chromeFavicon = getChromeFaviconUrl(url);
     const siteSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon.svg` : '';
+    const siteDarkSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-dark.svg` : '';
+    const siteLightSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-light.svg` : '';
     const siteIcoFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon.ico` : '';
     const googleFavicon = faviconHostKey ? getGoogleFaviconUrl(faviconHostKey) : '';
-    const fallbackCandidates = [chromeFavicon, googleFavicon, siteSvgFavicon, siteIcoFavicon].filter(Boolean);
-    const quickSrc = fallbackCandidates[0] || '';
+    const knownThemedCandidates = getKnownThemedFaviconCandidates(faviconHostKey, preferredTheme);
+    const themedCandidates = preferredTheme === 'dark'
+      ? [siteDarkSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteLightSvgFavicon]
+      : [siteLightSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteDarkSvgFavicon];
+    // 优先使用命中率高且返回快的来源，减少首屏等待。
+    const fallbackCandidates = [persistedFavicon, googleFavicon, ...knownThemedCandidates, ...themedCandidates, chromeFavicon].filter(Boolean);
+    const keepCurrentUntilReady = Boolean(previousWorkingSrc);
     const tried = new Set();
+    if (img._xThemeFaviconErrorHandler) {
+      img.removeEventListener('error', img._xThemeFaviconErrorHandler);
+      img._xThemeFaviconErrorHandler = null;
+    }
     const trySetDirect = (nextSrc) => {
-      if (!nextSrc || !img) {
+      if (!nextSrc || !img || !isSessionActive()) {
         return false;
       }
       if (tried.has(nextSrc)) {
         return false;
       }
       tried.add(nextSrc);
-      setFaviconSrcWithAnimation(img, nextSrc);
-      if (nextSrc === googleFavicon) {
-        attachFaviconData(img, googleFavicon, hostKey);
+      const isPersistedCandidate = Boolean(persistedFavicon) && nextSrc === persistedFavicon;
+      const applied = setFaviconSrcWithAnimation(img, nextSrc, {
+        // 直接复用持久缓存时不刷新更新时间，避免每次打开都触发“永久新鲜”。
+        persist: !isPersistedCandidate
+      });
+      if (!applied && !canReuseCurrentFavicon(img, nextSrc)) {
+        return false;
+      }
+      if (!nextSrc.startsWith('data:')) {
+        attachFaviconData(img, nextSrc, hostKey);
       }
       return true;
     };
-    if (!trySetDirect(quickSrc)) {
-      applyFallbackIcon(img);
+    let appliedInitial = keepCurrentUntilReady;
+    if (!keepCurrentUntilReady) {
+      for (let i = 0; i < fallbackCandidates.length; i += 1) {
+        if (trySetDirect(fallbackCandidates[i])) {
+          appliedInitial = true;
+          break;
+        }
+      }
+    }
+    if (!appliedInitial) {
+      reportMissingIcon('favicon', url, '');
+      restoreWorkingFaviconOrFallback(img, previousWorkingSrc);
+      scheduleThemeAwareFaviconRescue();
       return;
     }
-    img.onerror = function() {
+    const handleImageError = function() {
+      if (!isSessionActive()) {
+        return;
+      }
       const nextFallback = fallbackCandidates.find((candidate) => !tried.has(candidate));
       if (!trySetDirect(nextFallback)) {
-        applyFallbackIcon(img);
+        reportMissingIcon('favicon', url, img ? (img.getAttribute('data-favicon-current-src') || img.src || '') : '');
+        restoreWorkingFaviconOrFallback(img, previousWorkingSrc);
+        scheduleThemeAwareFaviconRescue();
       }
     };
+    img._xThemeFaviconErrorHandler = handleImageError;
+    img.addEventListener('error', handleImageError);
+    if (!shouldRevalidatePersisted && persistedFavicon) {
+      return;
+    }
 
     // Improve icon quality in background without blocking first paint.
     const tryUpgradeCandidates = (candidateUrls) => {
       const unique = Array.from(new Set((candidateUrls || []).filter(Boolean)));
-      const upgrades = unique.filter((candidate) => candidate && candidate !== img.src);
+      const currentSrc = img && img.src ? String(img.src) : '';
+      const upgrades = unique.filter((candidate) => {
+        if (!candidate || candidate === currentSrc) {
+          return false;
+        }
+        if (shouldSkipThemeUpgradeCandidate(candidate, preferredTheme, currentSrc)) {
+          return false;
+        }
+        return true;
+      });
       if (upgrades.length === 0) {
         return;
       }
       const loadNext = (index) => {
-        if (!img || !img.isConnected || index >= upgrades.length) {
+        if (!isSessionActive() || index >= upgrades.length) {
           return;
         }
         const candidate = upgrades[index];
         const probe = new Image();
         probe.referrerPolicy = 'no-referrer';
         probe.onload = () => {
-          if (!img || !img.isConnected) {
+          if (!isSessionActive()) {
             return;
           }
-          setFaviconSrcWithAnimation(img, candidate);
+          setFaviconSrcWithAnimation(img, candidate, { persist: true });
           if (candidate === googleFavicon) {
             attachFaviconData(img, googleFavicon, hostKey);
           }
@@ -3555,12 +4182,64 @@
       loadNext(0);
     };
     chrome.runtime.sendMessage(
-      { action: 'resolveFaviconCandidates', url: url, host: hostKey, fallbackUrl: '' },
+      {
+        action: 'resolveFaviconCandidates',
+        url: url,
+        host: hostKey,
+        fallbackUrl: '',
+        preferredTheme: preferredTheme
+      },
       (response) => {
+        if (!isSessionActive()) {
+          return;
+        }
         const resolved = response && Array.isArray(response.urls) ? response.urls : [];
         tryUpgradeCandidates([...resolved, ...fallbackCandidates]);
       }
     );
+  }
+
+  function refreshThemeAwareFavicons() {
+    document.querySelectorAll('img[data-x-nt-theme-favicon="1"]').forEach((img) => {
+      if (!img || !img.isConnected) {
+        return;
+      }
+      const pageUrl = img.getAttribute('data-x-nt-favicon-page-url') || '';
+      if (!pageUrl) {
+        return;
+      }
+      const host = img.getAttribute('data-x-nt-favicon-host') || '';
+      attachFaviconWithFallbacks(img, pageUrl, host, { forceRevalidate: true });
+    });
+  }
+
+  function rescueThemeAwareFallbackFavicons() {
+    document.querySelectorAll('img[data-x-nt-theme-favicon="1"][data-fallback-icon="true"]').forEach((img) => {
+      if (!img || !img.isConnected) {
+        return;
+      }
+      const pageUrl = img.getAttribute('data-x-nt-favicon-page-url') || '';
+      if (!pageUrl) {
+        return;
+      }
+      const host = img.getAttribute('data-x-nt-favicon-host') || '';
+      attachFaviconWithFallbacks(img, pageUrl, host);
+    });
+  }
+
+  function scheduleThemeAwareFaviconRescue() {
+    if (themeFaviconRescueTimer !== null) {
+      window.clearTimeout(themeFaviconRescueTimer);
+      themeFaviconRescueTimer = null;
+    }
+    themeFaviconRescueTimer = window.setTimeout(() => {
+      themeFaviconRescueTimer = null;
+      rescueThemeAwareFallbackFavicons();
+      // 某些站点首轮切换时 CDN 返回不稳定，再补一次短延迟重试。
+      window.setTimeout(() => {
+        rescueThemeAwareFallbackFavicons();
+      }, 900);
+    }, 700);
   }
 
   function getRecentSites(limit, mode) {
@@ -3700,6 +4379,9 @@
     });
   }
 
+  loadFaviconPersistCache();
+  loadFaviconDataPersistCache();
+
   function findBookmarksBarNode(treeNodes) {
     if (!Array.isArray(treeNodes)) {
       return null;
@@ -3783,6 +4465,131 @@
     }
   }
 
+  function buildBookmarkItemsFromChildren(children) {
+    const items = Array.isArray(children) ? children : [];
+    const results = [];
+    const seenUrls = new Set();
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!item) {
+        continue;
+      }
+      const title = String(item.title || '').trim();
+      const url = item.url ? String(item.url) : '';
+      const itemChildren = Array.isArray(item.children) ? item.children : [];
+      if (url) {
+        if (seenUrls.has(url)) {
+          continue;
+        }
+        let host = '';
+        try {
+          host = normalizeHost(new URL(url).hostname);
+        } catch (error) {
+          host = '';
+        }
+        seenUrls.add(url);
+        results.push({
+          id: String(item.id || ''),
+          type: 'bookmark',
+          title: title,
+          url: url,
+          host: host,
+          themeUrl: url
+        });
+        continue;
+      }
+      const themeUrl = findFirstUrlInFolder(item);
+      const previewUrls = [];
+      collectFolderUrls(item, 4, previewUrls, new Set());
+      let host = '';
+      if (themeUrl) {
+        try {
+          host = normalizeHost(new URL(themeUrl).hostname);
+        } catch (error) {
+          host = '';
+        }
+      }
+      results.push({
+        id: String(item.id || ''),
+        type: 'folder',
+        title: title,
+        url: '',
+        host: host,
+        childCount: itemChildren.length,
+        themeUrl: themeUrl,
+        previewUrls: previewUrls
+      });
+    }
+    return results;
+  }
+
+  function cacheBookmarkFolderItems(node) {
+    if (!node) {
+      return;
+    }
+    const nodeId = String(node.id || '');
+    const children = Array.isArray(node.children) ? node.children : [];
+    if (nodeId) {
+      bookmarkFolderItemsCache.set(nodeId, buildBookmarkItemsFromChildren(children));
+    }
+    for (let i = 0; i < children.length; i += 1) {
+      const child = children[i];
+      if (!child) {
+        continue;
+      }
+      const childChildren = Array.isArray(child.children) ? child.children : [];
+      if (childChildren.length > 0) {
+        cacheBookmarkFolderItems(child);
+      }
+    }
+  }
+
+  function rebuildBookmarkTreeCache(nodes) {
+    buildBookmarkNodeMap(nodes);
+    const barNode = findBookmarksBarNode(nodes);
+    if (!barNode) {
+      bookmarkFolderItemsCache.clear();
+      bookmarkTreeCacheReady = false;
+      return false;
+    }
+    bookmarkRootFolderId = String(barNode.id || '1');
+    bookmarkFolderItemsCache.clear();
+    cacheBookmarkFolderItems(barNode);
+    bookmarkTreeCacheReady = true;
+    bookmarkTreeCacheDirty = false;
+    return true;
+  }
+
+  function ensureBookmarkTreeCache(forceReload) {
+    if (!chrome.bookmarks || !chrome.bookmarks.getTree) {
+      bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+      return Promise.resolve(false);
+    }
+    if (!forceReload && bookmarkTreeCacheReady && !bookmarkTreeCacheDirty) {
+      return Promise.resolve(true);
+    }
+    if (bookmarkTreeCacheLoadingPromise) {
+      return bookmarkTreeCacheLoadingPromise;
+    }
+    bookmarkTreeCacheLoadingPromise = new Promise((resolve) => {
+      chrome.bookmarks.getTree((nodes) => {
+        let ok = false;
+        if (!chrome.runtime.lastError && Array.isArray(nodes) && nodes.length > 0) {
+          ok = rebuildBookmarkTreeCache(nodes);
+        } else {
+          bookmarkFolderItemsCache.clear();
+          bookmarkTreeCacheReady = false;
+        }
+        if (!ok) {
+          bookmarkFolderPath = [{ id: String(bookmarkRootFolderId || '1'), title: t('bookmarks_heading', '书签') }];
+        }
+        bookmarkTreeCacheLoadingPromise = null;
+        resolve(ok);
+      });
+    });
+    return bookmarkTreeCacheLoadingPromise;
+  }
+
   function buildBookmarkFolderPath(folderId) {
     const rootLabel = t('bookmarks_heading', '书签');
     const rootId = String(bookmarkRootFolderId || '1');
@@ -3815,88 +4622,23 @@
     return new Promise((resolve) => {
       const parsedLimit = Number.parseInt(limit, 10);
       const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 0;
-      if (!chrome.bookmarks || !chrome.bookmarks.getTree) {
-        bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
-        resolve([]);
-        return;
-      }
-      chrome.bookmarks.getTree((nodes) => {
-        if (chrome.runtime.lastError || !Array.isArray(nodes) || nodes.length === 0) {
-          bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+      ensureBookmarkTreeCache(false).then((ready) => {
+        if (!ready) {
           resolve([]);
           return;
         }
-        buildBookmarkNodeMap(nodes);
-        const barNode = findBookmarksBarNode(nodes);
-        if (!barNode) {
-          bookmarkFolderPath = [{ id: '1', title: t('bookmarks_heading', '书签') }];
+        const rootId = String(bookmarkRootFolderId || '1');
+        const targetFolderId = String(folderId || bookmarkCurrentFolderId || rootId);
+        const targetNode = bookmarkNodeMap.get(targetFolderId) || bookmarkNodeMap.get(rootId);
+        if (!targetNode) {
+          bookmarkFolderPath = [{ id: rootId, title: t('bookmarks_heading', '书签') }];
           resolve([]);
           return;
         }
-        bookmarkRootFolderId = String(barNode.id || '1');
-        const targetFolderId = String(folderId || bookmarkCurrentFolderId || bookmarkRootFolderId);
-        const targetNode = bookmarkNodeMap.get(targetFolderId) || barNode;
-        bookmarkCurrentFolderId = String(targetNode.id || bookmarkRootFolderId);
+        bookmarkCurrentFolderId = String(targetNode.id || rootId);
         bookmarkFolderPath = buildBookmarkFolderPath(bookmarkCurrentFolderId);
-
-        const children = Array.isArray(targetNode.children) ? targetNode.children : [];
-        const results = [];
-        const seenUrls = new Set();
-        for (let index = 0; index < children.length; index += 1) {
-          if (safeLimit > 0 && results.length >= safeLimit) {
-            break;
-          }
-          const item = children[index];
-          if (!item) {
-            continue;
-          }
-          const title = String(item.title || '').trim();
-          const url = item.url ? String(item.url) : '';
-          const itemChildren = Array.isArray(item.children) ? item.children : [];
-          if (url) {
-            if (seenUrls.has(url)) {
-              continue;
-            }
-            let host = '';
-            try {
-              host = normalizeHost(new URL(url).hostname);
-            } catch (error) {
-              host = '';
-            }
-            seenUrls.add(url);
-            results.push({
-              id: String(item.id || ''),
-              type: 'bookmark',
-              title: title,
-              url: url,
-              host: host,
-              themeUrl: url
-            });
-            continue;
-          }
-          const themeUrl = findFirstUrlInFolder(item);
-          const previewUrls = [];
-          collectFolderUrls(item, 4, previewUrls, new Set());
-          let host = '';
-          if (themeUrl) {
-            try {
-              host = normalizeHost(new URL(themeUrl).hostname);
-            } catch (error) {
-              host = '';
-            }
-          }
-          results.push({
-            id: String(item.id || ''),
-            type: 'folder',
-            title: title,
-            url: '',
-            host: host,
-            childCount: itemChildren.length,
-            themeUrl: themeUrl,
-            previewUrls: previewUrls
-          });
-        }
-        resolve(safeLimit > 0 ? results.slice(0, safeLimit) : results);
+        const cachedItems = bookmarkFolderItemsCache.get(bookmarkCurrentFolderId) || [];
+        resolve(safeLimit > 0 ? cachedItems.slice(0, safeLimit) : cachedItems);
       });
     });
   }
@@ -4219,10 +4961,6 @@
       faviconImage.fetchPriority = 'high';
     }
     attachFaviconWithFallbacks(faviconImage, item.url, host);
-    faviconImage.onerror = function() {
-      reportMissingIcon('recent', item.url, faviconImage.src);
-      applyFallbackIcon(faviconImage);
-    };
     const name = document.createElement('div');
     name.className = 'x-nt-recent-name';
     name.textContent = siteName;
@@ -4430,10 +5168,6 @@
         favicon.fetchPriority = 'high';
       }
       attachFaviconWithFallbacks(favicon, item.url, host);
-      favicon.onerror = function() {
-        reportMissingIcon('bookmark-panel', item.url, favicon.src);
-        applyFallbackIcon(favicon);
-      };
       icon = favicon;
     }
 
@@ -4468,9 +5202,6 @@
         previewFavicon.loading = 'lazy';
         previewFavicon.setAttribute('aria-hidden', 'true');
         attachFaviconWithFallbacks(previewFavicon, url, previewHost);
-        previewFavicon.onerror = function() {
-          applyFallbackIcon(previewFavicon);
-        };
         previewWrap.appendChild(previewFavicon);
       }
       card.appendChild(previewWrap);
@@ -7130,7 +7861,52 @@
   bottomDockScroller.appendChild(recentSection);
   bottomDock.appendChild(bottomDockScroller);
   document.body.appendChild(bottomDock);
+
+  function scheduleRecentReloadIfVisible() {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    loadRecentSites({ force: true });
+  }
+
+  function scheduleBookmarkReloadIfVisible() {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    loadBookmarks({ force: true });
+  }
+
+  function bindRecentAndBookmarkChangeListeners() {
+    if (chrome.history && chrome.history.onVisited && chrome.history.onVisited.addListener) {
+      chrome.history.onVisited.addListener(() => {
+        markRecentDataDirty();
+        scheduleRecentReloadIfVisible();
+      });
+    }
+    if (chrome.bookmarks) {
+      const bindBookmarkEvent = (eventName) => {
+        const eventTarget = chrome.bookmarks[eventName];
+        if (!eventTarget || !eventTarget.addListener) {
+          return;
+        }
+        eventTarget.addListener(() => {
+          markBookmarkTreeDirty();
+          scheduleBookmarkReloadIfVisible();
+        });
+      };
+      bindBookmarkEvent('onCreated');
+      bindBookmarkEvent('onRemoved');
+      bindBookmarkEvent('onChanged');
+      bindBookmarkEvent('onMoved');
+      bindBookmarkEvent('onChildrenReordered');
+      bindBookmarkEvent('onImportEnded');
+    }
+  }
+
+  bindRecentAndBookmarkChangeListeners();
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
+  hydrateSectionsFromCache();
+  loadRecentSites();
   loadBookmarks();
   updateBookmarkSectionPosition();
   markNewtabReady();
