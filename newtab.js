@@ -33,6 +33,7 @@
   const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
   const FAVICON_PERSIST_MAX_ENTRIES = 800;
   const FAVICON_REVALIDATE_INTERVAL_MS = 1000 * 60 * 60 * 12;
+  const FAVICON_CACHE_BOOT_WAIT_MS = 120;
   const FAVICON_DATA_PERSIST_STORAGE_KEY = '_x_extension_favicon_data_cache_2024_unique_';
   const FAVICON_DATA_PERSIST_MAX_ENTRIES = 220;
   const FAVICON_DATA_PERSIST_MAX_LENGTH = 24000;
@@ -158,14 +159,45 @@
     }
   ];
 
-  function resolveTheme(mode) {
+  function resolveTheme(mode, mediaMatchesOverride) {
     if (mode === 'dark') {
       return 'dark';
     }
     if (mode === 'light') {
       return 'light';
     }
+    if (typeof mediaMatchesOverride === 'boolean') {
+      return mediaMatchesOverride ? 'dark' : 'light';
+    }
     return mediaQuery.matches ? 'dark' : 'light';
+  }
+
+  function addMediaQueryChangeListener(queryList, listener) {
+    if (!queryList || typeof listener !== 'function') {
+      return false;
+    }
+    if (typeof queryList.addEventListener === 'function') {
+      queryList.addEventListener('change', listener);
+      return true;
+    }
+    if (typeof queryList.addListener === 'function') {
+      queryList.addListener(listener);
+      return true;
+    }
+    return false;
+  }
+
+  function removeMediaQueryChangeListener(queryList, listener) {
+    if (!queryList || typeof listener !== 'function') {
+      return;
+    }
+    if (typeof queryList.removeEventListener === 'function') {
+      queryList.removeEventListener('change', listener);
+      return;
+    }
+    if (typeof queryList.removeListener === 'function') {
+      queryList.removeListener(listener);
+    }
   }
 
   function normalizeLocale(locale) {
@@ -1258,10 +1290,13 @@
     });
   }
 
-  function applyThemeMode(mode) {
+  function applyThemeMode(mode, options) {
     currentThemeMode = mode || 'system';
+    const mediaMatchesOverride = options && typeof options.mediaMatches === 'boolean'
+      ? options.mediaMatches
+      : null;
     const previousResolved = document.body ? document.body.getAttribute('data-theme') : '';
-    const resolved = resolveTheme(mode);
+    const resolved = resolveTheme(mode, mediaMatchesOverride);
     document.body.setAttribute('data-theme', resolved);
     const didResolvedThemeChange = previousResolved !== resolved;
     const hasResolvedThemeBefore = previousResolved === 'dark' || previousResolved === 'light';
@@ -1271,16 +1306,17 @@
       }
     });
     recentCards.forEach((card) => {
-      if (!card || !card._xHost || !card._xTheme) {
+      if (!card) {
         return;
       }
-      applyRecentCardTheme(card, card._xTheme, card._xHost);
+      applyRecentCardTheme(card, card._xTheme, card._xHost || '');
     });
     bookmarkCards.forEach((card) => {
-      if (!card || !card._xHost || !card._xTheme) {
+      if (!card) {
         return;
       }
-      applyBookmarkCardTheme(card, card._xTheme, card._xHost);
+      // 文件夹卡片通常没有 host/theme，也需要在主题切换时重算阴影与变量。
+      applyBookmarkCardTheme(card, card._xTheme, card._xHost || '');
     });
     applyLanguageStrings();
     updateSelection();
@@ -1291,23 +1327,45 @@
       scheduleThemeAwareFaviconRescue();
     }
     if (mode === 'system' && !mediaListenerAttached) {
-      mediaQuery.addEventListener('change', handleMediaChange);
-      mediaListenerAttached = true;
+      mediaListenerAttached = addMediaQueryChangeListener(mediaQuery, handleMediaChange);
       return;
     }
     if (mode !== 'system' && mediaListenerAttached) {
-      mediaQuery.removeEventListener('change', handleMediaChange);
+      removeMediaQueryChangeListener(mediaQuery, handleMediaChange);
       mediaListenerAttached = false;
     }
   }
 
-  function handleMediaChange() {
+  function handleMediaChange(event) {
     if (currentThemeMode !== 'system') {
       return;
     }
     // 仅更新 data-theme 会遗漏依赖 JS 混色的卡片；系统主题切换时需完整重算。
-    applyThemeMode('system');
+    const mediaMatches = event && typeof event.matches === 'boolean'
+      ? event.matches
+      : mediaQuery.matches;
+    applyThemeMode('system', { mediaMatches });
   }
+
+  function syncSystemThemeMode() {
+    if (currentThemeMode !== 'system') {
+      return;
+    }
+    const resolved = resolveTheme('system');
+    if (!document.body || document.body.getAttribute('data-theme') === resolved) {
+      return;
+    }
+    applyThemeMode('system', { mediaMatches: mediaQuery.matches });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    syncSystemThemeMode();
+  });
+  window.addEventListener('pageshow', syncSystemThemeMode);
+  window.addEventListener('focus', syncSystemThemeMode);
 
   if (storageArea) {
     storageArea.get([THEME_STORAGE_KEY], (result) => {
@@ -2260,6 +2318,7 @@
   const iconPreloadCache = new Map();
   const faviconDataCache = new Map();
   const faviconDataPending = new Map();
+  const faviconFallbackNodeMap = new WeakMap();
   const missingIconCache = new Set();
   const faviconPersistCache = new Map();
   const faviconDataPersistCache = new Map();
@@ -2318,11 +2377,10 @@
       return;
     }
     missingIconCache.add(key);
-    console.warn('[Lumno] icon missing', {
-      context: context || 'unknown',
-      url: url || '',
-      icon: iconUrl || ''
-    });
+    const safeContext = String(context || 'unknown');
+    const safeUrl = String(url || '');
+    const safeIcon = String(iconUrl || '');
+    console.warn(`[Lumno] icon missing context=${safeContext} url=${safeUrl} icon=${safeIcon}`);
   }
 
   function getValidFaviconPersistEntries(rawEntries) {
@@ -2434,6 +2492,25 @@
       });
     });
     return faviconDataPersistLoadPromise;
+  }
+
+  function ensureFaviconCachesReady() {
+    return Promise.all([
+      loadFaviconPersistCache(),
+      loadFaviconDataPersistCache()
+    ]).then(() => undefined).catch(() => undefined);
+  }
+
+  function waitForFaviconCachesOrTimeout(maxWaitMs) {
+    const waitMs = Number.isFinite(maxWaitMs) && maxWaitMs >= 0
+      ? maxWaitMs
+      : FAVICON_CACHE_BOOT_WAIT_MS;
+    return Promise.race([
+      ensureFaviconCachesReady(),
+      new Promise((resolve) => {
+        window.setTimeout(resolve, waitMs);
+      })
+    ]).then(() => undefined).catch(() => undefined);
   }
 
   function schedulePersistFaviconCache() {
@@ -2578,8 +2655,21 @@
     if (!img || !img.parentElement) {
       return null;
     }
-    let node = img.parentElement.querySelector('._x_extension_favicon_fallback_2024_unique_');
+    const mappedNode = faviconFallbackNodeMap.get(img);
+    if (mappedNode && mappedNode.isConnected && mappedNode.parentElement === img.parentElement) {
+      return mappedNode;
+    }
+    const fallbackNodes = Array.from(img.parentElement.querySelectorAll('._x_extension_favicon_fallback_2024_unique_'));
+    let node = fallbackNodes.find((candidate) => candidate && candidate._xFallbackForImage === img) || null;
+    if (!node) {
+      const siblingImages = img.parentElement.querySelectorAll('img');
+      if (fallbackNodes.length === 1 && siblingImages.length === 1) {
+        node = fallbackNodes[0];
+      }
+    }
     if (node) {
+      node._xFallbackForImage = img;
+      faviconFallbackNodeMap.set(img, node);
       return node;
     }
     node = document.createElement('span');
@@ -2600,6 +2690,8 @@
       `;
       node.innerHTML = getRiSvg('ri-link-m', 'ri-size-12');
       img.parentElement.insertBefore(node, img);
+      node._xFallbackForImage = img;
+      faviconFallbackNodeMap.set(img, node);
       return node;
     }
     node.className = '_x_extension_favicon_fallback_2024_unique_';
@@ -2619,6 +2711,8 @@
     `;
     node.innerHTML = getRiSvg('ri-link-m', 'ri-size-14');
     img.parentElement.insertBefore(node, img.nextSibling);
+    node._xFallbackForImage = img;
+    faviconFallbackNodeMap.set(img, node);
     return node;
   }
 
@@ -2626,7 +2720,35 @@
     if (!img || !img.parentElement) {
       return null;
     }
-    return img.parentElement.querySelector('._x_extension_favicon_fallback_2024_unique_');
+    const mappedNode = faviconFallbackNodeMap.get(img);
+    if (mappedNode && mappedNode.isConnected && mappedNode.parentElement === img.parentElement) {
+      return mappedNode;
+    }
+    const fallbackNodes = Array.from(img.parentElement.querySelectorAll('._x_extension_favicon_fallback_2024_unique_'));
+    const linkedNode = fallbackNodes.find((candidate) => candidate && candidate._xFallbackForImage === img) || null;
+    if (linkedNode) {
+      faviconFallbackNodeMap.set(img, linkedNode);
+      return linkedNode;
+    }
+    if (fallbackNodes.length === 1 && img.parentElement.querySelectorAll('img').length === 1) {
+      const onlyNode = fallbackNodes[0];
+      onlyNode._xFallbackForImage = img;
+      faviconFallbackNodeMap.set(img, onlyNode);
+      return onlyNode;
+    }
+    return null;
+  }
+
+  function showResolvedFavicon(img) {
+    if (!img) {
+      return;
+    }
+    const fallbackNode = findFallbackIconNode(img);
+    if (fallbackNode) {
+      fallbackNode.style.setProperty('display', 'none', 'important');
+    }
+    img.removeAttribute('data-fallback-icon');
+    img.style.setProperty('display', 'block', 'important');
   }
 
   function applyFallbackIcon(img) {
@@ -2644,6 +2766,9 @@
     // Retry once on next tick so the fallback icon can be mounted after attach.
     setTimeout(() => {
       if (!img || !img.isConnected) {
+        return;
+      }
+      if (img.getAttribute('data-fallback-icon') !== 'true') {
         return;
       }
       const delayedNode = ensureFallbackIconNode(img);
@@ -2707,12 +2832,7 @@
       if (!img || token !== img._xFaviconLoadToken) {
         return;
       }
-      const fallbackNode = findFallbackIconNode(img);
-      if (fallbackNode) {
-        fallbackNode.style.setProperty('display', 'none', 'important');
-      }
-      img.removeAttribute('data-fallback-icon');
-      img.style.setProperty('display', 'block', 'important');
+      showResolvedFavicon(img);
       img.setAttribute('data-favicon-current-src', nextSrc);
       img.setAttribute('data-favicon-has-appeared', 'true');
       const persistKey = img.getAttribute('data-x-nt-favicon-cache-key') || '';
@@ -2791,6 +2911,9 @@
     if (fallbackSrc) {
       const applied = setFaviconSrcWithAnimation(img, fallbackSrc);
       if (applied || canReuseCurrentFavicon(img, fallbackSrc)) {
+        if (!applied) {
+          showResolvedFavicon(img);
+        }
         return true;
       }
     }
@@ -3622,6 +3745,8 @@
         }
       }
       if (card) {
+        applyBookmarkCardTheme(card, card._xTheme, card._xHost || '');
+        bookmarkCards.push(card);
         bookmarkGrid.appendChild(card);
       }
     });
@@ -3761,6 +3886,14 @@
 
   function loadBookmarks(options) {
     const forceReload = Boolean(options && options.force);
+    const skipFaviconWait = Boolean(options && options.skipFaviconWait);
+    if (!skipFaviconWait && (!faviconPersistLoaded || !faviconDataPersistLoaded)) {
+      const waitMs = forceReload ? Math.min(80, FAVICON_CACHE_BOOT_WAIT_MS) : FAVICON_CACHE_BOOT_WAIT_MS;
+      waitForFaviconCachesOrTimeout(waitMs).then(() => {
+        loadBookmarks({ force: forceReload, skipFaviconWait: true });
+      });
+      return;
+    }
     if (!forceReload && !bookmarkDataDirty && bookmarkLoadedOnce) {
       updateBookmarkSectionPosition();
       return;
@@ -4065,8 +4198,12 @@
       img.removeAttribute('data-x-nt-favicon-cache-key');
     }
     if (persistedDataUrl) {
-      const appliedPersistedData = setFaviconSrcWithAnimation(img, persistedDataUrl, { persist: false }) ||
-        canReuseCurrentFavicon(img, persistedDataUrl);
+      const persistedDataApplied = setFaviconSrcWithAnimation(img, persistedDataUrl, { persist: false });
+      const persistedDataReused = !persistedDataApplied && canReuseCurrentFavicon(img, persistedDataUrl);
+      const appliedPersistedData = persistedDataApplied || persistedDataReused;
+      if (persistedDataReused) {
+        showResolvedFavicon(img);
+      }
       if (appliedPersistedData && !shouldRevalidatePersistedData) {
         return;
       }
@@ -4102,8 +4239,12 @@
         // 直接复用持久缓存时不刷新更新时间，避免每次打开都触发“永久新鲜”。
         persist: !isPersistedCandidate
       });
-      if (!applied && !canReuseCurrentFavicon(img, nextSrc)) {
+      const reused = !applied && canReuseCurrentFavicon(img, nextSrc);
+      if (!applied && !reused) {
         return false;
+      }
+      if (reused) {
+        showResolvedFavicon(img);
       }
       if (!nextSrc.startsWith('data:')) {
         attachFaviconData(img, nextSrc, hostKey);
@@ -4379,6 +4520,7 @@
     });
   }
 
+  // Kick off favicon cache warmup early; no blocking on first paint.
   loadFaviconPersistCache();
   loadFaviconDataPersistCache();
 
@@ -5223,7 +5365,6 @@
         navigateToUrl(item.url);
       }
     });
-    bookmarkCards.push(card);
     return card;
   }
 

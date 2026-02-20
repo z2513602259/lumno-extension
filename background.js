@@ -34,7 +34,8 @@ function isRestrictedUrl(url) {
 }
 
 function openNewtabFallback() {
-  chrome.tabs.create({});
+  const newtabUrl = chrome.runtime.getURL('newtab.html?focus=1');
+  chrome.tabs.create({ url: newtabUrl });
 }
 
 function getBookmarkManagerUrls() {
@@ -107,7 +108,10 @@ const storageAreaName = storageArea
   : null;
 const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
 const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+const SHOW_SEARCH_COMMAND_NAME = 'show-search';
+const HOTKEY_DUP_GUARD_MS = 180;
 let restrictedActionCache = 'default';
+const hotkeyInvokeAtByTabId = new Map();
 
 if (storageArea) {
   storageArea.get([RESTRICTED_ACTION_STORAGE_KEY], (result) => {
@@ -142,72 +146,126 @@ function migrateStorageIfNeeded(keys) {
   });
 }
 
-chrome.commands.onCommand.addListener(function(command) {
-  if (command === "show-search") {
-    logHotkeyDebug('received', { command: command });
-    // Get all tabs in the current window
-    chrome.tabs.query({currentWindow: true}, function(tabs) {
-      // Get the current active tab and inject the script with tabs data
-      chrome.tabs.query({active: true, currentWindow: true}, function(activeTabs) {
-        const activeTab = activeTabs[0];
-        logHotkeyDebug('active-tab', {
-          tabId: activeTab && activeTab.id ? activeTab.id : null,
-          url: activeTab && activeTab.url ? activeTab.url : '',
-          restricted: Boolean(activeTab && isRestrictedUrl(activeTab.url))
-        });
-        if (activeTab && isRestrictedUrl(activeTab.url)) {
-          const action = restrictedActionCache || 'default';
-          logHotkeyDebug('restricted-url', {
-            action: action,
-            url: activeTab.url || ''
-          });
-          if (action === 'none') {
-            logHotkeyDebug('suppressed', { reason: 'restricted_action_none' });
-            return;
-          }
-          if (action === 'default') {
-            logHotkeyDebug('fallback-open-default-newtab', { reason: 'restricted_url' });
-            chrome.tabs.create({});
-            return;
-          }
-          logHotkeyDebug('fallback-open-lumno-newtab', { reason: 'restricted_url' });
-          openNewtabFallback();
-          return;
-        }
-        if (activeTab) {
-          logHotkeyDebug('inject-start', { tabId: activeTab.id, file: 'input-ui.js' });
-          chrome.scripting.executeScript({
-            target: {tabId: activeTab.id},
-            files: ['input-ui.js']
-          }, function() {
-            if (chrome.runtime.lastError) {
-              logHotkeyDebug('inject-failed', {
-                step: 'input-ui.js',
-                tabId: activeTab.id,
-                error: chrome.runtime.lastError.message || 'unknown'
-              });
-              openNewtabFallback();
-              return;
-            }
-            chrome.scripting.executeScript({
-              target: {tabId: activeTab.id},
-              function: toggleBlackRectangle,
-              args: [tabs]
-            }, function() {
-              if (chrome.runtime.lastError) {
-                logHotkeyDebug('inject-failed', {
-                  step: 'toggleBlackRectangle',
-                  tabId: activeTab.id,
-                  error: chrome.runtime.lastError.message || 'unknown'
-                });
-                openNewtabFallback();
-                return;
-              }
-              logHotkeyDebug('overlay-opened', { tabId: activeTab.id, tabCount: Array.isArray(tabs) ? tabs.length : 0 });
-            });
-          });
-        }
+function shouldIgnoreDuplicateHotkey(tabId) {
+  if (typeof tabId !== 'number') {
+    return false;
+  }
+  const now = Date.now();
+  const lastAt = hotkeyInvokeAtByTabId.get(tabId) || 0;
+  hotkeyInvokeAtByTabId.set(tabId, now);
+  return (now - lastAt) <= HOTKEY_DUP_GUARD_MS;
+}
+
+function openOverlayOnTab(activeTab, tabs, source) {
+  if (!activeTab || typeof activeTab.id !== 'number') {
+    logHotkeyDebug('no-active-tab', { source: source || '' });
+    openNewtabFallback();
+    return;
+  }
+  if (shouldIgnoreDuplicateHotkey(activeTab.id)) {
+    logHotkeyDebug('duplicate-ignored', { tabId: activeTab.id, source: source || '' });
+    return;
+  }
+  const activeUrl = typeof activeTab.url === 'string' ? activeTab.url : '';
+  const restricted = isRestrictedUrl(activeUrl);
+  logHotkeyDebug('active-tab', {
+    tabId: activeTab.id,
+    url: activeUrl,
+    restricted: restricted,
+    source: source || ''
+  });
+  if (restricted) {
+    const action = restrictedActionCache || 'default';
+    logHotkeyDebug('restricted-url', {
+      action: action,
+      url: activeUrl,
+      source: source || ''
+    });
+    if (action === 'none') {
+      logHotkeyDebug('suppressed', { reason: 'restricted_action_none', source: source || '' });
+      return;
+    }
+    if (action === 'default') {
+      logHotkeyDebug('fallback-open-create-newtab', { reason: 'restricted_url', source: source || '' });
+      openNewtabFallback();
+      return;
+    }
+    logHotkeyDebug('fallback-open-lumno-newtab', { reason: 'restricted_url', source: source || '' });
+    openNewtabFallback();
+    return;
+  }
+  logHotkeyDebug('inject-start', { tabId: activeTab.id, file: 'input-ui.js', source: source || '' });
+  chrome.scripting.executeScript({
+    target: {tabId: activeTab.id},
+    files: ['input-ui.js']
+  }, function() {
+    if (chrome.runtime.lastError) {
+      logHotkeyDebug('inject-failed', {
+        step: 'input-ui.js',
+        tabId: activeTab.id,
+        error: chrome.runtime.lastError.message || 'unknown',
+        source: source || ''
       });
+      openNewtabFallback();
+      return;
+    }
+    chrome.scripting.executeScript({
+      target: {tabId: activeTab.id},
+      function: toggleBlackRectangle,
+      args: [tabs]
+    }, function() {
+      if (chrome.runtime.lastError) {
+        logHotkeyDebug('inject-failed', {
+          step: 'toggleBlackRectangle',
+          tabId: activeTab.id,
+          error: chrome.runtime.lastError.message || 'unknown',
+          source: source || ''
+        });
+        openNewtabFallback();
+        return;
+      }
+      logHotkeyDebug('overlay-opened', {
+        tabId: activeTab.id,
+        tabCount: Array.isArray(tabs) ? tabs.length : 0,
+        source: source || ''
+      });
+    });
+  });
+}
+
+function triggerShowSearchForTab(tab, source) {
+  if (!tab || typeof tab.id !== 'number') {
+    logHotkeyDebug('no-active-tab', { source: source || '' });
+    openNewtabFallback();
+    return;
+  }
+  const windowQuery = (typeof tab.windowId === 'number')
+    ? { windowId: tab.windowId }
+    : { currentWindow: true };
+  chrome.tabs.query(windowQuery, (tabs) => {
+    const tabList = Array.isArray(tabs) ? tabs : [];
+    const resolvedTab = tabList.find((item) => item && item.id === tab.id) || tab;
+    openOverlayOnTab(resolvedTab, tabList, source);
+  });
+}
+
+function getShowSearchCommandShortcut(callback) {
+  if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
+    callback('');
+    return;
+  }
+  chrome.commands.getAll((commands) => {
+    const items = Array.isArray(commands) ? commands : [];
+    const showSearchCommand = items.find((item) => item && item.name === SHOW_SEARCH_COMMAND_NAME);
+    callback(showSearchCommand && showSearchCommand.shortcut ? showSearchCommand.shortcut : '');
+  });
+}
+
+chrome.commands.onCommand.addListener(function(command) {
+  if (command === SHOW_SEARCH_COMMAND_NAME) {
+    logHotkeyDebug('received', { command: command, source: 'commands' });
+    chrome.tabs.query({active: true, currentWindow: true}, function(activeTabs) {
+      triggerShowSearchForTab(activeTabs[0], 'commands');
     });
   }
 });
@@ -216,6 +274,27 @@ chrome.commands.onCommand.addListener(function(command) {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === 'switchToTab') {
     chrome.tabs.update(request.tabId, {active: true});
+    sendResponse({ ok: true });
+    return;
+  } else if (request.action === 'getShowSearchShortcut') {
+    getShowSearchCommandShortcut((shortcut) => {
+      sendResponse({ shortcut: shortcut || '' });
+    });
+    return true;
+  } else if (request.action === 'triggerShowSearchFromPageHotkey') {
+    const senderTab = sender && sender.tab ? sender.tab : null;
+    if (!senderTab || typeof senderTab.id !== 'number') {
+      sendResponse({ ok: false });
+      return;
+    }
+    logHotkeyDebug('received', {
+      command: SHOW_SEARCH_COMMAND_NAME,
+      source: 'page-hotkey',
+      tabId: senderTab.id
+    });
+    triggerShowSearchForTab(senderTab, 'page-hotkey');
+    sendResponse({ ok: true });
+    return;
   } else if (request.action === 'searchOrNavigate') {
     const query = request.query ? String(request.query) : '';
     const forceSearch = Boolean(request.forceSearch);
@@ -315,9 +394,20 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     });
     return true;
   } else if (request.action === 'createTab') {
-    chrome.tabs.create({ url: request.url });
+    const targetUrl = typeof request.url === 'string' ? request.url : '';
+    if (!targetUrl) {
+      sendResponse({ ok: false });
+      return;
+    }
+    chrome.tabs.create({ url: targetUrl }, () => {
+      sendResponse({ ok: !(chrome.runtime && chrome.runtime.lastError) });
+    });
+    return true;
   } else if (request.action === 'openNewTab') {
-    chrome.tabs.create({});
+    chrome.tabs.create({}, () => {
+      sendResponse({ ok: !(chrome.runtime && chrome.runtime.lastError) });
+    });
+    return true;
   } else if (request.action === 'resolveFaviconCandidates') {
     const targetUrl = request.url || '';
     const hostOverride = request.host || '';
@@ -354,6 +444,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     });
     return true;
   }
+  sendResponse({ ok: false });
+  return;
 });
 
 let shortcutRulesCache = null;

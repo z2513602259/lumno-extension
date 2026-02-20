@@ -11,6 +11,13 @@
          }
       }
    },
+   "content_scripts": [
+      {
+         "matches": [ "\u003Call_urls>" ],
+         "js": [ "hotkey-listener.js" ],
+         "run_at": "document_start"
+      }
+   ],
    "description": "__MSG_ext_description__",
    "chrome_url_overrides": {
       "newtab": "newtab.html"
