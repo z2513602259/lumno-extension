@@ -331,6 +331,17 @@
         justify-content: flex-end;
         gap: 10px;
       }
+      ._x_extension_wallpaper_actions_2024_unique_ {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      ._x_extension_wallpaper_status_2024_unique_ {
+        margin: 0;
+        text-align: left;
+      }
       ._x_extension_recent_select_group_2024_unique_ {
         display: flex;
         align-items: center;
@@ -1544,6 +1555,34 @@
             <button class="_x_extension_theme_option_2024_unique_" data-mode="system" data-i18n="settings_theme_system">跟随系统/网站</button>
             <button class="_x_extension_theme_option_2024_unique_" data-mode="light" data-i18n="settings_theme_light">浅色</button>
             <button class="_x_extension_theme_option_2024_unique_" data-mode="dark" data-i18n="settings_theme_dark">深色</button>
+          </div>
+        </div>
+        <div class="_x_extension_setting_row_2024_unique_">
+          <div>
+            <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_wallpaper_title">新标签页壁纸</p>
+            <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_wallpaper_desc">上传本地图片作为 newtab 背景</p>
+            <p id="_x_extension_wallpaper_status_2024_unique_" class="_x_extension_setting_desc_2024_unique_ _x_extension_wallpaper_status_2024_unique_" data-i18n="settings_wallpaper_status_none">未上传壁纸</p>
+          </div>
+          <div class="_x_extension_wallpaper_actions_2024_unique_">
+            <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_wallpaper_fit_select_2024_unique_">
+              <select id="_x_extension_wallpaper_fit_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+                <option value="cover" data-i18n="settings_wallpaper_fit_cover">填充</option>
+                <option value="contain" data-i18n="settings_wallpaper_fit_contain">完整显示</option>
+              </select>
+              <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
+                <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
+                  <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
+                </svg>
+              </button>
+              <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+            </div>
+            <button id="_x_extension_wallpaper_remove_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_" type="button" data-disabled="true">
+              <span data-i18n="settings_wallpaper_remove">移除</span>
+            </button>
+            <button id="_x_extension_wallpaper_upload_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_" type="button">
+              <span data-i18n="settings_wallpaper_upload">上传图片</span>
+            </button>
+            <input id="_x_extension_wallpaper_upload_input_2024_unique_" type="file" accept="image/png,image/jpeg,image/webp,image/avif" style="display:none;" />
           </div>
         </div>
         </div>

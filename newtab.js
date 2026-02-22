@@ -21,6 +21,9 @@
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
+  const localStorageAreaName = localStorageArea
+    ? (localStorageArea === (chrome && chrome.storage ? chrome.storage.local : null) ? 'local' : storageAreaName)
+    : null;
 
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
@@ -29,6 +32,8 @@
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY = '_x_extension_newtab_wallpaper_settings_2024_unique_';
+  const NEWTAB_WALLPAPER_DATA_STORAGE_KEY = '_x_extension_newtab_wallpaper_data_2024_unique_';
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
   const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
   const FAVICON_PERSIST_MAX_ENTRIES = 800;
@@ -46,6 +51,12 @@
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let mediaListenerAttached = false;
   let currentThemeMode = 'system';
+  let initialThemeApplied = false;
+  let hasThemeBootstrapStarted = false;
+  let resolveInitialThemeReady = null;
+  const initialThemeReadyPromise = new Promise((resolve) => {
+    resolveInitialThemeReady = resolve;
+  });
   let modeBadge = null;
   const recentCards = [];
   const bookmarkCards = [];
@@ -71,6 +82,8 @@
   let bookmarkTreeCacheDirty = true;
   let bookmarkTreeCacheLoadingPromise = null;
   let bookmarkTitleWrap = null;
+  let bookmarkHeading = null;
+  let recentHeading = null;
   let bookmarkBreadcrumb = null;
   let bookmarkPagerPrevButton = null;
   let bookmarkPagerNextButton = null;
@@ -80,6 +93,13 @@
   const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
   const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
+  let currentWallpaperSettings = {
+    enabled: false,
+    source: 'none',
+    fit: 'cover',
+    updatedAt: 0
+  };
+  let currentWallpaperDataUrl = '';
 
   function normalizeBookmarkCount(value) {
     const parsed = Number.parseInt(value, 10);
@@ -92,6 +112,78 @@
   function getBookmarkLimit() {
     const normalized = normalizeBookmarkCount(currentBookmarkCount);
     return normalized > 0 ? normalized : 8;
+  }
+
+  function normalizeWallpaperFit(value) {
+    return value === 'contain' ? 'contain' : 'cover';
+  }
+
+  function normalizeWallpaperSettings(value) {
+    const next = {
+      enabled: false,
+      source: 'none',
+      fit: 'cover',
+      updatedAt: 0
+    };
+    if (!value || typeof value !== 'object') {
+      return next;
+    }
+    const source = value.source === 'upload-local' ? 'upload-local' : 'none';
+    next.source = source;
+    next.enabled = Boolean(value.enabled) && source !== 'none';
+    next.fit = normalizeWallpaperFit(value.fit);
+    const updatedAt = Number.parseInt(value.updatedAt, 10);
+    next.updatedAt = Number.isFinite(updatedAt) ? updatedAt : 0;
+    if (!next.enabled) {
+      next.source = 'none';
+    }
+    return next;
+  }
+
+  function isWallpaperDataUrl(value) {
+    return typeof value === 'string' && value.startsWith('data:image/');
+  }
+
+  function applyWallpaperState(settings, dataUrl) {
+    const normalized = normalizeWallpaperSettings(settings);
+    const validData = isWallpaperDataUrl(dataUrl);
+    const canApply = normalized.enabled &&
+      normalized.source === 'upload-local' &&
+      validData;
+
+    if (!document.body) {
+      return;
+    }
+    if (canApply) {
+      const safeUrl = dataUrl.replace(/"/g, '\\"');
+      document.body.style.setProperty('--x-nt-wallpaper-image', `url("${safeUrl}")`);
+      document.body.style.setProperty('--x-nt-wallpaper-size', normalizeWallpaperFit(normalized.fit));
+      currentWallpaperDataUrl = dataUrl;
+      currentWallpaperSettings = normalized;
+      return;
+    }
+    document.body.style.setProperty('--x-nt-wallpaper-image', 'none');
+    document.body.style.setProperty('--x-nt-wallpaper-size', 'cover');
+    currentWallpaperDataUrl = '';
+    currentWallpaperSettings = normalized;
+  }
+
+  function loadWallpaperFromStorage() {
+    if (!storageArea) {
+      applyWallpaperState(null, '');
+      return;
+    }
+    storageArea.get([NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY], (settingsResult) => {
+      const normalized = normalizeWallpaperSettings(settingsResult[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]);
+      if (!localStorageArea) {
+        applyWallpaperState(normalized, '');
+        return;
+      }
+      localStorageArea.get([NEWTAB_WALLPAPER_DATA_STORAGE_KEY], (localResult) => {
+        const dataUrl = localResult[NEWTAB_WALLPAPER_DATA_STORAGE_KEY];
+        applyWallpaperState(normalized, dataUrl);
+      });
+    });
   }
 
   // 使用系统字体，避免外链字体依赖。
@@ -252,8 +344,14 @@
     return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  function sanitizeDisplayText(text) {
+    const raw = String(text || '');
+    const withoutSpecial = raw.replace(/[\u0000-\u001F\u007F-\u009F\uFEFF\uFFF9-\uFFFD]|\p{Co}/gu, '');
+    return withoutSpecial.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+  }
+
   function renderHighlightedText(target, text, query, styles) {
-    const safeText = String(text || '');
+    const safeText = sanitizeDisplayText(text);
     const needle = String(query || '').trim();
     if (!needle) {
       target.textContent = safeText;
@@ -1299,7 +1397,6 @@
     const resolved = resolveTheme(mode, mediaMatchesOverride);
     document.body.setAttribute('data-theme', resolved);
     const didResolvedThemeChange = previousResolved !== resolved;
-    const hasResolvedThemeBefore = previousResolved === 'dark' || previousResolved === 'light';
     suggestionItems.forEach((item) => {
       if (item && item._xTheme) {
         applyThemeVariables(item, item._xTheme);
@@ -1322,18 +1419,38 @@
     updateSelection();
     updateModeBadge(inputParts && inputParts.input ? inputParts.input.value : '');
     refreshFallbackIcons();
-    if (didResolvedThemeChange && hasResolvedThemeBefore) {
+    if (didResolvedThemeChange) {
       refreshThemeAwareFavicons();
       scheduleThemeAwareFaviconRescue();
     }
+    if (!initialThemeApplied) {
+      initialThemeApplied = true;
+      if (typeof resolveInitialThemeReady === 'function') {
+        resolveInitialThemeReady();
+      }
+    }
     if (mode === 'system' && !mediaListenerAttached) {
       mediaListenerAttached = addMediaQueryChangeListener(mediaQuery, handleMediaChange);
-      return;
     }
     if (mode !== 'system' && mediaListenerAttached) {
       removeMediaQueryChangeListener(mediaQuery, handleMediaChange);
       mediaListenerAttached = false;
     }
+  }
+
+  function bootstrapInitialThemeMode() {
+    if (hasThemeBootstrapStarted) {
+      return initialThemeReadyPromise;
+    }
+    hasThemeBootstrapStarted = true;
+    if (!storageArea) {
+      applyThemeMode('system');
+      return initialThemeReadyPromise;
+    }
+    storageArea.get([THEME_STORAGE_KEY], (result) => {
+      applyThemeMode(result[THEME_STORAGE_KEY] || 'system');
+    });
+    return initialThemeReadyPromise;
   }
 
   function handleMediaChange(event) {
@@ -1367,14 +1484,17 @@
   window.addEventListener('pageshow', syncSystemThemeMode);
   window.addEventListener('focus', syncSystemThemeMode);
 
-  if (storageArea) {
-    storageArea.get([THEME_STORAGE_KEY], (result) => {
-      applyThemeMode(result[THEME_STORAGE_KEY] || 'system');
-    });
-  }
+  bootstrapInitialThemeMode();
+  loadWallpaperFromStorage();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (!storageAreaName || areaName !== storageAreaName) {
+    const isPrimaryArea = Boolean(storageAreaName) && areaName === storageAreaName;
+    const isLocalArea = Boolean(localStorageAreaName) && areaName === localStorageAreaName;
+    if ((isPrimaryArea && changes[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]) ||
+        (isLocalArea && changes[NEWTAB_WALLPAPER_DATA_STORAGE_KEY])) {
+      loadWallpaperFromStorage();
+    }
+    if (!isPrimaryArea) {
       return;
     }
     if (changes[THEME_STORAGE_KEY]) {
@@ -1618,6 +1738,7 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
+    NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
   ]);
@@ -1666,6 +1787,11 @@
 
   function rgbToCss(rgb) {
     return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+  }
+
+  function rgbToCssAlpha(rgb, alpha) {
+    const nextAlpha = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${nextAlpha})`;
   }
 
   function rgbToCssParts(rgb) {
@@ -1982,6 +2108,14 @@
       ];
     }
     return [];
+  }
+
+  function hostHasExplicitDarkFavicon(hostname) {
+    const host = normalizeFaviconHost(hostname);
+    if (!host) {
+      return false;
+    }
+    return host === 'github.com' || host.endsWith('.github.com');
   }
 
   function isFaviconProxyUrl(url) {
@@ -2651,6 +2785,34 @@
     schedulePersistFaviconDataCache();
   }
 
+  function resolveFallbackIconDimension(img, axis, defaultSize) {
+    if (!img) {
+      return defaultSize;
+    }
+    const inlineValue = Number.parseFloat(
+      axis === 'width'
+        ? (img.style && img.style.width ? img.style.width : '')
+        : (img.style && img.style.height ? img.style.height : '')
+    );
+    if (Number.isFinite(inlineValue) && inlineValue > 0) {
+      return inlineValue;
+    }
+    if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+      const computed = window.getComputedStyle(img);
+      if (computed) {
+        const computedValue = Number.parseFloat(axis === 'width' ? computed.width : computed.height);
+        if (Number.isFinite(computedValue) && computedValue > 0) {
+          return computedValue;
+        }
+      }
+    }
+    const layoutValue = axis === 'width' ? img.clientWidth : img.clientHeight;
+    if (Number.isFinite(layoutValue) && layoutValue > 0) {
+      return layoutValue;
+    }
+    return defaultSize;
+  }
+
   function ensureFallbackIconNode(img) {
     if (!img || !img.parentElement) {
       return null;
@@ -2681,6 +2843,9 @@
       img.parentElement.classList &&
       img.parentElement.classList.contains('x-nt-bookmark-card')
     );
+    const isSearchSuggestionIcon = (img.getAttribute('data-x-nt-suggestion-icon') === '1') || Boolean(
+      img.closest && img.closest('#_x_extension_newtab_suggestions_container_2024_unique_')
+    );
     if (isFolderPreview) {
       node.className = 'x-nt-folder-preview-favicon x-nt-folder-preview-favicon--fallback _x_extension_favicon_fallback_2024_unique_';
       node.style.cssText = `
@@ -2688,28 +2853,35 @@
         align-items: center !important;
         justify-content: center !important;
       `;
-      node.innerHTML = getRiSvg('ri-link-m', 'ri-size-12');
+      node.innerHTML = getRiSvg('ri-link', 'ri-size-12');
       img.parentElement.insertBefore(node, img);
       node._xFallbackForImage = img;
       faviconFallbackNodeMap.set(img, node);
       return node;
     }
+    const defaultDimension = isSearchSuggestionIcon ? 16 : 25;
+    const fallbackWidth = resolveFallbackIconDimension(img, 'width', defaultDimension);
+    const fallbackHeight = resolveFallbackIconDimension(img, 'height', defaultDimension);
+    const fallbackBackground = isBookmarkLeadingIcon
+      ? 'var(--x-nt-bookmark-icon-color, var(--x-nt-bookmark-icon-bg, rgba(241, 245, 249, 0.92)))'
+      : (isSearchSuggestionIcon ? 'transparent' : 'var(--x-nt-tag-bg, #F3F4F6)');
     node.className = '_x_extension_favicon_fallback_2024_unique_';
     node.style.cssText = `
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
-      width: ${img.clientWidth || 25}px !important;
-      height: ${img.clientHeight || 25}px !important;
-      border-radius: 6px !important;
-      background: ${isBookmarkLeadingIcon ? '#FFFFFF' : 'var(--x-nt-tag-bg, #F3F4F6)'} !important;
-      color: var(--x-nt-tag-text, #6B7280) !important;
+      width: ${fallbackWidth}px !important;
+      height: ${fallbackHeight}px !important;
+      border-radius: ${isSearchSuggestionIcon ? 2 : 6}px !important;
+      background: ${fallbackBackground} !important;
+      color: ${isSearchSuggestionIcon ? 'var(--x-nt-subtext, #6B7280)' : 'var(--x-nt-tag-text, #6B7280)'} !important;
       box-sizing: border-box !important;
-      padding: 3px !important;
+      padding: ${isSearchSuggestionIcon ? 0 : 3}px !important;
       margin: 0 !important;
       flex-shrink: 0 !important;
+      line-height: 1 !important;
     `;
-    node.innerHTML = getRiSvg('ri-link-m', 'ri-size-14');
+    node.innerHTML = getRiSvg('ri-link', 'ri-size-16');
     img.parentElement.insertBefore(node, img.nextSibling);
     node._xFallbackForImage = img;
     faviconFallbackNodeMap.set(img, node);
@@ -3047,7 +3219,7 @@
 
   function createLinkIcon() {
     const icon = document.createElement('span');
-    icon.innerHTML = getRiSvg('ri-link-m', 'ri-size-16');
+    icon.innerHTML = getRiSvg('ri-link', 'ri-size-16');
     icon.style.cssText = `
       all: unset !important;
       width: 16px !important;
@@ -3287,7 +3459,7 @@
   bookmarkHeader.className = 'x-nt-bookmarks-header';
   bookmarkTitleWrap = document.createElement('div');
   bookmarkTitleWrap.className = 'x-nt-bookmarks-title-wrap';
-  const bookmarkHeading = document.createElement('div');
+  bookmarkHeading = document.createElement('div');
   bookmarkHeading.className = 'x-nt-bookmarks-heading';
   updateBookmarkHeading();
   bookmarkBreadcrumb = document.createElement('div');
@@ -3347,7 +3519,7 @@
   recentSection.style.setProperty('margin', '0', 'important');
   recentSection.style.setProperty('width', '100%', 'important');
   recentSection.style.setProperty('pointer-events', 'auto', 'important');
-  const recentHeading = document.createElement('div');
+  recentHeading = document.createElement('div');
   recentHeading.className = 'x-nt-recent-heading';
   updateRecentHeading();
   const recentGrid = document.createElement('div');
@@ -3885,6 +4057,12 @@
   }
 
   function loadBookmarks(options) {
+    if (!initialThemeApplied) {
+      bootstrapInitialThemeMode().then(() => {
+        loadBookmarks(options);
+      });
+      return;
+    }
     const forceReload = Boolean(options && options.force);
     const skipFaviconWait = Boolean(options && options.skipFaviconWait);
     if (!skipFaviconWait && (!faviconPersistLoaded || !faviconDataPersistLoaded)) {
@@ -3956,6 +4134,12 @@
   }
 
   function loadRecentSites(options) {
+    if (!initialThemeApplied) {
+      bootstrapInitialThemeMode().then(() => {
+        loadRecentSites(options);
+      });
+      return;
+    }
     const forceReload = Boolean(options && options.force);
     if (!forceReload && !recentDataDirty && recentLoadedOnce) {
       updateBookmarkSectionPosition();
@@ -4168,27 +4352,51 @@
     }
     const faviconHostKey = normalizeFaviconHost(hostKey);
     const preferredTheme = getFaviconPreferredTheme();
+    const knownThemedCandidates = getKnownThemedFaviconCandidates(faviconHostKey, preferredTheme);
     const previousWorkingSrc = getLastWorkingFaviconSrc(img);
     const faviconCacheKey = faviconHostKey ? `${preferredTheme}::${faviconHostKey}` : '';
+    const persistedEntry = getPersistedFaviconEntry(faviconCacheKey);
+    let persistedFavicon = persistedEntry && persistedEntry.url ? persistedEntry.url : '';
     const persistedDataEntry = getPersistedFaviconDataEntry(faviconCacheKey);
-    const persistedDataUrl = persistedDataEntry && persistedDataEntry.dataUrl ? persistedDataEntry.dataUrl : '';
+    let persistedDataUrl = persistedDataEntry && persistedDataEntry.dataUrl ? persistedDataEntry.dataUrl : '';
     const now = Date.now();
     const persistedDataAge = persistedDataEntry && Number.isFinite(persistedDataEntry.updatedAt)
       ? (now - persistedDataEntry.updatedAt)
       : Number.POSITIVE_INFINITY;
-    const shouldRevalidatePersistedData = forceRevalidate ||
+    const persistedThemeMismatch = Boolean(persistedFavicon) &&
+      shouldSkipThemeUpgradeCandidate(persistedFavicon, preferredTheme, '');
+    const preferredThemeToken = preferredTheme === 'dark' ? 'dark' : (preferredTheme === 'light' ? 'light' : '');
+    const knownHasPreferredVariant = Boolean(preferredThemeToken) && knownThemedCandidates.some((candidate) =>
+      hasThemeTokenInUrl(candidate, preferredThemeToken)
+    );
+    const persistedMissingPreferredToken = Boolean(preferredThemeToken) &&
+      Boolean(persistedFavicon) &&
+      !hasThemeTokenInUrl(persistedFavicon, preferredThemeToken);
+    const shouldForceThemeRevalidate = persistedThemeMismatch ||
+      (preferredTheme === 'dark' && (
+        isFaviconProxyUrl(persistedFavicon) ||
+        (persistedDataUrl && !persistedFavicon)
+      )) ||
+      (preferredTheme === 'dark' && knownHasPreferredVariant && Boolean(persistedDataUrl)) ||
+      (knownHasPreferredVariant && persistedMissingPreferredToken);
+    let shouldRevalidatePersistedData = forceRevalidate ||
       !persistedDataUrl ||
       !Number.isFinite(persistedDataAge) ||
       persistedDataAge > FAVICON_REVALIDATE_INTERVAL_MS;
-    const persistedEntry = getPersistedFaviconEntry(faviconCacheKey);
-    const persistedFavicon = persistedEntry && persistedEntry.url ? persistedEntry.url : '';
     const persistedAge = persistedEntry && Number.isFinite(persistedEntry.updatedAt)
       ? (now - persistedEntry.updatedAt)
       : Number.POSITIVE_INFINITY;
-    const shouldRevalidatePersisted = forceRevalidate ||
+    let shouldRevalidatePersisted = forceRevalidate ||
       !persistedFavicon ||
       !Number.isFinite(persistedAge) ||
       persistedAge > FAVICON_REVALIDATE_INTERVAL_MS;
+    if (shouldForceThemeRevalidate) {
+      shouldRevalidatePersistedData = true;
+      shouldRevalidatePersisted = true;
+    }
+    if (preferredTheme === 'dark' && hostHasExplicitDarkFavicon(faviconHostKey)) {
+      persistedDataUrl = '';
+    }
     img.setAttribute('data-x-nt-theme-favicon', '1');
     img.setAttribute('data-x-nt-favicon-page-url', String(url || ''));
     img.setAttribute('data-x-nt-favicon-host', String(hostKey || ''));
@@ -4214,12 +4422,22 @@
     const siteLightSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-light.svg` : '';
     const siteIcoFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon.ico` : '';
     const googleFavicon = faviconHostKey ? getGoogleFaviconUrl(faviconHostKey) : '';
-    const knownThemedCandidates = getKnownThemedFaviconCandidates(faviconHostKey, preferredTheme);
     const themedCandidates = preferredTheme === 'dark'
       ? [siteDarkSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteLightSvgFavicon]
       : [siteLightSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteDarkSvgFavicon];
-    // 优先使用命中率高且返回快的来源，减少首屏等待。
-    const fallbackCandidates = [persistedFavicon, googleFavicon, ...knownThemedCandidates, ...themedCandidates, chromeFavicon].filter(Boolean);
+    const nonGoogleThemedCandidates = [...knownThemedCandidates, ...themedCandidates].filter(Boolean);
+    const preferredSeedCandidates = preferredTheme === 'dark'
+      ? (shouldForceThemeRevalidate
+        ? [...nonGoogleThemedCandidates, persistedFavicon]
+        : [persistedFavicon, ...nonGoogleThemedCandidates])
+      : [persistedFavicon, googleFavicon, ...nonGoogleThemedCandidates];
+    // 深色模式优先尝试主题候选，避免刷新时被浅色代理 favicon 覆盖。
+    const fallbackCandidates = [
+      ...preferredSeedCandidates,
+      persistedFavicon,
+      googleFavicon,
+      chromeFavicon
+    ].filter(Boolean);
     const keepCurrentUntilReady = Boolean(previousWorkingSrc);
     const tried = new Set();
     if (img._xThemeFaviconErrorHandler) {
@@ -4246,7 +4464,10 @@
       if (reused) {
         showResolvedFavicon(img);
       }
-      if (!nextSrc.startsWith('data:')) {
+      const shouldKeepTokenizedSource = preferredTheme === 'dark' &&
+        hostHasExplicitDarkFavicon(faviconHostKey) &&
+        hasThemeTokenInUrl(nextSrc, 'dark');
+      if (!nextSrc.startsWith('data:') && !shouldKeepTokenizedSource) {
         attachFaviconData(img, nextSrc, hostKey);
       }
       return true;
@@ -4287,8 +4508,13 @@
     const tryUpgradeCandidates = (candidateUrls) => {
       const unique = Array.from(new Set((candidateUrls || []).filter(Boolean)));
       const currentSrc = img && img.src ? String(img.src) : '';
+      const shouldPreferDarkTokenUpgrades = preferredTheme === 'dark' &&
+        (knownHasPreferredVariant || hostHasExplicitDarkFavicon(faviconHostKey));
       const upgrades = unique.filter((candidate) => {
         if (!candidate || candidate === currentSrc) {
+          return false;
+        }
+        if (shouldPreferDarkTokenUpgrades && !hasThemeTokenInUrl(candidate, 'dark')) {
           return false;
         }
         if (shouldSkipThemeUpgradeCandidate(candidate, preferredTheme, currentSrc)) {
@@ -4996,11 +5222,13 @@
     const base = mixColor(accentRgb, baseTarget, isDark ? 0.9 : 0.94);
     const border = mixColor(base, isDark ? [255, 255, 255] : [0, 0, 0], isDark ? 0.12 : 0.07);
     const icon = mixColor(accentRgb, baseTarget, isDark ? 0.92 : 0.96);
+    const hover = mixColor(accentRgb, baseTarget, isDark ? 0.84 : 0.9);
     const shadow = isDark
       ? mixColor(accentRgb, [18, 26, 40], 0.62)
       : mixColor(accentRgb, [138, 146, 160], 0.46);
     return {
       base: rgbToCss(base),
+      hover: rgbToCssAlpha(hover, isDark ? 0.78 : 0.86),
       border: rgbToCss(border),
       iconBg: rgbToCss(icon),
       shadowRgb: rgbToCssParts(shadow)
@@ -5013,6 +5241,7 @@
     }
     if (card._xNoThemeTint) {
       card.style.removeProperty('--x-nt-bookmark-card-color');
+      card.style.removeProperty('--x-nt-bookmark-card-hover-color');
       card.style.removeProperty('--x-nt-bookmark-card-border-color');
       card.style.removeProperty('--x-nt-bookmark-icon-color');
       const isDark = document.body && document.body.getAttribute('data-theme') === 'dark';
@@ -5021,6 +5250,7 @@
     }
     const colors = getBookmarkCardColors(theme, host);
     card.style.setProperty('--x-nt-bookmark-card-color', colors.base);
+    card.style.setProperty('--x-nt-bookmark-card-hover-color', colors.hover);
     card.style.setProperty('--x-nt-bookmark-card-border-color', colors.border);
     card.style.setProperty('--x-nt-bookmark-icon-color', colors.iconBg);
     card.style.setProperty('--x-nt-bookmark-shadow-rgb', colors.shadowRgb);
@@ -5112,8 +5342,9 @@
 
     const title = document.createElement('div');
     title.className = 'x-nt-recent-title';
-    title.textContent = titleText;
-    title.title = titleText;
+    const safeTitleText = sanitizeDisplayText(titleText);
+    title.textContent = safeTitleText;
+    title.title = safeTitleText;
 
     const urlLine = document.createElement('div');
     urlLine.className = 'x-nt-recent-url';
@@ -5129,7 +5360,7 @@
     actionIcon.innerHTML = getRiSvg('ri-arrow-right-line', 'ri-size-12');
     actionLine.appendChild(actionIcon);
     card._xActionText = actionText;
-    card._xTitleText = titleText;
+    card._xTitleText = safeTitleText;
 
     inner.appendChild(header);
     inner.appendChild(title);
@@ -5315,7 +5546,7 @@
 
     const title = document.createElement('span');
     title.className = 'x-nt-bookmark-title';
-    title.textContent = titleText;
+    title.textContent = sanitizeDisplayText(titleText);
 
     card.appendChild(icon);
     card.appendChild(title);
@@ -6397,6 +6628,7 @@
       `;
 
       const favicon = document.createElement('img');
+      favicon.setAttribute('data-x-nt-suggestion-icon', '1');
       let hostForTab = '';
       try {
         hostForTab = tab && tab.url ? new URL(tab.url).hostname : '';
@@ -6404,11 +6636,6 @@
         hostForTab = '';
       }
       const useFallback = !tab.favIconUrl || isLocalNetworkHost(hostForTab);
-      if (useFallback) {
-        applyFallbackIcon(favicon);
-      } else {
-        favicon.src = tab.favIconUrl;
-      }
       favicon.decoding = 'async';
       favicon.loading = 'eager';
       favicon.referrerPolicy = 'no-referrer';
@@ -6435,6 +6662,11 @@
         vertical-align: baseline !important;
         display: block !important;
       `;
+      if (useFallback) {
+        applyFallbackIcon(favicon);
+      } else {
+        favicon.src = tab.favIconUrl;
+      }
       const iconSlot = document.createElement('span');
       iconSlot.style.cssText = `
         all: unset !important;
@@ -6470,7 +6702,7 @@
       };
 
       const title = document.createElement('span');
-      title.textContent = tab.title || t('untitled', '无标题');
+      title.textContent = sanitizeDisplayText(tab.title || t('untitled', '无标题'));
       title.style.cssText = `
         all: unset !important;
         color: var(--x-nt-text, #111827) !important;
@@ -6999,6 +7231,7 @@
             iconNode = createLinkIcon();
           } else {
             const favicon = document.createElement('img');
+            favicon.setAttribute('data-x-nt-suggestion-icon', '1');
             favicon.decoding = 'async';
             favicon.loading = 'eager';
             favicon.referrerPolicy = 'no-referrer';
@@ -7006,7 +7239,6 @@
               favicon.fetchPriority = 'high';
             }
             const faviconPageUrl = suggestion && suggestion.url ? suggestion.url : (suggestion.favicon || '');
-            attachFaviconWithFallbacks(favicon, faviconPageUrl, suggestionHost);
             favicon.style.cssText = `
               all: unset !important;
               width: 16px !important;
@@ -7027,6 +7259,7 @@
               display: block !important;
               object-fit: contain !important;
             `;
+            attachFaviconWithFallbacks(favicon, faviconPageUrl, suggestionHost);
             iconNode = favicon;
           }
         } else {
@@ -7654,14 +7887,6 @@
     }
   });
 
-  const shouldAutoFocus = window.location.search.includes('focus=1') ||
-    window.location.hash.includes('focus');
-  if (shouldAutoFocus) {
-    setTimeout(() => {
-      inputParts.input.focus();
-    }, 0);
-  }
-
   function isEditableElement(el) {
     if (!el) {
       return false;
@@ -7672,6 +7897,65 @@
     }
     return Boolean(el.isContentEditable);
   }
+
+  function tryFocusSearchInput(force) {
+    if (!inputParts || !inputParts.input) {
+      return false;
+    }
+    if (document.activeElement === inputParts.input) {
+      return true;
+    }
+    if (!force) {
+      const activeElement = document.activeElement;
+      const hasMeaningfulActiveElement = Boolean(activeElement) &&
+        activeElement !== document.body &&
+        activeElement !== document.documentElement;
+      if (hasMeaningfulActiveElement) {
+        return false;
+      }
+    }
+    try {
+      inputParts.input.focus({ preventScroll: true });
+    } catch (error) {
+      inputParts.input.focus();
+    }
+    return document.activeElement === inputParts.input;
+  }
+
+  function scheduleAutoFocusRecovery() {
+    const hasExplicitFocusHint = window.location.search.includes('focus=1') ||
+      window.location.hash.includes('focus');
+    if (!hasExplicitFocusHint) {
+      return;
+    }
+
+    const retryDelays = [0, 60, 140, 280, 520, 900, 1400];
+    const attemptFocusIfVisible = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      if (!document.hasFocus()) {
+        return;
+      }
+      tryFocusSearchInput(false);
+    };
+
+    retryDelays.forEach((delay) => {
+      setTimeout(attemptFocusIfVisible, delay);
+    });
+
+    window.addEventListener('focus', () => {
+      setTimeout(attemptFocusIfVisible, 0);
+    }, true);
+    window.addEventListener('pageshow', attemptFocusIfVisible, true);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        setTimeout(attemptFocusIfVisible, 0);
+      }
+    }, true);
+  }
+
+  scheduleAutoFocusRecovery();
 
   function handleGlobalTypingFocus(event) {
     if (!event || event.defaultPrevented || event.isComposing) {
@@ -8046,9 +8330,11 @@
 
   bindRecentAndBookmarkChangeListeners();
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
-  hydrateSectionsFromCache();
-  loadRecentSites();
-  loadBookmarks();
+  bootstrapInitialThemeMode().then(() => {
+    hydrateSectionsFromCache();
+    loadRecentSites();
+    loadBookmarks();
+  });
   updateBookmarkSectionPosition();
   markNewtabReady();
 

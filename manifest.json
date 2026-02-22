@@ -1,4 +1,7 @@
 {
+   "action": {
+      "default_title": "__MSG_ext_name__"
+   },
    "background": {
       "service_worker": "background.js"
    },
@@ -16,6 +19,17 @@
          "matches": [ "\u003Call_urls>" ],
          "js": [ "hotkey-listener.js" ],
          "run_at": "document_start"
+      },
+      {
+         "matches": [ "\u003Call_urls>" ],
+         "exclude_matches": [ "*://*.youtube.com/*", "*://youtube.com/*" ],
+         "js": [ "site-auto-pip.js" ],
+         "run_at": "document_idle"
+      },
+      {
+         "matches": [ "*://*.youtube.com/*", "*://youtube.com/*" ],
+         "js": [ "youtube-auto-pip.js" ],
+         "run_at": "document_idle"
       }
    ],
    "description": "__MSG_ext_description__",
@@ -34,7 +48,7 @@
    },
    "web_accessible_resources": [
       {
-         "resources": [ "lumno.png", "lumno-input-light.png", "site-search.json", "shortcut-rules.json", "remixicon.symbol.svg" ],
+         "resources": [ "lumno.png", "lumno-input-light.png", "site-search.json", "shortcut-rules.json", "remixicon.symbol.svg", "youtube-auto-pip-page.js" ],
          "matches": [ "\u003Call_urls>" ]
       }
    ],
