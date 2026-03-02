@@ -48,7 +48,7 @@
    },
    "web_accessible_resources": [
       {
-         "resources": [ "lumno.png", "lumno-input-light.png", "site-search.json", "shortcut-rules.json", "remixicon/fonts/remixicon.css", "remixicon/fonts/remixicon.woff2", "youtube-auto-pip-page.js" ],
+         "resources": [ "lumno.png", "lumno-input-light.png", "site-search.json", "shortcut-rules.json", "remixicon/fonts/remixicon.css", "remixicon/fonts/remixicon.woff2", "fonts/open-sans/open-sans.css", "fonts/open-sans/OpenSans-VariableFont-wdth-wght.ttf", "youtube-auto-pip-page.js" ],
          "matches": [ "\u003Call_urls>" ]
       }
    ],

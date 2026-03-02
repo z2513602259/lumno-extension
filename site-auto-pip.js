@@ -38,9 +38,9 @@
 
   const host = String(location.hostname || "").toLowerCase();
   const AUTO_PIP_ENABLED_STORAGE_KEY = "_x_extension_auto_pip_enabled_2026_unique_";
-  let autoPipEnabled = true;
+  let autoPipEnabled = false;
   function normalizeAutoPipEnabled(value) {
-    return value !== false;
+    return value === true;
   }
   function setAutoPipEnabled(value) {
     autoPipEnabled = normalizeAutoPipEnabled(value);
@@ -882,7 +882,7 @@
       maybeEnterPiP("video_play_hidden");
       return;
     }
-    if ((event.type === "pause" || event.type === "ended") &&
+    if (event.type === "ended" &&
         target === document.pictureInPictureElement &&
         state.managedPiP) {
       maybeExitPiP();

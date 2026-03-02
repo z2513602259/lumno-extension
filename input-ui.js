@@ -43,7 +43,7 @@
       border-bottom: none !important;
       color: var(--x-ext-input-text, #1F2937) !important;
       font-size: 16px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       font-weight: 500 !important;
       outline: none !important;
       box-sizing: border-box !important;
@@ -131,6 +131,25 @@
       host.appendChild(link);
     }
 
+    function ensureOpenSansStyles() {
+      if (!chrome || !chrome.runtime || !chrome.runtime.getURL) {
+        return;
+      }
+      if (document.getElementById('_x_extension_open_sans_css_2024_unique_')) {
+        return;
+      }
+      const host = document.head || document.documentElement;
+      if (!host) {
+        return;
+      }
+      const link = document.createElement('link');
+      link.id = '_x_extension_open_sans_css_2024_unique_';
+      link.rel = 'stylesheet';
+      link.href = chrome.runtime.getURL('fonts/open-sans/open-sans.css');
+      host.appendChild(link);
+    }
+
+    ensureOpenSansStyles();
     ensureRemixIconStyles();
     const icon = document.createElement('div');
     applyNoTranslate(icon);
@@ -162,22 +181,20 @@
     `;
     applyStyleOverrides(icon, config.iconStyleOverrides);
 
-    const rightIcon = document.createElement('img');
+    const rightIcon = document.createElement('button');
     applyNoTranslate(rightIcon);
     rightIcon.id = config.rightIconId || '_x_extension_search_right_icon_2024_unique_';
-    const runtimeUrl = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
-      ? chrome.runtime.getURL('lumno-input-light.png')
-      : '';
-    rightIcon.src = config.rightIconUrl || runtimeUrl;
-    rightIcon.alt = config.rightIconAlt || 'Lumno';
+    rightIcon.type = 'button';
+    rightIcon.innerHTML = config.rightIconHtml || '<i class="_x_extension_svg_2024_unique_ ri-icon ri-size-16 ri-settings-6-line" aria-hidden="true"></i>';
+    rightIcon.setAttribute('aria-label', config.rightIconAlt || 'Settings');
     rightIcon.style.cssText = `
       all: unset !important;
       position: absolute !important;
       right: 14px !important;
       top: 50% !important;
       transform: translateY(-50%) !important;
-      width: 28px !important;
-      height: 28px !important;
+      width: 30px !important;
+      height: 30px !important;
       border-radius: 8px !important;
       z-index: 2 !important;
       box-sizing: border-box !important;
@@ -188,10 +205,35 @@
       list-style: none !important;
       outline: none !important;
       background: transparent !important;
-      display: block !important;
-      object-fit: cover !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      color: var(--x-ext-input-icon, #9CA3AF) !important;
+      cursor: pointer !important;
+      transition: background-color 140ms ease, color 140ms ease, transform 160ms ease !important;
     `;
     applyStyleOverrides(rightIcon, config.rightIconStyleOverrides);
+    const resetRightIconVisualState = () => {
+      rightIcon.style.setProperty('background', 'transparent', 'important');
+      rightIcon.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');
+      rightIcon.style.setProperty('transform', 'translateY(-50%)', 'important');
+    };
+    resetRightIconVisualState();
+    rightIcon.addEventListener('mouseenter', () => {
+      rightIcon.style.setProperty('background', 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))', 'important');
+      rightIcon.style.setProperty('color', 'var(--x-ext-input-icon-hover, #4B5563)', 'important');
+      rightIcon.style.setProperty('transform', 'translateY(-50%) scale(1.06)', 'important');
+    });
+    rightIcon.addEventListener('mouseleave', resetRightIconVisualState);
+    rightIcon.addEventListener('blur', resetRightIconVisualState);
+    rightIcon.addEventListener('pointerup', resetRightIconVisualState);
+    rightIcon.addEventListener('pointercancel', resetRightIconVisualState);
+    rightIcon.addEventListener('click', () => {
+      resetRightIconVisualState();
+      if (typeof rightIcon.blur === 'function') {
+        rightIcon.blur();
+      }
+    });
 
     const container = document.createElement('div');
     applyNoTranslate(container);

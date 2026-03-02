@@ -1278,7 +1278,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     const hostOverride = request.host || '';
     const fallbackUrl = request.fallbackUrl || '';
     const preferredTheme = request.preferredTheme || '';
-    resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme).then((urls) => {
+    const options = {
+      includeChromeFallback: request.excludeChromeFallback ? false : true
+    };
+    resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme, options).then((urls) => {
       sendResponse({ urls: Array.isArray(urls) ? urls : [] });
     }).catch(() => {
       sendResponse({ urls: [] });
@@ -2230,7 +2233,8 @@ function parseHtmlIconCandidates(html, pageUrl, preferredTheme) {
   return list;
 }
 
-function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl, preferredTheme) {
+function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl, preferredTheme, options) {
+  const includeChromeFallback = !options || options.includeChromeFallback !== false;
   const normalizedTheme = normalizeThemePreference(preferredTheme);
   const candidates = [];
   const inputUrl = String(pageUrl || '').trim();
@@ -2266,7 +2270,7 @@ function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl, pref
     candidates.push({ url: getGoogleFaviconUrl(host), score: 8 });
     candidates.push({ url: getFaviconIsUrl(host), score: 1 });
   }
-  if (inputUrl) {
+  if (inputUrl && includeChromeFallback) {
     candidates.push({ url: getChromeFaviconUrl(inputUrl), score: 12 });
   }
   if (fallback) {
@@ -2292,7 +2296,8 @@ function dedupeAndSortFaviconCandidates(candidates) {
     .map((item) => item.url);
 }
 
-function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme) {
+function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferredTheme, options) {
+  const includeChromeFallback = !options || options.includeChromeFallback !== false;
   const inputUrl = String(targetUrl || '').trim();
   if (!inputUrl) {
     return Promise.resolve([]);
@@ -2312,10 +2317,10 @@ function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferre
   }
   const normalizedTheme = normalizeThemePreference(preferredTheme);
   const normalizedHost = normalizeFaviconHost(hostOverride || parsed.hostname);
-  const cacheKey = `${normalizedHost}::${parsed.origin}::${normalizedTheme || 'auto'}`;
+  const cacheKey = `${normalizedHost}::${parsed.origin}::${normalizedTheme || 'auto'}::chrome=${includeChromeFallback ? '1' : '0'}`;
   if (faviconResolveCache.has(cacheKey)) {
     const cached = faviconResolveCache.get(cacheKey);
-    const extra = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
+    const extra = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme, { includeChromeFallback: includeChromeFallback });
     return Promise.resolve(dedupeAndSortFaviconCandidates([...(cached || []).map((url) => ({ url: url, score: 20 })), ...extra]));
   }
   if (faviconResolvePending.has(cacheKey)) {
@@ -2330,14 +2335,14 @@ function resolveFaviconCandidates(targetUrl, hostOverride, fallbackUrl, preferre
     })
     .then((html) => {
       const parsedCandidates = parseHtmlIconCandidates(html, inputUrl, normalizedTheme);
-      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
+      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme, { includeChromeFallback: includeChromeFallback });
       const resolved = dedupeAndSortFaviconCandidates([...parsedCandidates, ...fallbackCandidates]);
       faviconResolveCache.set(cacheKey, resolved.slice(0, 8));
       faviconResolvePending.delete(cacheKey);
       return resolved;
     })
     .catch(() => {
-      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme);
+      const fallbackCandidates = buildFaviconFallbackCandidates(inputUrl, hostOverride, fallbackUrl, normalizedTheme, { includeChromeFallback: includeChromeFallback });
       const resolved = dedupeAndSortFaviconCandidates(fallbackCandidates);
       faviconResolveCache.set(cacheKey, resolved.slice(0, 8));
       faviconResolvePending.delete(cacheKey);
@@ -2383,7 +2388,7 @@ function renderHighlightedText(target, text, query, styles) {
         : 'var(--x-ext-mark-text, #1E3A8A)';
       mark.style.padding = '2px 4px';
       mark.style.borderRadius = '3px';
-      mark.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+      mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
       mark.textContent = part;
       target.appendChild(mark);
     } else {
@@ -3072,10 +3077,14 @@ async function getSearchSuggestions(query) {
   let overlaySearchEngineStorageListener = null;
   let overlayTabPriorityStorageListener = null;
   let overlayThemeMediaListener = null;
+  let overlayPageThemeObserver = null;
+  let overlayPageThemeSyncRaf = null;
   let siteSearchStorageListener = null;
   let keydownHandler = null;
   let overlayKeyCaptureHandler = null;
   let clickOutsideHandler = null;
+  let overlayEnterAnimationRafA = null;
+  let overlayEnterAnimationRafB = null;
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
@@ -3090,9 +3099,23 @@ async function getSearchSuggestions(query) {
   const RI_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL('remixicon/fonts/remixicon.css')
     : 'remixicon/fonts/remixicon.css';
+  const OPEN_SANS_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
+    ? chrome.runtime.getURL('fonts/open-sans/open-sans.css')
+    : 'fonts/open-sans/open-sans.css';
   const overlayMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let overlayThemeMode = 'system';
   let overlayThemeListenerAttached = false;
+
+  function stopOverlayPageThemeObserver() {
+    if (overlayPageThemeSyncRaf !== null) {
+      cancelAnimationFrame(overlayPageThemeSyncRaf);
+      overlayPageThemeSyncRaf = null;
+    }
+    if (overlayPageThemeObserver) {
+      overlayPageThemeObserver.disconnect();
+      overlayPageThemeObserver = null;
+    }
+  }
 
   function escapeRegExp(text) {
     return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -3130,7 +3153,7 @@ async function getSearchSuggestions(query) {
           : 'var(--x-ext-mark-text, #1E3A8A)';
         mark.style.padding = '2px 4px';
         mark.style.borderRadius = '3px';
-        mark.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+        mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
         mark.textContent = part;
         target.appendChild(mark);
       } else {
@@ -3179,6 +3202,22 @@ async function getSearchSuggestions(query) {
     host.appendChild(link);
   }
 
+  async function ensureOpenSansStyles() {
+    if (document.getElementById('_x_extension_open_sans_css_2024_unique_')) {
+      return;
+    }
+    const host = document.head || document.documentElement;
+    if (!host) {
+      return;
+    }
+    const link = document.createElement('link');
+    link.id = '_x_extension_open_sans_css_2024_unique_';
+    link.rel = 'stylesheet';
+    link.href = OPEN_SANS_CSS_URL;
+    host.appendChild(link);
+  }
+
+  await ensureOpenSansStyles();
   await ensureRemixIconStyles();
 
   function normalizeLocale(locale) {
@@ -3438,8 +3477,20 @@ async function getSearchSuggestions(query) {
     }
     return isLocalNetworkHost(normalizedHost);
   }
+  function clearOverlayEnterAnimationFrames() {
+    if (overlayEnterAnimationRafA !== null) {
+      cancelAnimationFrame(overlayEnterAnimationRafA);
+      overlayEnterAnimationRafA = null;
+    }
+    if (overlayEnterAnimationRafB !== null) {
+      cancelAnimationFrame(overlayEnterAnimationRafB);
+      overlayEnterAnimationRafB = null;
+    }
+  }
+
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
+    clearOverlayEnterAnimationFrames();
     if (overlayElement) {
       overlayElement.remove();
     }
@@ -3488,6 +3539,7 @@ async function getSearchSuggestions(query) {
       overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
       overlayThemeMediaListener = null;
     }
+    stopOverlayPageThemeObserver();
     if (siteSearchStorageListener) {
       chrome.storage.onChanged.removeListener(siteSearchStorageListener);
       siteSearchStorageListener = null;
@@ -3523,7 +3575,7 @@ async function getSearchSuggestions(query) {
       border-radius: 28px !important;
       box-shadow: var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15)) !important;
       z-index: 2147483647 !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
@@ -3560,18 +3612,22 @@ async function getSearchSuggestions(query) {
       if (previousResolvedTheme !== nextResolvedTheme) {
         refreshOverlayThemeAwareFavicons();
       }
-      if (mode === 'system' && !overlayThemeListenerAttached) {
-        overlayThemeMediaListener = function() {
-          if (overlayThemeMode === 'system') {
-            // 仅更新容器变量会导致建议项主题变量滞后，系统主题切换时完整刷新。
-            applyOverlayTheme('system');
-          }
-        };
-        overlayMediaQuery.addEventListener('change', overlayThemeMediaListener);
-        overlayThemeListenerAttached = true;
+      if (mode === 'system') {
+        startOverlayPageThemeObserver();
+        if (!overlayThemeListenerAttached) {
+          overlayThemeMediaListener = function() {
+            if (overlayThemeMode === 'system') {
+              // 仅更新容器变量会导致建议项主题变量滞后，系统主题切换时完整刷新。
+              applyOverlayTheme('system');
+            }
+          };
+          overlayMediaQuery.addEventListener('change', overlayThemeMediaListener);
+          overlayThemeListenerAttached = true;
+        }
         return;
       }
-      if (mode !== 'system' && overlayThemeListenerAttached) {
+      stopOverlayPageThemeObserver();
+      if (overlayThemeListenerAttached) {
         overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
         overlayThemeMediaListener = null;
         overlayThemeListenerAttached = false;
@@ -3668,7 +3724,7 @@ async function getSearchSuggestions(query) {
       border-radius: 999px !important;
       padding: 4px 8px !important;
       font-size: 11px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       font-weight: 500 !important;
       line-height: 1 !important;
       white-space: nowrap !important;
@@ -4076,7 +4132,7 @@ async function getSearchSuggestions(query) {
     urlHighlightTheme._xIsUrl = true;
     const overlayThemeTokens = {
       light: {
-        bg: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.78) 100%)',
+        bg: 'linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.84) 100%)',
         border: 'rgba(0, 0, 0, 0.14)',
         shadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 16px 40px rgba(15, 23, 42, 0.12), 0 40px 90px rgba(15, 23, 42, 0.12)',
         text: '#111827',
@@ -4250,6 +4306,66 @@ async function getSearchSuggestions(query) {
         return getLuminance(rgb) < 0.42 ? 'dark' : 'light';
       }
       return null;
+    }
+
+    function scheduleOverlayPageThemeSync() {
+      if (overlayPageThemeSyncRaf !== null) {
+        return;
+      }
+      overlayPageThemeSyncRaf = requestAnimationFrame(() => {
+        overlayPageThemeSyncRaf = null;
+        if (!overlay || !overlay.isConnected || overlayThemeMode !== 'system') {
+          return;
+        }
+        applyOverlayTheme('system');
+      });
+    }
+
+    function startOverlayPageThemeObserver() {
+      if (overlayPageThemeObserver || overlayThemeMode !== 'system') {
+        return;
+      }
+      const themeAttrFilter = [
+        'class',
+        'style',
+        'data-theme',
+        'data-color-scheme',
+        'data-color-mode',
+        'data-mode',
+        'data-appearance',
+        'theme',
+        'color-scheme',
+        'dark',
+        'light',
+        'data-bs-theme'
+      ];
+      overlayPageThemeObserver = new MutationObserver(() => {
+        scheduleOverlayPageThemeSync();
+      });
+      const docEl = document.documentElement;
+      if (docEl) {
+        overlayPageThemeObserver.observe(docEl, {
+          attributes: true,
+          attributeFilter: themeAttrFilter
+        });
+      }
+      const body = document.body;
+      if (body) {
+        overlayPageThemeObserver.observe(body, {
+          attributes: true,
+          attributeFilter: themeAttrFilter
+        });
+      }
+      const head = document.head;
+      if (head) {
+        overlayPageThemeObserver.observe(head, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['name', 'content', 'media']
+        });
+      }
+      scheduleOverlayPageThemeSync();
     }
 
     function applyOverlayThemeVariables(target, mode) {
@@ -4987,6 +5103,7 @@ async function getSearchSuggestions(query) {
       if (!img) {
         return;
       }
+      const isChromeMonogramFaviconUrl = (url) => /^chrome:\/\/favicon2\//i.test(String(url || ''));
       const handleFailed = typeof onFailed === 'function' ? onFailed : function() {};
       const preferredTheme = isOverlayDarkMode() ? 'dark' : 'light';
       const previousWorkingSrc = getLastWorkingFaviconSrc(img);
@@ -4996,7 +5113,7 @@ async function getSearchSuggestions(query) {
       img.setAttribute('data-x-ov-favicon-fallback-url', String(fallbackUrl || ''));
       const cacheKey = `${String(hostKey || '')}::${String(pageUrl || '')}::${String(fallbackUrl || '')}::${preferredTheme}`;
       const cachedUrl = resolvedFaviconUrlCache.get(cacheKey) || '';
-      const safeCachedUrl = isBlockedLocalFaviconUrl(cachedUrl) ? '' : cachedUrl;
+      const safeCachedUrl = (isBlockedLocalFaviconUrl(cachedUrl) || isChromeMonogramFaviconUrl(cachedUrl)) ? '' : cachedUrl;
       const safeFallbackUrl = isBlockedLocalFaviconUrl(fallbackUrl) ? '' : String(fallbackUrl || '');
       const quickUrl = safeCachedUrl || safeFallbackUrl;
       const trySetCandidate = (nextUrl) => {
@@ -5016,11 +5133,18 @@ async function getSearchSuggestions(query) {
           url: pageUrl || '',
           host: hostKey || '',
           fallbackUrl: fallbackUrl || '',
-          preferredTheme: preferredTheme
+          preferredTheme: preferredTheme,
+          excludeChromeFallback: true
         },
         (response) => {
           const resolved = response && Array.isArray(response.urls) ? response.urls.filter(Boolean) : [];
-          const urls = Array.from(new Set([safeCachedUrl, ...resolved, safeFallbackUrl].filter((url) => url && !isBlockedLocalFaviconUrl(url))));
+          const urls = Array.from(
+            new Set(
+              [safeCachedUrl, ...resolved, safeFallbackUrl].filter((url) =>
+                url && !isBlockedLocalFaviconUrl(url) && !isChromeMonogramFaviconUrl(url)
+              )
+            )
+          );
           if (!urls.length) {
             if (!quickApplied) {
               restoreWorkingFaviconOrFail(img, previousWorkingSrc, handleFailed);
@@ -5281,7 +5405,7 @@ async function getSearchSuggestions(query) {
         padding: 4px 10px 4px 8px !important;
         border-radius: 999px !important;
         font-size: 11px !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         line-height: 1 !important;
         text-decoration: none !important;
         list-style: none !important;
@@ -5357,7 +5481,7 @@ async function getSearchSuggestions(query) {
       display: none !important;
       white-space: nowrap !important;
       font-size: 16px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       line-height: 1 !important;
       color: var(--x-ov-subtext, #6B7280) !important;
       pointer-events: none !important;
@@ -6804,7 +6928,9 @@ async function getSearchSuggestions(query) {
             hostForTab,
             tab.favIconUrl || '',
             () => {
-              favicon.style.setProperty('display', 'none', 'important');
+              if (favicon && favicon.parentNode) {
+                favicon.parentNode.replaceChild(createLinkIcon(), favicon);
+              }
             }
           );
           iconNode = favicon;
@@ -6846,7 +6972,7 @@ async function getSearchSuggestions(query) {
           all: unset !important;
           color: var(--x-ov-text, #111827) !important;
           font-size: 14px !important;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
@@ -6875,7 +7001,7 @@ async function getSearchSuggestions(query) {
           border: none !important;
           border-radius: 6px !important;
           font-size: 12px !important;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
           cursor: pointer !important;
           transition: background-color 0.2s ease !important;
           height: 26px !important;
@@ -7267,7 +7393,7 @@ async function getSearchSuggestions(query) {
           all: unset !important;
           color: var(--x-ov-link, #2563EB) !important;
           font-size: 12px !important;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
           text-decoration: none !important;
           display: inline-block !important;
           max-width: 60% !important;
@@ -7709,30 +7835,8 @@ async function getSearchSuggestions(query) {
                 display: block !important;
                 object-fit: contain !important;
               `;
-              const replaceWithSearchIcon = function() {
-                const searchIconSvg = getRiSvg('ri-search-line', 'ri-size-16');
-                const fallbackDiv = document.createElement('div');
-                fallbackDiv.innerHTML = searchIconSvg;
-                fallbackDiv.style.cssText = `
-                  all: unset !important;
-                  width: 16px !important;
-                  height: 16px !important;
-                  display: flex !important;
-                  align-items: center !important;
-                  justify-content: center !important;
-                  box-sizing: border-box !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  line-height: 1 !important;
-                  text-decoration: none !important;
-                  list-style: none !important;
-                  outline: none !important;
-                  background: transparent !important;
-                  color: inherit !important;
-                  font-size: 100% !important;
-                  font: inherit !important;
-                  vertical-align: baseline !important;
-                `;
+              const replaceWithFallbackIcon = function() {
+                const fallbackDiv = createLinkIcon();
                 if (favicon.parentNode) {
                   favicon.parentNode.replaceChild(fallbackDiv, favicon);
                 }
@@ -7742,7 +7846,7 @@ async function getSearchSuggestions(query) {
                 suggestion && suggestion.url ? suggestion.url : '',
                 suggestionHost,
                 suggestion.favicon || '',
-                replaceWithSearchIcon
+                replaceWithFallbackIcon
               );
               iconNode = favicon;
             } else {
@@ -7838,7 +7942,7 @@ async function getSearchSuggestions(query) {
             all: unset !important;
             color: var(--x-ov-text, #111827) !important;
             font-size: 14px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
             font-weight: 400 !important;
             white-space: nowrap !important;
             overflow: hidden !important;
@@ -7875,7 +7979,7 @@ async function getSearchSuggestions(query) {
               background: var(--x-ov-tag-bg, #F3F4F6) !important;
               color: var(--x-ov-tag-text, #6B7280) !important;
               font-size: 10px !important;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
               padding: 4px 6px !important;
               border-radius: 8px !important;
               box-sizing: border-box !important;
@@ -7909,7 +8013,7 @@ async function getSearchSuggestions(query) {
               background: var(--x-ov-tag-bg, #F3F4F6) !important;
               color: var(--x-ov-tag-text, #6B7280) !important;
               font-size: 10px !important;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
               padding: 4px 6px !important;
               border-radius: 8px !important;
               box-sizing: border-box !important;
@@ -7936,7 +8040,7 @@ async function getSearchSuggestions(query) {
                 all: unset !important;
                 color: var(--x-ov-link, #2563EB) !important;
                 font-size: 12px !important;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+                font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                 text-decoration: none !important;
                 white-space: nowrap !important;
                 overflow: hidden !important;
@@ -7961,7 +8065,7 @@ async function getSearchSuggestions(query) {
             background: var(--x-ov-bookmark-tag-bg, #FEF3C7) !important;
             color: var(--x-ov-bookmark-tag-text, #D97706) !important;
             font-size: 10px !important;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
               padding: 4px 6px !important;
               border-radius: 8px !important;
               box-sizing: border-box !important;
@@ -8062,7 +8166,7 @@ async function getSearchSuggestions(query) {
             border: 1px solid transparent !important;
             border-radius: 16px !important;
             font-size: 12px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
             cursor: pointer !important;
             transition: background-color 0.2s ease !important;
             padding: 6px 12px !important;
@@ -8327,10 +8431,20 @@ async function getSearchSuggestions(query) {
       overlay.style.setProperty('transform', 'translateX(-50%) translateY(0) scale(1)', 'important');
       overlay.style.setProperty('filter', 'blur(0)', 'important');
     } else {
-      requestAnimationFrame(() => {
-        overlay.style.setProperty('opacity', '1', 'important');
-        overlay.style.setProperty('transform', 'translateX(-50%) translateY(0) scale(1)', 'important');
-        overlay.style.setProperty('filter', 'blur(0)', 'important');
+      clearOverlayEnterAnimationFrames();
+      // Flush initial style state before starting transition to avoid skipped enter animations.
+      void overlay.offsetHeight;
+      overlayEnterAnimationRafA = requestAnimationFrame(() => {
+        overlayEnterAnimationRafA = null;
+        overlayEnterAnimationRafB = requestAnimationFrame(() => {
+          overlayEnterAnimationRafB = null;
+          if (!overlay.isConnected) {
+            return;
+          }
+          overlay.style.setProperty('opacity', '1', 'important');
+          overlay.style.setProperty('transform', 'translateX(-50%) translateY(0) scale(1)', 'important');
+          overlay.style.setProperty('filter', 'blur(0)', 'important');
+        });
       });
     }
   }

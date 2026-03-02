@@ -20,6 +20,10 @@
     : null;
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
+  const bookmarkColumnsSelect = document.getElementById('_x_extension_bookmark_columns_select_2024_unique_');
+  const bookmarkColumnsSelectWrap = bookmarkColumnsSelect
+    ? bookmarkColumnsSelect.closest('._x_extension_select_wrap_2024_unique_')
+    : null;
   const autoPipToggle = document.getElementById('_x_extension_auto_pip_toggle_2024_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
@@ -90,6 +94,7 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
+  const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
@@ -105,6 +110,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
@@ -218,6 +224,24 @@
     return 8;
   }
 
+  function normalizeBookmarkColumns(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 4 || parsed === 6) {
+      return parsed;
+    }
+    return 4;
+  }
+
+  function updateBookmarkColumnsSelectVisibility(countValue) {
+    if (!bookmarkColumnsSelectWrap) {
+      return;
+    }
+    const parsed = Number.parseInt(countValue, 10);
+    const shouldHide = Number.isFinite(parsed) ? parsed <= 0 : false;
+    bookmarkColumnsSelectWrap.style.setProperty('display', shouldHide ? 'none' : 'inline-flex');
+    bookmarkColumnsSelectWrap.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
+  }
+
   function normalizeOverlayTabQuickSwitch(value) {
     if (FORCE_OVERLAY_TAB_QUICK_SWITCH_ENABLED) {
       return true;
@@ -235,7 +259,7 @@
   }
 
   function normalizeAutoPipEnabled(value) {
-    return value !== false;
+    return value === true;
   }
 
   function updateInlineTabsIndicator(wrapper, indicator, activeSelector) {
@@ -280,6 +304,21 @@
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     requestAnimationFrame(updateRecentModeTabsIndicator);
+  }
+
+  function updateRecentModeTabsVisibility(countValue) {
+    if (!recentModeTabsWrap) {
+      return;
+    }
+    const parsed = Number.parseInt(countValue, 10);
+    const shouldHide = Number.isFinite(parsed) ? parsed <= 0 : false;
+    recentModeTabsWrap.style.setProperty('display', shouldHide ? 'none' : 'flex');
+    recentModeTabsWrap.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
+    if (!shouldHide) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(updateRecentModeTabsIndicator);
+      });
+    }
   }
 
   function setRestrictedActionTabState(action) {
@@ -333,6 +372,24 @@
         resolve();
       });
     });
+  }
+
+  function notifyNewtabSectionsRefresh(section) {
+    if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(
+        { action: 'lumno:newtab-refresh-sections', section: section || 'all' },
+        () => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            return;
+          }
+        }
+      );
+    } catch (error) {
+      // Ignore runtime messaging errors.
+    }
   }
 
   function applyI18n() {
@@ -1592,6 +1649,16 @@
         requestAnimationFrame(updateThemeIndicator);
       });
     }
+    if (tabKey === 'general') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          updateRecentModeTabsIndicator();
+          updateRestrictedActionTabsIndicator();
+          syncFallbackShortcutWrapWidth();
+          updateFallbackShortcutWrapWidthForContent();
+        });
+      });
+    }
     if (tabKey) {
       const nextHash = `#${tabKey}`;
       if (window.location.hash !== nextHash) {
@@ -1638,6 +1705,7 @@
     themeButtons.forEach((button) => {
       const isActive = button.getAttribute('data-mode') === mode;
       button.setAttribute('data-active', isActive ? 'true' : 'false');
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
     requestAnimationFrame(updateThemeIndicator);
   }
@@ -1727,8 +1795,21 @@
 
   initTheme();
 
+  function playThemeOptionClickEffect(button) {
+    if (!button) {
+      return;
+    }
+    button.classList.remove('x-theme-clicking');
+    void button.offsetWidth;
+    button.classList.add('x-theme-clicking');
+    window.setTimeout(() => {
+      button.classList.remove('x-theme-clicking');
+    }, 260);
+  }
+
   themeButtons.forEach((button) => {
     button.addEventListener('click', function() {
+      playThemeOptionClickEffect(button);
       setThemeMode(button.getAttribute('data-mode'));
     });
   });
@@ -1774,6 +1855,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    BOOKMARK_COLUMNS_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
@@ -1888,10 +1970,12 @@
       const raw = recentCountSelect.value;
       const parsed = Number.parseInt(raw, 10);
       const nextCount = Number.isFinite(parsed) ? parsed : 4;
+      updateRecentModeTabsVisibility(nextCount);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [RECENT_COUNT_STORAGE_KEY]: nextCount });
+      notifyNewtabSectionsRefresh('recent');
     });
   }
   if (recentModeSelect) {
@@ -1903,6 +1987,7 @@
         return;
       }
       storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
+      notifyNewtabSectionsRefresh('recent');
     });
   }
   if (recentModeTabButtons.length > 0) {
@@ -1917,16 +2002,29 @@
           return;
         }
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
+        notifyNewtabSectionsRefresh('recent');
       });
     });
   }
   if (bookmarkCountSelect) {
     bookmarkCountSelect.addEventListener('change', () => {
       const nextCount = normalizeBookmarkCount(bookmarkCountSelect.value);
+      updateBookmarkColumnsSelectVisibility(nextCount);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: nextCount });
+      notifyNewtabSectionsRefresh('bookmarks');
+    });
+  }
+  if (bookmarkColumnsSelect) {
+    bookmarkColumnsSelect.addEventListener('change', () => {
+      const nextColumns = normalizeBookmarkColumns(bookmarkColumnsSelect.value);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [BOOKMARK_COLUMNS_STORAGE_KEY]: nextColumns });
+      notifyNewtabSectionsRefresh('bookmarks');
     });
   }
   if (overlayTabQuickSwitchToggle) {
@@ -2272,6 +2370,7 @@
       if (recentCountSelect) {
         recentCountSelect.value = String(count);
       }
+      updateRecentModeTabsVisibility(count);
       if (!hasStored) {
         storageArea.set({ [RECENT_COUNT_STORAGE_KEY]: count });
       }
@@ -2280,7 +2379,7 @@
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
       const hasStored = stored === 'latest' || stored === 'most';
-      const mode = hasStored ? stored : 'latest';
+      const mode = hasStored ? stored : 'most';
       if (recentModeSelect) {
         recentModeSelect.value = mode;
       }
@@ -2296,8 +2395,20 @@
       if (bookmarkCountSelect) {
         bookmarkCountSelect.value = String(count);
       }
+      updateBookmarkColumnsSelectVisibility(count);
       if (stored !== count) {
         storageArea.set({ [BOOKMARK_COUNT_STORAGE_KEY]: count });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([BOOKMARK_COLUMNS_STORAGE_KEY], (result) => {
+      const stored = result[BOOKMARK_COLUMNS_STORAGE_KEY];
+      const columns = normalizeBookmarkColumns(stored);
+      if (bookmarkColumnsSelect) {
+        bookmarkColumnsSelect.value = String(columns);
+      }
+      if (stored !== columns) {
+        storageArea.set({ [BOOKMARK_COLUMNS_STORAGE_KEY]: columns });
       }
       refreshCustomSelects();
     });
@@ -3094,6 +3205,7 @@
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
+        changes[BOOKMARK_COLUMNS_STORAGE_KEY] ||
         changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
@@ -3115,6 +3227,7 @@
       const stored = Number.parseInt(changes[RECENT_COUNT_STORAGE_KEY].newValue, 10);
       const count = Number.isFinite(stored) ? stored : 4;
       recentCountSelect.value = String(count);
+      updateRecentModeTabsVisibility(count);
       refreshCustomSelects();
     }
     if (changes[RECENT_MODE_STORAGE_KEY] && recentModeSelect) {
@@ -3127,6 +3240,12 @@
     if (changes[BOOKMARK_COUNT_STORAGE_KEY] && bookmarkCountSelect) {
       const stored = normalizeBookmarkCount(changes[BOOKMARK_COUNT_STORAGE_KEY].newValue);
       bookmarkCountSelect.value = String(stored);
+      updateBookmarkColumnsSelectVisibility(stored);
+      refreshCustomSelects();
+    }
+    if (changes[BOOKMARK_COLUMNS_STORAGE_KEY] && bookmarkColumnsSelect) {
+      const stored = normalizeBookmarkColumns(changes[BOOKMARK_COLUMNS_STORAGE_KEY].newValue);
+      bookmarkColumnsSelect.value = String(stored);
       refreshCustomSelects();
     }
     if (changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] && overlayTabQuickSwitchToggle) {

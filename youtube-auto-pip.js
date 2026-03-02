@@ -13,7 +13,7 @@
     return;
   }
   const AUTO_PIP_ENABLED_STORAGE_KEY = "_x_extension_auto_pip_enabled_2026_unique_";
-  let autoPipEnabled = true;
+  let autoPipEnabled = false;
 
   const state = {
     activeVideo: null,
@@ -24,7 +24,8 @@
     lastManagedVideo: null,
     recoveryTimer: null,
     enterRetryTimer: null,
-    suppressEnterUntil: 0
+    suppressEnterUntil: 0,
+    uiRecoverySuppressUntil: 0
   };
   const RECOVERY_RELOAD_GUARD_KEY = "_x_lumno_yt_pip_recovery_reload_at_2026_";
   const PAGE_BRIDGE_SCRIPT_ID = "__lumno_yt_auto_pip_page_bridge_script_2026__";
@@ -35,7 +36,7 @@
   let pageBridgeRequestSeq = 0;
 
   function normalizeAutoPipEnabled(value) {
-    return value !== false;
+    return value === true;
   }
 
   function setAutoPipEnabled(value) {
@@ -376,6 +377,53 @@
     }
     const rect = video.getBoundingClientRect();
     return Number(rect.width || 0) >= 160 && Number(rect.height || 0) >= 90;
+  }
+
+  function isElementVisible(element) {
+    if (!element || !(element instanceof Element) || !element.isConnected) {
+      return false;
+    }
+    const style = window.getComputedStyle(element);
+    if (!style) {
+      return true;
+    }
+    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity || 1) === 0) {
+      return false;
+    }
+    const rect = element.getBoundingClientRect();
+    return Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0;
+  }
+
+  function markUiRecoverySuppressed(ms) {
+    const duration = Math.max(0, Number(ms || 0));
+    if (!duration) {
+      return;
+    }
+    state.uiRecoverySuppressUntil = Math.max(
+      Number(state.uiRecoverySuppressUntil || 0),
+      Date.now() + duration
+    );
+  }
+
+  function isSettingsMenuExpanded() {
+    const settingsButton = document.querySelector(".ytp-settings-button");
+    if (settingsButton instanceof Element && settingsButton.getAttribute("aria-expanded") === "true") {
+      return true;
+    }
+    const visibleMenu = document.querySelector(".ytp-settings-menu, .ytp-panel-menu");
+    return isElementVisible(visibleMenu);
+  }
+
+  function shouldDeferVisibleRecoveryForUi() {
+    const suppressUntil = Number(state.uiRecoverySuppressUntil || 0);
+    if (Date.now() < suppressUntil) {
+      return true;
+    }
+    if (isSettingsMenuExpanded()) {
+      markUiRecoverySuppressed(380);
+      return true;
+    }
+    return false;
   }
 
   function hasYouTubeMiniPlayerState() {
@@ -743,6 +791,12 @@
 
     let attempts = 0;
     const run = async () => {
+      if (shouldDeferVisibleRecoveryForUi()) {
+        state.recoveryTimer = setTimeout(() => {
+          run();
+        }, 160);
+        return;
+      }
       attempts += 1;
       await maybeExitPiP("page_visible");
       recoverInlinePlaybackIfNeeded("visible_recovery", attempts);
@@ -803,7 +857,7 @@
       return;
     }
 
-    if ((event.type === "ended" || event.type === "pause") &&
+    if (event.type === "ended" &&
         target === document.pictureInPictureElement &&
         state.managedPiP) {
       maybeExitPiP("video_stopped");
@@ -850,6 +904,15 @@
     document.addEventListener("ended", onVideoEvent, true);
     document.addEventListener("enterpictureinpicture", onEnterPictureInPicture, true);
     document.addEventListener("leavepictureinpicture", onLeavePictureInPicture, true);
+    document.addEventListener("pointerdown", (event) => {
+      const target = event && event.target instanceof Element ? event.target : null;
+      if (!target || !target.closest) {
+        return;
+      }
+      if (target.closest(".ytp-settings-button, .ytp-panel-menu, .ytp-settings-menu")) {
+        markUiRecoverySuppressed(1200);
+      }
+    }, true);
     window.addEventListener("focus", () => {
       state.suppressEnterUntil = Date.now() + ENTER_SUPPRESS_AFTER_VISIBLE_MS;
       clearEnterRetryTimer();

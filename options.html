@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title data-i18n="options_page_title">Lumno 设置</title>
+    <link rel="stylesheet" href="fonts/open-sans/open-sans.css" />
     <link rel="stylesheet" href="remixicon/fonts/remixicon.css" />
     <!-- Thanks to the Remix Icon project; this extension uses its icon set: https://remixicon.com/ -->
     <style>
@@ -29,7 +30,7 @@
         justify-content: center;
         padding: 10vh 20px 40px;
         box-sizing: border-box;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
         overflow-y: scroll;
         position: relative;
@@ -139,6 +140,7 @@
         --switch-bg: rgba(15, 23, 42, 0.12);
         --switch-on-bg: #111827;
         --switch-knob: #ffffff;
+        --tooltip-font-size: 13px;
         --panel-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
         --sync-button-bg: rgba(148, 163, 184, 0.16);
         --sync-button-hover-bg: rgba(148, 163, 184, 0.28);
@@ -232,7 +234,7 @@
       ._x_extension_settings_version_badge_2024_unique_ {
         margin-right: 20px;
         border-radius: 999px;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 500;
         color: var(--panel-text);
         background: rgba(255, 255, 255, 0.12);
@@ -286,8 +288,8 @@
         padding: 8px 14px;
         border-radius: 10px;
         color: var(--tab-inactive-text);
-        font-size: 12px;
-        font-weight: 500;
+        font-size: var(--tooltip-font-size);
+        font-weight: 400;
         transition: color 0.2s ease, transform 120ms ease, filter 120ms ease;
         position: relative;
         z-index: 1;
@@ -300,6 +302,7 @@
         transition: opacity 0.2s ease, transform 0.2s ease;
       }
       ._x_extension_settings_tab_button_2024_unique_[data-active="true"] {
+        font-weight: 500;
         color: var(--tab-active-text);
       }
       ._x_extension_settings_tab_button_2024_unique_[data-active="true"] ._x_extension_tab_icon_2024_unique_ {
@@ -328,7 +331,7 @@
         background: transparent;
       }
       ._x_extension_setting_title_2024_unique_ {
-        font-size: 14px;
+        font-size: var(--tooltip-font-size);
         font-weight: 400;
         margin: 0;
         color: var(--panel-text);
@@ -337,7 +340,13 @@
       ._x_extension_setting_title_with_icon_2024_unique_ {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 4px;
+      }
+      ._x_extension_sync_title_with_status_2026_unique_ {
+        gap: 10px;
+      }
+      ._x_extension_shortcuts_title_with_tag_2026_unique_ {
+        gap: 10px;
       }
       ._x_extension_setting_desc_2024_unique_ {
         font-size: 14px;
@@ -607,9 +616,9 @@
       ._x_extension_sync_status_2024_unique_ {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
         padding: 2px 6px;
-        border-radius: 999px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 500;
         line-height: 1.2;
@@ -699,28 +708,83 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: var(--switch-bg);
+        background: linear-gradient(180deg, #c7c7c7 0%, #f9f9f9 100%);
+        border: 0.5px solid #dedede;
+        box-shadow:
+          inset 0 -1px 1px rgba(255, 255, 255, 0.08),
+          inset 0 1px 2px rgba(0, 0, 0, 0.34);
         border-radius: 999px;
-        transition: background-color 0.2s ease;
+        overflow: hidden;
+        z-index: 0;
+        transition:
+          border-color 320ms ease,
+          box-shadow 320ms ease;
+      }
+      ._x_extension_switch_slider_2024_unique_::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(180deg, #404859 0%, #273042 100%);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 1;
+        transition: opacity 320ms ease;
       }
       ._x_extension_switch_slider_2024_unique_:before {
         position: absolute;
         content: "";
         height: 18px;
         width: 18px;
+        box-sizing: border-box;
         left: 3px;
         top: 3px;
-        background: var(--switch-knob);
+        background: #fafafa;
+        border: 0.5px solid #cdcdcd;
         border-radius: 50%;
-        transition: transform 0.2s ease;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        z-index: 2;
+        transition:
+          transform 320ms ease,
+          background-color 320ms ease,
+          border-color 320ms ease,
+          box-shadow 320ms ease;
+        box-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.1),
+          inset 0 2px 1px #ffffff,
+          inset 0 -1px 2px rgba(0, 0, 0, 0.15);
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_ {
-        background: var(--switch-on-bg);
+        border-color: transparent;
+        box-shadow: none;
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_:before {
         transform: translateX(20px);
-        background: #f9fafb;
+      }
+      ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_::after {
+        opacity: 1;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_ {
+        background: linear-gradient(180deg, #5b5b5b 0%, #434343 100%);
+        border-color: transparent;
+        box-shadow: none;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_switch_slider_2024_unique_ {
+        background: linear-gradient(180deg, #5b5b5b 0%, #434343 100%);
+        border: 0.5px solid #3f3f3f;
+        box-shadow:
+          inset 0 -1px 1px rgba(255, 255, 255, 0.08),
+          inset 0 1px 2px rgba(0, 0, 0, 0.34);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_switch_slider_2024_unique_::after {
+        background: linear-gradient(180deg, #6c7f9f 0%, #3b4a63 100%);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_switch_slider_2024_unique_:before {
+        background: #f4f4f4;
+        border-color: #b9b9b9;
+        box-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.3),
+          inset 0 1px 1px rgba(255, 255, 255, 0.78),
+          inset 0 -1px 2px rgba(0, 0, 0, 0.22);
       }
       ._x_extension_settings_placeholder_2024_unique_ {
         padding: 18px;
@@ -747,7 +811,7 @@
         gap: 6px;
       }
       ._x_extension_shortcuts_title_2024_unique_ {
-        font-size: 14px;
+        font-size: var(--tooltip-font-size);
         font-weight: 500;
         color: var(--panel-text);
         margin: 0;
@@ -804,11 +868,11 @@
         position: absolute;
         top: -32px;
         right: 0;
-        background: rgba(15, 23, 42, 0.92);
+        background: #0f172a;
         color: #f9fafb;
-        padding: 4px 8px;
+        padding: 9px 12px;
         border-radius: 8px;
-        font-size: 11px;
+        font-size: var(--tooltip-font-size);
         white-space: pre-line;
         max-width: 260px;
         line-height: 1.4;
@@ -824,11 +888,11 @@
       ._x_extension_tooltip_2024_unique_ {
         position: fixed;
         max-width: 260px;
-        padding: 6px 8px;
+        padding: 10px 12px;
         border-radius: 8px;
-        background: rgba(15, 23, 42, 0.92);
+        background: #0f172a;
         color: #f9fafb;
-        font-size: 11px;
+        font-size: var(--tooltip-font-size);
         line-height: 1.4;
         white-space: pre-line;
         box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
@@ -843,13 +907,13 @@
         transform: translateY(0);
       }
       #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_group_action_2024_unique_[data-tooltip]::after {
-        background: rgba(2, 6, 23, 0.97);
+        background: #020617;
         color: #f8fafc;
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 12px 26px rgba(0, 0, 0, 0.42);
       }
       body[data-theme="dark"] ._x_extension_tooltip_2024_unique_ {
-        background: rgba(2, 6, 23, 0.97);
+        background: #020617;
         color: #f8fafc;
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
@@ -865,7 +929,7 @@
         gap: 12px;
         padding: 12px 14px;
         border-radius: 14px;
-        border: 1px solid var(--tab-border);
+        border: 1px solid rgba(15, 23, 42, 0.1);
         background: rgba(255, 255, 255, 0.65);
         box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08);
       }
@@ -877,6 +941,7 @@
       }
       #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_item_2024_unique_ {
         background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.2);
         box-shadow: 0 5px 10px rgba(0, 0, 0, 0.28);
       }
       ._x_extension_shortcut_item_info_2024_unique_ {
@@ -889,7 +954,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 500;
         color: var(--panel-text);
         white-space: nowrap;
@@ -897,7 +962,7 @@
         text-overflow: ellipsis;
       }
       ._x_extension_shortcut_item_meta_2024_unique_ {
-        font-size: 12px;
+        font-size: 13px;
         padding-left: 4px;
         color: var(--panel-subtext);
         white-space: nowrap;
@@ -930,6 +995,14 @@
         border: 1px solid var(--tab-border);
         color: var(--panel-subtext);
         background: var(--tab-bg);
+      }
+      ._x_extension_shortcuts_dia_badge_2026_unique_ {
+        gap: 4px;
+        font-size: 11px;
+      }
+      ._x_extension_lab_beta_badge_2026_unique_ {
+        padding: 1px 5px;
+        font-weight: 700;
       }
       ._x_extension_shortcut_badge_warn_2024_unique_ {
         gap: 4px;
@@ -1474,14 +1547,18 @@
         padding: 6px;
         border-radius: 10px;
         font-size: 13px;
-        font-weight: 500;
-        color: var(--tab-inactive-text);
+        font-weight: 400;
+        color: var(--inline-tab-inactive-text, var(--tab-inactive-text));
         transition: background-color 0.15s ease, color 0.15s ease, transform 120ms ease, filter 120ms ease;
         position: relative;
         z-index: 1;
       }
       ._x_extension_theme_option_2024_unique_[data-active="true"] {
+        font-weight: 500;
         color: var(--tab-active-text);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_option_2024_unique_:not([data-active="true"]) {
+        color: #a3a3a3;
       }
       ._x_extension_inline_tabs_2024_unique_ {
         gap: 6px;
@@ -1490,6 +1567,165 @@
       ._x_extension_inline_tabs_2024_unique_ ._x_extension_theme_option_2024_unique_ {
         padding-left: 10px;
         padding-right: 10px;
+      }
+      ._x_extension_theme_gallery_2026_unique_ {
+        display: grid;
+        grid-template-columns: repeat(3, 90px);
+        gap: 10px;
+        width: auto;
+        max-width: none;
+        padding: 0;
+        border: none;
+        background: transparent;
+        min-height: 0;
+        position: static;
+        align-items: stretch;
+        justify-content: end;
+      }
+      #_x_extension_theme_mode_row_2026_unique_ {
+        align-items: flex-start;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_ {
+        all: unset;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        color: var(--inline-tab-inactive-text, var(--tab-inactive-text));
+        transition: none;
+        box-sizing: border-box;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_:active ._x_extension_theme_preview_2026_unique_ {
+        transform: scale(0.97);
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] {
+        color: var(--tab-active-text);
+      }
+      ._x_extension_theme_preview_2026_unique_ {
+        position: relative;
+        width: 90px;
+        height: 60px;
+        --x-theme-preview-radius-2026: 8px;
+        border-radius: var(--x-theme-preview-radius-2026);
+        overflow: hidden;
+        border: none;
+        background: transparent;
+        transition: transform 140ms ease;
+        box-sizing: border-box;
+      }
+      ._x_extension_theme_preview_2026_unique_::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border: 2px solid transparent;
+        border-radius: var(--x-theme-preview-radius-2026);
+        pointer-events: none;
+        box-sizing: border-box;
+        transition: border-color 170ms ease;
+      }
+      ._x_extension_theme_preview_img_2026_unique_ {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: inherit;
+        -webkit-mask-image: -webkit-radial-gradient(white, black);
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] ._x_extension_theme_preview_2026_unique_ {
+        box-shadow: none;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] ._x_extension_theme_preview_2026_unique_::after {
+        border-color: #6b7280;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] ._x_extension_theme_preview_2026_unique_::after {
+        border-color: #9ca3af;
+      }
+      ._x_extension_theme_check_2026_unique_ {
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #404859 0%, #273042 100%);
+        border: 1px solid #040404;
+        box-shadow: 0px 3px 2px 0px rgba(0, 0, 0, 0.05),
+          0px 2px 2px 0px rgba(0, 0, 0, 0.09),
+          0px 0px 1px 0px rgba(0, 0, 0, 0.1);
+        color: #ffffff;
+        font-size: 10px;
+        line-height: 14px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform: scale(0.82);
+        transition: opacity 160ms ease, transform 200ms cubic-bezier(0.2, 0.85, 0.2, 1.2);
+      }
+      ._x_extension_theme_check_2026_unique_::after {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        box-shadow: inset 0px 1px 1.6px 0px rgba(255, 255, 255, 0.34);
+        pointer-events: none;
+      }
+      ._x_extension_theme_check_2026_unique_ .ri-icon {
+        width: 10px;
+        height: 10px;
+        font-size: 10px;
+        line-height: 10px;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] ._x_extension_theme_check_2026_unique_ {
+        display: inline-flex;
+        opacity: 1;
+        transform: scale(1);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_check_2026_unique_ {
+        background: linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 100%);
+        border-color: #d1d5db;
+        color: #111827;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_check_2026_unique_::after {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+      }
+      ._x_extension_theme_label_2026_unique_ {
+        font-size: 13px;
+        line-height: 1.15;
+        font-weight: 400;
+        width: 100%;
+        text-align: left;
+        padding-left: 2px;
+        box-sizing: border-box;
+        white-space: nowrap;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] ._x_extension_theme_label_2026_unique_ {
+        font-weight: 500;
+      }
+      ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_.x-theme-clicking ._x_extension_theme_preview_2026_unique_ {
+        animation: _x_extension_theme_pick_bounce_2026_unique_ 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      @keyframes _x_extension_theme_pick_bounce_2026_unique_ {
+        0% { transform: scale(0.96); }
+        60% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_ {
+        background: transparent;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_theme_gallery_2026_unique_ ._x_extension_theme_option_2024_unique_[data-active="true"] {
+        background: transparent;
+      }
+      @media (max-width: 720px) {
+        ._x_extension_theme_gallery_2026_unique_ {
+          grid-template-columns: 120px;
+          justify-content: end;
+        }
       }
       ._x_extension_select_2024_unique_ {
         position: absolute;
@@ -1770,7 +2006,7 @@
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
             <div>
-              <div class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
+              <div class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_ _x_extension_sync_title_with_status_2026_unique_">
                 <span data-i18n="settings_sync_title">Lumno 配置</span>
                 <span id="_x_extension_sync_status_2024_unique_" class="_x_extension_sync_status_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-tooltip="同步信息说明" data-i18n-tooltip="sync_status_hint" aria-label="同步信息说明" role="img">
                   <span id="_x_extension_sync_status_text_2024_unique_" data-i18n="sync_status_ready">自动同步已开启</span>
@@ -1806,17 +2042,29 @@
             <div>
               <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_bookmarks_title">书签</p>
             </div>
-            <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_bookmark_count_select_2024_unique_">
-              <select id="_x_extension_bookmark_count_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
-                <option value="0" data-i18n="bookmark_count_off">不显示</option>
-                <option value="8" data-i18n="bookmark_count_8" selected>显示 8 个</option>
-                <option value="16" data-i18n="bookmark_count_16">显示 16 个</option>
-                <option value="32" data-i18n="bookmark_count_32">显示 32 个</option>
-              </select>
-              <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
-              </button>
-              <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+            <div class="_x_extension_recent_select_group_2024_unique_">
+              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_bookmark_columns_select_2024_unique_">
+                <select id="_x_extension_bookmark_columns_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+                  <option value="4" data-i18n="bookmark_columns_4" selected>每行 4 个</option>
+                  <option value="6" data-i18n="bookmark_columns_6">每行 6 个</option>
+                </select>
+                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+              </div>
+              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_bookmark_count_select_2024_unique_">
+                <select id="_x_extension_bookmark_count_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+                  <option value="0" data-i18n="bookmark_count_off">不显示</option>
+                  <option value="8" data-i18n="bookmark_count_8" selected>显示 2 行</option>
+                  <option value="16" data-i18n="bookmark_count_16">显示 4 行</option>
+                  <option value="32" data-i18n="bookmark_count_32">显示 8 行</option>
+                </select>
+                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+              </div>
             </div>
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
@@ -1826,17 +2074,17 @@
             <div class="_x_extension_recent_select_group_2024_unique_">
               <div id="_x_extension_recent_mode_tabs_wrap_2024_unique_" class="_x_extension_theme_picker_2024_unique_ _x_extension_inline_tabs_2024_unique_" role="tablist" aria-label="recent mode">
                 <span class="_x_extension_theme_indicator_2024_unique_"></span>
-                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="latest" data-active="true" aria-pressed="true" type="button">
+                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="latest" data-active="false" aria-pressed="false" type="button">
                   <i class="ri-icon ri-size-14 ri-time-line" aria-hidden="true"></i>
                   <span data-i18n="recent_mode_latest">最近访问</span>
                 </button>
-                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="most" data-active="false" aria-pressed="false" type="button">
+                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="most" data-active="true" aria-pressed="true" type="button">
                   <i class="ri-icon ri-size-14 ri-vip-diamond-line" aria-hidden="true"></i>
                   <span data-i18n="recent_mode_most">最常访问</span>
                 </button>
                 <select id="_x_extension_recent_mode_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true" style="display:none;">
                   <option value="latest" data-i18n="recent_mode_latest">最近访问</option>
-                  <option value="most" data-i18n="recent_mode_most">最常访问</option>
+                  <option value="most" data-i18n="recent_mode_most" selected>最常访问</option>
                 </select>
               </div>
               <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_recent_count_select_2024_unique_">
@@ -1860,7 +2108,18 @@
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
             <div>
-              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_shortcuts_title">快捷键绑定</p>
+              <p class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_ _x_extension_shortcuts_title_with_tag_2026_unique_">
+                <span data-i18n="settings_shortcuts_title">唤起浮层</span>
+                <span
+                  class="_x_extension_shortcut_badge_2024_unique_ _x_extension_shortcuts_dia_badge_2026_unique_ _x_extension_tooltip_host_2024_unique_"
+                  data-i18n-tooltip="settings_shortcuts_dia_tooltip"
+                  data-tooltip="在 Dia 环境下，受浏览器限制，Lumno 的新标签页功能暂不可用，但浮层功能仍可正常运行。&#10;&#10;若浮层快捷键与 Dia 发生冲突，请按以下步骤解除：&#10;&#10;1. 打开 Dia，前往 Settings；&#10;2. 切换至 Shortcuts 标签页；&#10;3. 移除冲突的快捷键（例如：New Tab 的 CMD + T）"
+                  aria-label="在 Dia 环境下，受浏览器限制，Lumno 的新标签页功能暂不可用，但浮层功能仍可正常运行。若浮层快捷键与 Dia 发生冲突，请按以下步骤解除：1. 打开 Dia，前往 Settings；2. 切换至 Shortcuts 标签页；3. 移除冲突的快捷键（例如：New Tab 的 CMD + T）"
+                  role="img">
+                  <span data-i18n="settings_shortcuts_dia_tag">在 Dia 中使用</span>
+                  <i class="ri-icon ri-size-12 ri-question-line" aria-hidden="true"></i>
+                </span>
+              </p>
             </div>
             <div class="_x_extension_sync_actions_2024_unique_ _x_extension_shortcuts_actions_2024_unique_">
               <div class="_x_extension_shortcuts_hotkey_wrap_2024_unique_">
@@ -1927,15 +2186,38 @@
           </div>
         </div>
         <div class="_x_extension_settings_content_2024_unique_" data-content="appearance" data-active="true">
-        <div class="_x_extension_setting_row_2024_unique_">
+        <div id="_x_extension_theme_mode_row_2026_unique_" class="_x_extension_setting_row_2024_unique_">
           <div>
             <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_theme_title">深浅色模式</p>
           </div>
-          <div class="_x_extension_theme_picker_2024_unique_" role="group" aria-label="主题模式" data-i18n-aria-label="settings_theme_title">
-            <span class="_x_extension_theme_indicator_2024_unique_"></span>
-            <button class="_x_extension_theme_option_2024_unique_" data-mode="system" data-i18n="settings_theme_system">跟随系统/网站</button>
-            <button class="_x_extension_theme_option_2024_unique_" data-mode="light" data-i18n="settings_theme_light">浅色</button>
-            <button class="_x_extension_theme_option_2024_unique_" data-mode="dark" data-i18n="settings_theme_dark">深色</button>
+          <div class="_x_extension_theme_picker_2024_unique_ _x_extension_theme_gallery_2026_unique_" role="group" aria-label="主题模式" data-i18n-aria-label="settings_theme_title">
+            <button class="_x_extension_theme_option_2024_unique_" data-mode="system" data-active="true" aria-pressed="true" type="button">
+              <span class="_x_extension_theme_preview_2026_unique_" data-preview-mode="system">
+                <img class="_x_extension_theme_preview_img_2026_unique_" src="system.svg" alt="" aria-hidden="true" />
+                <span class="_x_extension_theme_check_2026_unique_" aria-hidden="true">
+                  <i class="ri-icon ri-check-line" aria-hidden="true"></i>
+                </span>
+              </span>
+              <span class="_x_extension_theme_label_2026_unique_" data-i18n="settings_theme_system">跟随系统/网站</span>
+            </button>
+            <button class="_x_extension_theme_option_2024_unique_" data-mode="light" data-active="false" aria-pressed="false" type="button">
+              <span class="_x_extension_theme_preview_2026_unique_" data-preview-mode="light">
+                <img class="_x_extension_theme_preview_img_2026_unique_" src="light.svg" alt="" aria-hidden="true" />
+                <span class="_x_extension_theme_check_2026_unique_" aria-hidden="true">
+                  <i class="ri-icon ri-check-line" aria-hidden="true"></i>
+                </span>
+              </span>
+              <span class="_x_extension_theme_label_2026_unique_" data-i18n="settings_theme_light">浅色</span>
+            </button>
+            <button class="_x_extension_theme_option_2024_unique_" data-mode="dark" data-active="false" aria-pressed="false" type="button">
+              <span class="_x_extension_theme_preview_2026_unique_" data-preview-mode="dark">
+                <img class="_x_extension_theme_preview_img_2026_unique_" src="dark.svg" alt="" aria-hidden="true" />
+                <span class="_x_extension_theme_check_2026_unique_" aria-hidden="true">
+                  <i class="ri-icon ri-check-line" aria-hidden="true"></i>
+                </span>
+              </span>
+              <span class="_x_extension_theme_label_2026_unique_" data-i18n="settings_theme_dark">深色</span>
+            </button>
           </div>
         </div>
         </div>
@@ -2010,12 +2292,15 @@
           <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
             <div>
               <p class="_x_extension_setting_title_2024_unique_">
-                <span data-i18n="settings_auto_pip_title">视频自动画中画</span>
+                <span class="_x_extension_setting_title_with_icon_2024_unique_">
+                  <span data-i18n="settings_auto_pip_title">视频自动画中画</span>
+                  <span class="_x_extension_shortcut_badge_2024_unique_ _x_extension_lab_beta_badge_2026_unique_">Beta</span>
+                </span>
               </p>
               <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_auto_pip_desc">在网页上播放视频时，若切换至其他标签页，则正在播放中的视频将以浮窗的形式播放。</p>
             </div>
             <label class="_x_extension_switch_2024_unique_" for="_x_extension_auto_pip_toggle_2024_unique_">
-              <input id="_x_extension_auto_pip_toggle_2024_unique_" type="checkbox" checked>
+              <input id="_x_extension_auto_pip_toggle_2024_unique_" type="checkbox">
               <span class="_x_extension_switch_slider_2024_unique_" aria-hidden="true"></span>
             </label>
           </div>

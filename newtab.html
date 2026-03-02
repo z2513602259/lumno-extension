@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>New Tab</title>
+    <link rel="stylesheet" href="fonts/open-sans/open-sans.css" />
     <link rel="stylesheet" href="remixicon/fonts/remixicon.css" />
     <!-- Thanks to the Remix Icon project; this extension uses its icon set: https://remixicon.com/ -->
     <style>
@@ -28,7 +29,7 @@
         box-sizing: border-box;
         overflow-x: auto;
         overflow-y: auto;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
         color: var(--x-nt-text);
         position: relative;
@@ -234,7 +235,7 @@
       #_x_extension_newtab_bookmarks_grid_2024_unique_ {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--x-nt-bookmark-columns, 4), minmax(0, 1fr));
         column-gap: 12px;
         row-gap: 16px;
         align-content: start;
@@ -244,7 +245,7 @@
         font-size: 14px;
         font-weight: 500;
         color: var(--x-nt-bookmark-heading-color, #000000);
-        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
         line-height: 1;
       }
@@ -465,7 +466,7 @@
         font-size: 14px;
         font-weight: 500;
         color: var(--x-nt-bookmark-title, #111827);
-        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
         line-height: 1.35;
         white-space: nowrap;
@@ -534,7 +535,7 @@
         font-size: 14px;
         font-weight: 500;
         color: var(--x-nt-recent-heading-color, #000000);
-        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
         line-height: 1;
       }
@@ -645,9 +646,9 @@
         font-size: 14px;
         font-weight: 500;
         color: var(--x-nt-recent-title);
-        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.1;
+        line-height: 1.25;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -657,9 +658,9 @@
         font-size: 12px;
         font-weight: 400;
         color: var(--x-nt-recent-title);
-        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.25;
+        line-height: 1.35;
         overflow: hidden;
         text-overflow: ellipsis;
         display: -webkit-box;
@@ -671,7 +672,7 @@
         margin: 0 10px;
         font-size: 14px;
         color: var(--x-nt-recent-url);
-        font-family: "PingFang SC", "PingFang SC Regular", "PingFangSC-Regular",
+        font-family: "Open Sans", "PingFang SC", "PingFang SC Regular", "PingFangSC-Regular",
           -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         font-weight: 400;
         line-height: 1.2;
@@ -695,7 +696,7 @@
         padding-left: 6px;
         font-size: 14px;
         color: var(--x-nt-recent-action-text, rgba(0, 0, 0, 0.5));
-        font-family: "PingFang SC", "PingFang SC Regular", "PingFangSC-Regular",
+        font-family: "Open Sans", "PingFang SC", "PingFang SC Regular", "PingFangSC-Regular",
           -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         line-height: 1.2;
         position: absolute;

@@ -28,6 +28,7 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
+  const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
   const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
@@ -56,9 +57,10 @@
   let currentMessages = null;
   let currentLanguageMode = 'system';
   let defaultPlaceholderText = '搜索或输入网址...';
-  let currentRecentMode = 'latest';
+  let currentRecentMode = 'most';
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
+  let currentBookmarkColumns = 4;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
   let bookmarkCurrentPage = 0;
@@ -95,10 +97,38 @@
 
   function getBookmarkLimit() {
     const normalized = normalizeBookmarkCount(currentBookmarkCount);
-    return normalized > 0 ? normalized : 8;
+    if (normalized <= 0) {
+      return 8;
+    }
+    const rows = Math.max(1, Math.round(normalized / 4));
+    const columns = Math.max(1, normalizeBookmarkColumns(currentBookmarkColumns));
+    return rows * columns;
   }
 
-  // 使用系统字体，避免外链字体依赖。
+  function normalizeBookmarkColumns(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 4 || parsed === 6) {
+      return parsed;
+    }
+    return 4;
+  }
+
+  function getBookmarkGridColumnCount() {
+    if (window.innerWidth <= 860) {
+      return 2;
+    }
+    return normalizeBookmarkColumns(currentBookmarkColumns);
+  }
+
+  function applyBookmarkGridColumns() {
+    if (!bookmarkGrid) {
+      return;
+    }
+    const columns = normalizeBookmarkColumns(currentBookmarkColumns);
+    bookmarkGrid.style.setProperty('--x-nt-bookmark-columns', String(columns));
+  }
+
+  // 使用本地打包字体，避免外链字体依赖。
   let defaultSearchEngineState = {
     id: '',
     name: '',
@@ -288,7 +318,7 @@
           : 'var(--x-ext-mark-text, #1E3A8A)';
         mark.style.padding = '2px 4px';
         mark.style.borderRadius = '3px';
-        mark.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+        mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
         mark.textContent = part;
         target.appendChild(mark);
       } else {
@@ -1433,6 +1463,26 @@
       markBookmarkDataDirty();
       loadBookmarks({ force: true });
     }
+    if (changes[BOOKMARK_COLUMNS_STORAGE_KEY]) {
+      const previousLimit = getBookmarkLimit();
+      const raw = changes[BOOKMARK_COLUMNS_STORAGE_KEY].newValue;
+      const nextColumns = normalizeBookmarkColumns(raw);
+      currentBookmarkColumns = nextColumns;
+      if (storageArea && raw !== nextColumns) {
+        storageArea.set({ [BOOKMARK_COLUMNS_STORAGE_KEY]: nextColumns });
+      }
+      const nextLimit = getBookmarkLimit();
+      if (previousLimit > 0 && nextLimit > 0) {
+        const firstVisibleIndex = Math.max(0, bookmarkCurrentPage * previousLimit);
+        bookmarkCurrentPage = Math.floor(firstVisibleIndex / nextLimit);
+      } else {
+        bookmarkCurrentPage = 0;
+      }
+      applyBookmarkGridColumns();
+      renderCurrentBookmarkPage();
+      updateBookmarkGridHeightLock();
+      updateBookmarkSectionPosition();
+    }
     if (changes[LANGUAGE_MESSAGES_STORAGE_KEY]) {
       const payload = changes[LANGUAGE_MESSAGES_STORAGE_KEY].newValue;
       const targetLocale = currentLanguageMode === 'system' ? getSystemLocale() : normalizeLocale(currentLanguageMode);
@@ -1443,6 +1493,23 @@
       }
     }
   });
+
+  if (chrome && chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (!message || message.action !== 'lumno:newtab-refresh-sections') {
+        return;
+      }
+      const section = message.section || 'all';
+      if (section === 'recent' || section === 'all') {
+        markRecentDataDirty();
+        loadRecentSites({ force: true });
+      }
+      if (section === 'bookmarks' || section === 'all') {
+        markBookmarkDataDirty();
+        loadBookmarks({ force: true });
+      }
+    });
+  }
 
   if (storageArea) {
     storageArea.get([LANGUAGE_STORAGE_KEY], (result) => {
@@ -1461,11 +1528,12 @@
     });
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
-      const mode = stored === 'most' ? 'most' : 'latest';
+      const hasStored = stored === 'latest' || stored === 'most';
+      const mode = hasStored ? stored : 'most';
       const changed = currentRecentMode !== mode;
       currentRecentMode = mode;
       updateRecentHeading();
-      if (stored !== mode) {
+      if (!hasStored) {
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: mode });
       }
       if (changed || !recentLoadedOnce) {
@@ -1485,6 +1553,17 @@
         markBookmarkDataDirty();
         loadBookmarks();
       }
+    });
+    storageArea.get([BOOKMARK_COLUMNS_STORAGE_KEY], (result) => {
+      const stored = result[BOOKMARK_COLUMNS_STORAGE_KEY];
+      const columns = normalizeBookmarkColumns(stored);
+      currentBookmarkColumns = columns;
+      if (stored !== columns) {
+        storageArea.set({ [BOOKMARK_COLUMNS_STORAGE_KEY]: columns });
+      }
+      applyBookmarkGridColumns();
+      updateBookmarkGridHeightLock();
+      updateBookmarkSectionPosition();
     });
   }
 
@@ -1643,6 +1722,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    BOOKMARK_COLUMNS_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -3214,7 +3294,7 @@
       padding: 4px 10px 4px 8px !important;
       border-radius: 999px !important;
       font-size: 11px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       line-height: 1 !important;
       text-decoration: none !important;
       list-style: none !important;
@@ -3426,6 +3506,7 @@
   updateBookmarkBreadcrumb();
   const bookmarkGrid = document.createElement('div');
   bookmarkGrid.id = '_x_extension_newtab_bookmarks_grid_2024_unique_';
+  applyBookmarkGridColumns();
   bookmarkSection.appendChild(bookmarkHeader);
   bookmarkSection.appendChild(bookmarkGrid);
   let bookmarkRenderSignature = '';
@@ -3616,7 +3697,7 @@
       return;
     }
     const total = Array.isArray(bookmarkAllItems) ? bookmarkAllItems.length : 0;
-    const cols = window.innerWidth <= 860 ? 2 : 4;
+    const cols = getBookmarkGridColumnCount();
     const firstCard = bookmarkGrid.querySelector('.x-nt-bookmark-card');
     const cardHeight = firstCard ? firstCard.getBoundingClientRect().height : 51;
     const gridStyle = window.getComputedStyle(bookmarkGrid);
@@ -3679,7 +3760,7 @@
     const rowStaggerMs = 10;
     const randomJitterRangeMs = 6;
     const handoffOverlapMs = 70;
-    const cols = window.innerWidth <= 860 ? 2 : 4;
+    const cols = getBookmarkGridColumnCount();
     const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
     bookmarkPageAnimating = true;
     const getCards = () => Array.from(bookmarkGrid.children || []);
@@ -5718,7 +5799,7 @@
       all: unset !important;
       color: var(--x-nt-link, #2563EB) !important;
       font-size: 12px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
       text-decoration: none !important;
       display: inline-block !important;
       max-width: 60% !important;
@@ -6670,7 +6751,7 @@
         all: unset !important;
         color: var(--x-nt-text, #111827) !important;
         font-size: 14px !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -6696,7 +6777,7 @@
         border: none !important;
         border-radius: 6px !important;
         font-size: 12px !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         cursor: pointer !important;
         transition: background-color 0.2s ease !important;
         padding: 6px 12px !important;
@@ -7320,7 +7401,7 @@
           all: unset !important;
           color: var(--x-nt-text, #111827) !important;
           font-size: 14px !important;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
           font-weight: 400 !important;
           white-space: nowrap !important;
           overflow: hidden !important;
@@ -7356,7 +7437,7 @@
             background: var(--x-nt-tag-bg, #F3F4F6) !important;
             color: var(--x-nt-tag-text, #6B7280) !important;
             font-size: 10px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
             padding: 4px 6px !important;
             border-radius: 8px !important;
             box-sizing: border-box !important;
@@ -7389,7 +7470,7 @@
             background: var(--x-nt-tag-bg, #F3F4F6) !important;
             color: var(--x-nt-tag-text, #6B7280) !important;
             font-size: 10px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
             padding: 4px 6px !important;
             border-radius: 8px !important;
             box-sizing: border-box !important;
@@ -7415,7 +7496,7 @@
               all: unset !important;
               color: var(--x-nt-link, #2563EB) !important;
               font-size: 12px !important;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
               text-decoration: none !important;
               white-space: nowrap !important;
               overflow: hidden !important;
@@ -7440,7 +7521,7 @@
             background: var(--x-nt-bookmark-tag-bg, #FEF3C7) !important;
             color: var(--x-nt-bookmark-tag-text, #D97706) !important;
             font-size: 10px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
             padding: 4px 6px !important;
             border-radius: 8px !important;
             box-sizing: border-box !important;
@@ -8004,7 +8085,7 @@
     border-radius: 999px !important;
     padding: 4px 8px !important;
     font-size: 11px !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     font-weight: 500 !important;
     line-height: 1 !important;
     white-space: nowrap !important;
@@ -8066,7 +8147,7 @@
     display: none !important;
     white-space: nowrap !important;
     font-size: 16px !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     line-height: 1 !important;
     color: var(--x-nt-subtext, #6B7280) !important;
     pointer-events: none !important;
