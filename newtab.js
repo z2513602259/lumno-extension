@@ -21,9 +21,6 @@
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
-  const localStorageAreaName = localStorageArea
-    ? (localStorageArea === (chrome && chrome.storage ? chrome.storage.local : null) ? 'local' : storageAreaName)
-    : null;
 
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
@@ -32,8 +29,6 @@
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
-  const NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY = '_x_extension_newtab_wallpaper_settings_2024_unique_';
-  const NEWTAB_WALLPAPER_DATA_STORAGE_KEY = '_x_extension_newtab_wallpaper_data_2024_unique_';
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
   const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
   const FAVICON_PERSIST_MAX_ENTRIES = 800;
@@ -45,9 +40,6 @@
   const NEWTAB_RECENT_CACHE_STORAGE_KEY = '_x_extension_newtab_recent_cache_2024_unique_';
   const NEWTAB_BOOKMARK_CACHE_STORAGE_KEY = '_x_extension_newtab_bookmark_cache_2024_unique_';
   const NEWTAB_SECTION_CACHE_TTL_MS = 1000 * 60 * 5;
-  const RI_SPRITE_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('remixicon.symbol.svg')
-    : 'remixicon.symbol.svg';
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let mediaListenerAttached = false;
   let currentThemeMode = 'system';
@@ -93,14 +85,6 @@
   const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
   const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
-  let currentWallpaperSettings = {
-    enabled: false,
-    source: 'none',
-    fit: 'cover',
-    updatedAt: 0
-  };
-  let currentWallpaperDataUrl = '';
-
   function normalizeBookmarkCount(value) {
     const parsed = Number.parseInt(value, 10);
     if (parsed === 0 || parsed === 8 || parsed === 16 || parsed === 32) {
@@ -112,78 +96,6 @@
   function getBookmarkLimit() {
     const normalized = normalizeBookmarkCount(currentBookmarkCount);
     return normalized > 0 ? normalized : 8;
-  }
-
-  function normalizeWallpaperFit(value) {
-    return value === 'contain' ? 'contain' : 'cover';
-  }
-
-  function normalizeWallpaperSettings(value) {
-    const next = {
-      enabled: false,
-      source: 'none',
-      fit: 'cover',
-      updatedAt: 0
-    };
-    if (!value || typeof value !== 'object') {
-      return next;
-    }
-    const source = value.source === 'upload-local' ? 'upload-local' : 'none';
-    next.source = source;
-    next.enabled = Boolean(value.enabled) && source !== 'none';
-    next.fit = normalizeWallpaperFit(value.fit);
-    const updatedAt = Number.parseInt(value.updatedAt, 10);
-    next.updatedAt = Number.isFinite(updatedAt) ? updatedAt : 0;
-    if (!next.enabled) {
-      next.source = 'none';
-    }
-    return next;
-  }
-
-  function isWallpaperDataUrl(value) {
-    return typeof value === 'string' && value.startsWith('data:image/');
-  }
-
-  function applyWallpaperState(settings, dataUrl) {
-    const normalized = normalizeWallpaperSettings(settings);
-    const validData = isWallpaperDataUrl(dataUrl);
-    const canApply = normalized.enabled &&
-      normalized.source === 'upload-local' &&
-      validData;
-
-    if (!document.body) {
-      return;
-    }
-    if (canApply) {
-      const safeUrl = dataUrl.replace(/"/g, '\\"');
-      document.body.style.setProperty('--x-nt-wallpaper-image', `url("${safeUrl}")`);
-      document.body.style.setProperty('--x-nt-wallpaper-size', normalizeWallpaperFit(normalized.fit));
-      currentWallpaperDataUrl = dataUrl;
-      currentWallpaperSettings = normalized;
-      return;
-    }
-    document.body.style.setProperty('--x-nt-wallpaper-image', 'none');
-    document.body.style.setProperty('--x-nt-wallpaper-size', 'cover');
-    currentWallpaperDataUrl = '';
-    currentWallpaperSettings = normalized;
-  }
-
-  function loadWallpaperFromStorage() {
-    if (!storageArea) {
-      applyWallpaperState(null, '');
-      return;
-    }
-    storageArea.get([NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY], (settingsResult) => {
-      const normalized = normalizeWallpaperSettings(settingsResult[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]);
-      if (!localStorageArea) {
-        applyWallpaperState(normalized, '');
-        return;
-      }
-      localStorageArea.get([NEWTAB_WALLPAPER_DATA_STORAGE_KEY], (localResult) => {
-        const dataUrl = localResult[NEWTAB_WALLPAPER_DATA_STORAGE_KEY];
-        applyWallpaperState(normalized, dataUrl);
-      });
-    });
   }
 
   // 使用系统字体，避免外链字体依赖。
@@ -432,7 +344,7 @@
   function getRiSvg(id, sizeClass, extraClass) {
     const size = sizeClass || 'ri-size-16';
     const extra = extraClass ? ` ${extraClass}` : '';
-    return `<svg class="ri-icon ${size}${extra}" aria-hidden="true" focusable="false"><use href="${RI_SPRITE_URL}#${id}"></use></svg>`;
+    return `<i class="ri-icon ${size}${extra} ${id}" aria-hidden="true"></i>`;
   }
 
   function getFigmaFolderSvg(idSuffix) {
@@ -1485,15 +1397,9 @@
   window.addEventListener('focus', syncSystemThemeMode);
 
   bootstrapInitialThemeMode();
-  loadWallpaperFromStorage();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const isPrimaryArea = Boolean(storageAreaName) && areaName === storageAreaName;
-    const isLocalArea = Boolean(localStorageAreaName) && areaName === localStorageAreaName;
-    if ((isPrimaryArea && changes[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]) ||
-        (isLocalArea && changes[NEWTAB_WALLPAPER_DATA_STORAGE_KEY])) {
-      loadWallpaperFromStorage();
-    }
     if (!isPrimaryArea) {
       return;
     }
@@ -1738,7 +1644,6 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
-    NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
   ]);
@@ -2476,8 +2381,23 @@
         return raw;
       }
     })();
-    const localPattern = /(https?:\/\/)?(localhost|127(?:\.\d{1,3}){0,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?::\d+)?(?:[/?#]|$)/i;
-    if (localPattern.test(decodedRaw)) {
+    const withoutScheme = decodedRaw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+    const authority = withoutScheme.split(/[/?#]/)[0] || '';
+    const hostCandidateRaw = authority.includes('@') ? authority.split('@').pop() : authority;
+    const hostCandidate = (() => {
+      const value = String(hostCandidateRaw || '').trim().toLowerCase();
+      if (!value) {
+        return '';
+      }
+      if (value.startsWith('[')) {
+        const endBracket = value.indexOf(']');
+        if (endBracket > 1) {
+          return value.slice(1, endBracket);
+        }
+      }
+      return value.replace(/^\[|\]$/g, '').split(':')[0];
+    })();
+    if (hostCandidate && isLocalNetworkHost(hostCandidate)) {
       return true;
     }
     try {
@@ -4310,20 +4230,44 @@
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=${FAVICON_GOOGLE_SIZE}`;
   }
 
+  function getFaviconIsUrl(hostname) {
+    const normalized = normalizeFaviconHost(hostname);
+    if (!normalized) {
+      return '';
+    }
+    return `https://favicon.is/${encodeURIComponent(normalized)}`;
+  }
+
   function isLocalNetworkHost(hostname) {
-    const host = String(hostname || '').toLowerCase();
+    const host = String(hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
     if (!host) {
       return false;
     }
-    if (host === 'localhost' || host.endsWith('.local')) {
+    if (
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local') ||
+      host === 'host.docker.internal'
+    ) {
       return true;
+    }
+    if (/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(host)) {
+      const shortParts = host.split('.').map((part) => Number(part));
+      if (shortParts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+        return true;
+      }
     }
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
       const parts = host.split('.').map((part) => Number(part));
       if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
         return false;
       }
-      if (parts[0] === 10 || parts[0] === 127) {
+      if (
+        parts[0] === 0 ||
+        parts[0] === 10 ||
+        parts[0] === 127 ||
+        (parts[0] === 169 && parts[1] === 254)
+      ) {
         return true;
       }
       if (parts[0] === 192 && parts[1] === 168) {
@@ -4332,7 +4276,24 @@
       if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) {
         return true;
       }
+      if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) {
+        return true;
+      }
       return false;
+    }
+    const ipv6 = host.split('%')[0];
+    if (
+      ipv6 === '::1' ||
+      ipv6 === '0:0:0:0:0:0:0:1' ||
+      ipv6 === '::' ||
+      /^fe[89ab][0-9a-f]*:/i.test(ipv6) ||
+      /^[fd][0-9a-f]{1,3}:/i.test(ipv6)
+    ) {
+      return true;
+    }
+    const mappedIpv4 = ipv6.match(/::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+    if (mappedIpv4 && mappedIpv4[1]) {
+      return isLocalNetworkHost(mappedIpv4[1]);
     }
     return false;
   }
@@ -4422,6 +4383,7 @@
     const siteLightSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-light.svg` : '';
     const siteIcoFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon.ico` : '';
     const googleFavicon = faviconHostKey ? getGoogleFaviconUrl(faviconHostKey) : '';
+    const faviconIsFavicon = faviconHostKey ? getFaviconIsUrl(faviconHostKey) : '';
     const themedCandidates = preferredTheme === 'dark'
       ? [siteDarkSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteLightSvgFavicon]
       : [siteLightSvgFavicon, siteSvgFavicon, siteIcoFavicon, siteDarkSvgFavicon];
@@ -4436,7 +4398,8 @@
       ...preferredSeedCandidates,
       persistedFavicon,
       googleFavicon,
-      chromeFavicon
+      chromeFavicon,
+      faviconIsFavicon
     ].filter(Boolean);
     const keepCurrentUntilReady = Boolean(previousWorkingSrc);
     const tried = new Set();

@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title data-i18n="options_page_title">Lumno 设置</title>
+    <link rel="stylesheet" href="remixicon/fonts/remixicon.css" />
     <!-- Thanks to the Remix Icon project; this extension uses its icon set: https://remixicon.com/ -->
     <style>
-      html,
-      body {
+      html {
         height: 100%;
         scrollbar-gutter: stable;
       }
@@ -20,6 +20,8 @@
         }
       }
       body {
+        min-height: 100%;
+        scrollbar-gutter: stable;
         margin: 0;
         background: transparent;
         display: flex;
@@ -73,14 +75,18 @@
         --tab-bg: #1f2937;
         --tab-active-bg: #ffffff;
         --tab-active-text: #0f172a;
+        --tab-inactive-text: #8b94a4;
+        --inline-tab-active-bg: #ffffff;
         --tab-border: rgba(15, 23, 42, 0.05);
         --panel-subtext: #6b7280;
       }
       body[data-theme="dark"] {
         --page-bg: #111111;
-        --tab-bg: rgba(255, 255, 255, 0.06);
-        --tab-active-bg: rgba(255, 255, 255, 0.84);
-        --tab-active-text: #111827;
+        --tab-bg: #2f2f2f;
+        --tab-active-bg: #475569;
+        --tab-active-text: #f8fafc;
+        --tab-inactive-text: #7f8898;
+        --inline-tab-active-bg: #3f3f46;
         --tab-border: rgba(93, 22, 22, 0.12);
         --panel-subtext: #9ca3af;
       }
@@ -106,7 +112,7 @@
         --panel-border: rgba(0, 0, 0, 0.12);
         --panel-text: #111827;
         --panel-subtext: #6b7280;
-        --setting-divider: rgba(15, 23, 42, 0.08);
+        --setting-divider: rgba(15, 23, 42, 0.12);
         --input-focus-color: rgba(59, 130, 246, 0.65);
         --input-focus-shadow: rgba(59, 130, 246, 0.2);
         --input-placeholder: rgba(100, 116, 139, 0.7);
@@ -122,6 +128,13 @@
         --tab-bg: rgba(15, 23, 42, 0.04);
         --tab-active-bg: #ffffff;
         --tab-active-text: #0f172a;
+        --tab-inactive-text: #8b94a4;
+        --inline-tab-active-bg: #ffffff;
+        --control-bg: rgba(15, 23, 42, 0.04);
+        --control-hover-bg: rgba(0, 0, 0, 0.05);
+        --control-open-bg: rgba(0, 0, 0, 0.08);
+        --menu-bg: #ffffff;
+        --top-tabs-bg: rgba(15, 23, 42, 0.04);
         --tab-border: rgba(15, 23, 42, 0.05);
         --switch-bg: rgba(15, 23, 42, 0.12);
         --switch-on-bg: #111827;
@@ -163,23 +176,30 @@
         --panel-border: rgba(255, 255, 255, 0.1);
         --panel-text: #e5e7eb;
         --panel-subtext: #9ca3af;
-        --setting-divider: rgba(255, 255, 255, 0.1);
+        --setting-divider: rgba(255, 255, 255, 0.14);
         --panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
         --input-focus-color: rgba(191, 219, 254, 0.7);
         --input-focus-shadow: rgba(59, 130, 246, 0.3);
         --input-placeholder: rgba(148, 163, 184, 0.7);
-        --input-focus-bg: rgba(59, 130, 246, 0.12);
-        --select-hover-bg: rgba(255, 255, 255, 0.08);
-        --select-selected-bg: rgba(255, 255, 255, 0.84);
-        --select-selected-text: #111827;
+        --input-focus-bg: #383838;
+        --select-hover-bg: #363636;
+        --select-selected-bg: #3f3f3f;
+        --select-selected-text: #f8fafc;
         --duplicate-badge-bg: rgba(248, 113, 113, 0.16);
         --duplicate-badge-border: rgba(248, 113, 113, 0.5);
         --duplicate-badge-text: #fecaca;
         --duplicate-flash: rgba(248, 113, 113, 0.75);
         --shortcut-form-border: rgba(255, 255, 255, 0.14);
-        --tab-bg: rgba(255, 255, 255, 0.08);
-        --tab-active-bg: rgba(255, 255, 255, 0.84);
-        --tab-active-text: #111827;
+        --tab-bg: #2f2f2f;
+        --tab-active-bg: #475569;
+        --tab-active-text: #f8fafc;
+        --tab-inactive-text: #7f8898;
+        --inline-tab-active-bg: #3f3f46;
+        --control-bg: #2f2f2f;
+        --control-hover-bg: #363636;
+        --control-open-bg: #404040;
+        --menu-bg: #252525;
+        --top-tabs-bg: #1f2732;
         --tab-border: rgba(255, 255, 255, 0.12);
         --switch-bg: rgba(255, 255, 255, 0.14);
         --switch-on-bg: #2f3847;
@@ -192,7 +212,7 @@
         display: flex;
         gap: 8px;
         padding: 4px;
-        background: var(--tab-bg);
+        background: var(--top-tabs-bg);
         border-radius: 12px;
         border: none;
         box-shadow: none;
@@ -234,7 +254,7 @@
         /* box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05); */
       }
       body[data-theme="dark"] #_x_extension_settings_tabs_2024_unique_ {
-        background: rgba(15, 23, 42, 0.42);
+        background: var(--top-tabs-bg);
         border: 1px solid rgba(148, 163, 184, 0.2);
         backdrop-filter: blur(4px);
         -webkit-backdrop-filter: blur(4px);
@@ -245,26 +265,46 @@
         left: 4px;
         height: calc(100% - 8px);
         width: 0;
+        box-sizing: border-box;
         background: var(--tab-active-bg);
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
         transition: transform 240ms cubic-bezier(0.2, 0.9, 0.2, 1), width 240ms cubic-bezier(0.2, 0.9, 0.2, 1);
         z-index: 0;
       }
+      body[data-theme="dark"] ._x_extension_tabs_indicator_2024_unique_ {
+        background: linear-gradient(180deg, #475569 0%, #4e6382 100%);
+        border: 1px solid #5e779d;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      }
       ._x_extension_settings_tab_button_2024_unique_ {
         all: unset;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         padding: 8px 14px;
         border-radius: 10px;
-        color: var(--panel-subtext);
+        color: var(--tab-inactive-text);
         font-size: 12px;
         font-weight: 500;
-        transition: color 0.2s ease;
+        transition: color 0.2s ease, transform 120ms ease, filter 120ms ease;
         position: relative;
         z-index: 1;
       }
+      ._x_extension_tab_icon_2024_unique_ {
+        width: 14px;
+        height: 14px;
+        opacity: 0.68;
+        transform: scale(0.92);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
       ._x_extension_settings_tab_button_2024_unique_[data-active="true"] {
         color: var(--tab-active-text);
+      }
+      ._x_extension_settings_tab_button_2024_unique_[data-active="true"] ._x_extension_tab_icon_2024_unique_ {
+        opacity: 1;
+        transform: scale(1);
       }
       ._x_extension_settings_content_2024_unique_ {
         gap: 16px;
@@ -289,7 +329,7 @@
       }
       ._x_extension_setting_title_2024_unique_ {
         font-size: 14px;
-        font-weight: 500;
+        font-weight: 400;
         margin: 0;
         color: var(--panel-text);
         display: block;
@@ -300,16 +340,239 @@
         gap: 8px;
       }
       ._x_extension_setting_desc_2024_unique_ {
-        font-size: 12px;
+        font-size: 14px;
         margin: 4px 0 0;
         color: var(--panel-subtext);
       }
-      ._x_extension_shortcut_status_2024_unique_ {
+      ._x_extension_section_title_2024_unique_ {
+        font-size: 16px;
+        font-weight: 550;
         margin: 0;
-        padding: 0;
+        color: var(--panel-text);
       }
       ._x_extension_shortcuts_actions_2024_unique_ {
-        gap: 16px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      ._x_extension_shortcuts_hotkey_input_2024_unique_ {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: transparent;
+        -webkit-text-fill-color: transparent;
+        caret-color: transparent;
+      }
+      ._x_extension_shortcuts_hotkey_input_2024_unique_::placeholder {
+        color: transparent;
+      }
+      ._x_extension_shortcuts_hotkey_input_2024_unique_::selection {
+        background: transparent;
+        color: transparent;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_ {
+        box-sizing: border-box;
+        width: 180px;
+        height: 40px;
+        position: relative;
+        border: 1px solid var(--tab-border);
+        border-radius: 10px;
+        background: var(--control-bg);
+        transition: border-color 180ms ease, background-color 200ms ease;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_[data-width-ready="true"] {
+        transition: width 180ms ease, border-color 180ms ease, background-color 200ms ease;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:hover {
+        border-color: var(--input-focus-color);
+        background: var(--input-focus-bg);
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within {
+        border-color: var(--input-focus-color);
+        background: var(--input-focus-bg);
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_[data-capturing="true"] {
+        border-color: #2563eb;
+        animation: _x_extension_shortcut_capture_breathe_2024_unique_ 1.6s ease-in-out infinite;
+      }
+      ._x_extension_shortcuts_hotkey_tokens_2024_unique_ {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 5px 32px;
+        pointer-events: none;
+        overflow: hidden;
+        transform: translateY(-2px);
+      }
+      ._x_extension_shortcuts_hotkey_action_2024_unique_ {
+        all: unset;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 3;
+        width: 20px;
+        height: 20px;
+        border-radius: 7px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #5b6f94;
+        cursor: pointer;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 140ms ease, border-radius 140ms ease, background-color 140ms ease;
+      }
+      ._x_extension_shortcuts_hotkey_action_2024_unique_:hover {
+        color: #2563eb;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:not([data-capturing="true"]):hover ._x_extension_shortcuts_hotkey_action_2024_unique_ {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="left"][data-can-reset="false"] {
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="left"] {
+        left: 8px;
+      }
+      ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="right"] {
+        right: 8px;
+      }
+      ._x_extension_shortcuts_hotkey_tokens_2024_unique_[data-empty="true"]::before {
+        content: attr(data-placeholder);
+        color: var(--input-placeholder);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within
+        ._x_extension_shortcuts_hotkey_tokens_2024_unique_[data-empty="true"]::before {
+        color: rgba(37, 99, 235, 0.72);
+        font-weight: 500;
+      }
+      ._x_extension_shortcuts_hotkey_tokens_2024_unique_[data-empty="true"] {
+        transform: translateY(0);
+      }
+      ._x_extension_shortcuts_hotkey_token_2024_unique_ {
+        --keycap-radius: 8px;
+        --keycap-shadow-color: #000;
+        min-width: 17px;
+        height: 22px;
+        padding: 0 4px;
+        border-radius: var(--keycap-radius);
+        border: 3px solid #000;
+        background: linear-gradient(180deg, #ededed 0%, #fff 100%);
+        box-shadow: 0 4px 0 var(--keycap-shadow-color);
+        color: #000;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        position: relative;
+        z-index: 0;
+        overflow: hidden;
+        transform-origin: center bottom;
+      }
+      ._x_extension_shortcuts_hotkey_token_2024_unique_._x_extension_shortcuts_hotkey_token_pop_2024_unique_ {
+        animation: _x_extension_keycap_pop_2024_unique_ 220ms cubic-bezier(0.22, 1.1, 0.36, 1) both;
+      }
+      ._x_extension_shortcuts_hotkey_token_2024_unique_::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 -1px 3px rgba(255, 255, 255, 0.4);
+        pointer-events: none;
+        z-index: 1;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within ._x_extension_shortcuts_hotkey_token_2024_unique_ {
+        --keycap-shadow-color: #2563eb;
+        border-color: #2563eb;
+        background: linear-gradient(180deg, #e8f0ff 0%, #dbeafe 100%);
+        box-shadow: 0 4px 0 var(--keycap-shadow-color);
+        color: #2563eb;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_tokens_2024_unique_[data-empty="true"]::before {
+        color: rgba(203, 213, 225, 0.82);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within
+        ._x_extension_shortcuts_hotkey_tokens_2024_unique_[data-empty="true"]::before {
+        color: rgba(229, 231, 235, 0.92);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_action_2024_unique_ {
+        color: #93a7ca;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_action_2024_unique_:hover {
+        color: #e5e7eb;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_wrap_2024_unique_:hover,
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within {
+        border-color: #565656;
+        background: #383838;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_wrap_2024_unique_[data-capturing="true"] {
+        border-color: #8a8a8a;
+        background: #383838;
+        animation: none;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_token_2024_unique_ {
+        --keycap-shadow-color: #ffffff;
+        border: 4px solid transparent;
+        background:
+          linear-gradient(180deg, #5f5f5f 0%, #575757 100%) padding-box,
+          linear-gradient(180deg, #f2f2f2 0%, #d9d9d9 100%) border-box;
+        box-shadow: 0 4px 0 var(--keycap-shadow-color);
+        color: #ffffff;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_token_2024_unique_::after {
+        box-shadow: none;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcuts_hotkey_wrap_2024_unique_:focus-within ._x_extension_shortcuts_hotkey_token_2024_unique_ {
+        --keycap-shadow-color: #ffffff;
+        border: 4px solid transparent;
+        background:
+          linear-gradient(180deg, #5f5f5f 0%, #575757 100%) padding-box,
+          linear-gradient(180deg, #f2f2f2 0%, #d9d9d9 100%) border-box;
+        color: #ffffff;
+      }
+      @keyframes _x_extension_keycap_pop_2024_unique_ {
+        0% {
+          transform: scale(0.9) translateY(2px);
+          box-shadow: 0 1px 0 var(--keycap-shadow-color);
+        }
+        60% {
+          transform: scale(1.06) translateY(-1px);
+          box-shadow: 0 5px 0 var(--keycap-shadow-color);
+        }
+        100% {
+          transform: scale(1) translateY(0);
+          box-shadow: 0 4px 0 var(--keycap-shadow-color);
+        }
+      }
+      @keyframes _x_extension_shortcut_capture_breathe_2024_unique_ {
+        0% {
+          box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.18);
+        }
+        50% {
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.18);
+        }
       }
       ._x_extension_setting_row_compact_2024_unique_ {
         align-items: center;
@@ -321,6 +584,9 @@
         display: flex;
         align-items: center;
       }
+      #_x_extension_overlay_tab_priority_row_2024_unique_ {
+        display: none;
+      }
       ._x_extension_setting_icon_hint_2024_unique_ {
         color: var(--panel-subtext);
         opacity: 0.55;
@@ -330,17 +596,6 @@
         align-items: center;
         justify-content: flex-end;
         gap: 10px;
-      }
-      ._x_extension_wallpaper_actions_2024_unique_ {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      ._x_extension_wallpaper_status_2024_unique_ {
-        margin: 0;
-        text-align: left;
       }
       ._x_extension_recent_select_group_2024_unique_ {
         display: flex;
@@ -513,11 +768,16 @@
         gap: 8px;
       }
       ._x_extension_shortcut_group_title_2024_unique_ {
-        font-size: 14px;
-        font-weight: 500;
+        font-size: inherit;
+        font-weight: inherit;
         color: var(--panel-text);
         text-transform: none;
         letter-spacing: 0;
+        margin: 0;
+      }
+      ._x_extension_shortcut_group_title_2024_unique_._x_extension_section_title_2024_unique_ {
+        font-size: 16px;
+        font-weight: 550;
       }
       ._x_extension_shortcut_group_header_2024_unique_ {
         display: flex;
@@ -582,6 +842,18 @@
         opacity: 1;
         transform: translateY(0);
       }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_group_action_2024_unique_[data-tooltip]::after {
+        background: rgba(2, 6, 23, 0.97);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.42);
+      }
+      body[data-theme="dark"] ._x_extension_tooltip_2024_unique_ {
+        background: rgba(2, 6, 23, 0.97);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+      }
       ._x_extension_shortcut_group_action_2024_unique_[data-tooltip]:hover::after {
         opacity: 1;
         transform: translateY(0);
@@ -595,6 +867,7 @@
         border-radius: 14px;
         border: 1px solid var(--tab-border);
         background: rgba(255, 255, 255, 0.65);
+        box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08);
       }
       ._x_extension_shortcut_item_header_2024_unique_ {
         display: flex;
@@ -604,6 +877,7 @@
       }
       #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_item_2024_unique_ {
         background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.28);
       }
       ._x_extension_shortcut_item_info_2024_unique_ {
         display: flex;
@@ -889,6 +1163,12 @@
         opacity: 1;
         transform: translateX(-50%) translateY(0);
       }
+      body[data-theme="dark"] ._x_extension_toast_2024_unique_ {
+        background: rgba(2, 6, 23, 0.97);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+      }
       ._x_extension_confirm_mask_2024_unique_ {
         position: fixed;
         inset: 0;
@@ -978,7 +1258,7 @@
         padding: 8px 10px;
         border-radius: 10px;
         border: 1px solid var(--tab-border);
-        background: rgba(255, 255, 255, 0.8);
+        background: var(--control-bg);
         color: var(--panel-text);
         font-size: 13px;
         font-family: inherit;
@@ -1007,9 +1287,6 @@
         border-color: var(--input-focus-color);
         background: var(--input-focus-bg);
       }
-      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_input_2024_unique_ {
-        background: rgba(255, 255, 255, 0.06);
-      }
       ._x_extension_shortcut_submit_2024_unique_ {
         all: unset;
         cursor: pointer;
@@ -1023,31 +1300,11 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
+        transition: transform 120ms ease, filter 120ms ease;
       }
       ._x_extension_shortcut_save_2024_unique_ {
-        background: #273042;
-        color: #ffffff;
-        font-size: 12px;
-        border-radius: 999px;
-        box-shadow: 0 6px 3px rgba(0, 0, 0, 0), 0 4px 2px rgba(0, 0, 0, 0.01),
-          0 2px 2px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.07),
-          0 0 1px rgba(0, 0, 0, 0.06);
+        position: relative;
         transform: scale(1);
-        transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
-      }
-      ._x_extension_shortcut_save_2024_unique_:hover {
-        background: #313c52;
-      }
-      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_save_2024_unique_ {
-        background: #2f3847;
-        color: #f9fafb;
-        box-shadow: 0 6px 3px rgba(0, 0, 0, 0), 0 4px 2px rgba(0, 0, 0, 0.1),
-          0 2px 2px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.2),
-          0 0 1px rgba(0, 0, 0, 0.22);
-      }
-      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_save_2024_unique_:hover {
-        background: #f9fafb;
-        color: #0f172a;
       }
       ._x_extension_shortcut_save_2024_unique_._x_extension_shortcut_save_pulse_2024_unique_ {
         animation: _x_extension_save_pulse_2024_unique_ 320ms ease;
@@ -1087,13 +1344,30 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
+        transition: background-color 160ms ease, color 160ms ease, transform 120ms ease, filter 120ms ease;
+      }
+      ._x_extension_settings_tab_button_2024_unique_:active,
+      ._x_extension_theme_option_2024_unique_:active,
+      ._x_extension_shortcut_submit_2024_unique_:active,
+      ._x_extension_shortcut_secondary_2024_unique_:active {
+        transform: translateY(1px) scale(0.98);
+        filter: brightness(0.95);
       }
       ._x_extension_sync_icon_faded_2024_unique_ .ri-icon {
         opacity: 0.5;
       }
+      ._x_extension_shortcut_secondary_2024_unique_:hover {
+        background: rgba(0, 0, 0, 0.05);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+      }
       #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_secondary_2024_unique_ {
-        background: var(--tab-bg);
+        background: #353535;
         color: var(--panel-text);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_secondary_2024_unique_:hover {
+        background: #3d3d3d;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
       }
       ._x_extension_shortcut_actions_row_2024_unique_ {
         display: inline-flex;
@@ -1103,13 +1377,61 @@
         width: 100%;
       }
       ._x_extension_shortcut_submit_primary_2024_unique_ {
-        background: #111827;
-        color: #f9fafb;
+        position: relative;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #404859 0%, #273042 100%);
+        color: #ffffff;
+        box-shadow:
+          0 10px 3px rgba(0, 0, 0, 0),
+          0 6px 2px rgba(0, 0, 0, 0.008),
+          0 3px 2px rgba(0, 0, 0, 0.035),
+          0 2px 2px rgba(0, 0, 0, 0.065),
+          0 0 1px rgba(0, 0, 0, 0.075);
+        transition: transform 120ms ease, filter 120ms ease, background 160ms ease, box-shadow 160ms ease;
+      }
+      ._x_extension_shortcut_submit_primary_2024_unique_::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow:
+          inset 0 0 0 1px #040404,
+          inset 0 1px 1.6px rgba(255, 255, 255, 0.34);
+      }
+      #_x_extension_sync_now_2024_unique_._x_extension_shortcut_submit_primary_2024_unique_::before {
+        box-shadow:
+          inset 0 0 0 1px #040404,
+          inset 0 1px 0 rgba(255, 255, 255, 0.52),
+          inset 0 1px 2.4px rgba(255, 255, 255, 0.36);
+      }
+      ._x_extension_shortcut_submit_primary_2024_unique_:hover {
+        background: linear-gradient(180deg, #4a5467 0%, #2f3a4f 100%);
+        box-shadow:
+          0 12px 4px rgba(0, 0, 0, 0),
+          0 7px 3px rgba(0, 0, 0, 0.015),
+          0 4px 3px rgba(0, 0, 0, 0.045),
+          0 2px 2px rgba(0, 0, 0, 0.075),
+          0 0 1px rgba(0, 0, 0, 0.09);
       }
       #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_submit_primary_2024_unique_ {
-        background: var(--tab-active-bg);
-        color: var(--tab-active-text);
-        border: none;
+        background: linear-gradient(180deg, #4a566c 0%, #334157 100%);
+        color: #f8fafc;
+        box-shadow:
+          0 10px 3px rgba(0, 0, 0, 0),
+          0 6px 2px rgba(0, 0, 0, 0.02),
+          0 3px 2px rgba(0, 0, 0, 0.08),
+          0 2px 2px rgba(0, 0, 0, 0.14),
+          0 0 1px rgba(0, 0, 0, 0.18);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_submit_primary_2024_unique_::before {
+        box-shadow:
+          inset 0 0 0 1px rgba(3, 7, 18, 0.9),
+          inset 0 1px 1.8px rgba(255, 255, 255, 0.4);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_submit_primary_2024_unique_:hover {
+        background: linear-gradient(180deg, #56647c 0%, #3a4b66 100%);
       }
       ._x_extension_shortcut_form_trigger_2024_unique_ ._x_extension_shortcut_submit_2024_unique_ {
         background: transparent;
@@ -1129,7 +1451,7 @@
         padding: 2px;
         border-radius: 10px;
         border: 1px solid var(--tab-border);
-        background: var(--tab-bg);
+        background: var(--control-bg);
         align-items: center;
         min-height: 30px;
         position: relative;
@@ -1140,7 +1462,7 @@
         left: 2px;
         height: calc(100% - 4px);
         width: 0;
-        background: var(--tab-active-bg);
+        background: var(--inline-tab-active-bg);
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
         transition: transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1), width 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
@@ -1153,13 +1475,21 @@
         border-radius: 10px;
         font-size: 13px;
         font-weight: 500;
-        color: var(--panel-subtext);
-        transition: background-color 0.15s ease, color 0.15s ease;
+        color: var(--tab-inactive-text);
+        transition: background-color 0.15s ease, color 0.15s ease, transform 120ms ease, filter 120ms ease;
         position: relative;
         z-index: 1;
       }
       ._x_extension_theme_option_2024_unique_[data-active="true"] {
         color: var(--tab-active-text);
+      }
+      ._x_extension_inline_tabs_2024_unique_ {
+        gap: 6px;
+        padding: 2px;
+      }
+      ._x_extension_inline_tabs_2024_unique_ ._x_extension_theme_option_2024_unique_ {
+        padding-left: 10px;
+        padding-right: 10px;
       }
       ._x_extension_select_2024_unique_ {
         position: absolute;
@@ -1197,10 +1527,10 @@
       ._x_extension_select_align_middle_2024_unique_ ._x_extension_select_menu_2024_unique_ {
         left: 50%;
         right: auto;
-        transform: translate(-50%, -4px);
+        transform: translate(-50%, -6px) scale(0.96, 0.86);
       }
       ._x_extension_select_wrap_2024_unique_[data-open="true"]._x_extension_select_align_middle_2024_unique_ ._x_extension_select_menu_2024_unique_ {
-        transform: translate(-50%, 0);
+        transform: translate(-50%, 0) scale(1, 1);
       }
       ._x_extension_select_align_right_2024_unique_ ._x_extension_select_menu_2024_unique_ {
         left: auto;
@@ -1218,7 +1548,7 @@
         padding: 8px 32px 8px 10px;
         border-radius: 10px;
         border: 1px solid var(--tab-border);
-        background: var(--tab-bg);
+        background: var(--control-bg);
         color: var(--panel-text);
         font-size: 13px;
         font-weight: 500;
@@ -1229,6 +1559,17 @@
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease;
+      }
+      ._x_extension_select_wrap_2024_unique_:hover ._x_extension_select_trigger_2024_unique_ {
+        background: var(--control-hover-bg);
+      }
+      ._x_extension_select_wrap_2024_unique_[data-open="true"] ._x_extension_select_trigger_2024_unique_ {
+        background: var(--control-open-bg);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+      }
+      body[data-theme="dark"] ._x_extension_select_wrap_2024_unique_[data-open="true"] ._x_extension_select_trigger_2024_unique_ {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
       }
       ._x_extension_select_label_2024_unique_ {
         display: block;
@@ -1244,21 +1585,23 @@
         left: 0;
         right: 0;
         top: calc(100% + 6px);
-        background: var(--panel-bg);
+        background: var(--menu-bg);
         border: 1px solid var(--tab-border);
         border-radius: 12px;
         padding: 6px;
         box-sizing: border-box;
         box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
         opacity: 0;
-        transform: translateY(-4px);
+        transform: translateY(-6px) scale(0.96, 0.86);
+        transform-origin: top center;
         pointer-events: none;
-        transition: opacity 140ms ease, transform 180ms ease;
+        will-change: transform, opacity;
+        transition: opacity 170ms ease, transform 360ms cubic-bezier(0.2, 1.45, 0.35, 1);
         z-index: 10;
       }
       ._x_extension_select_wrap_2024_unique_[data-open="true"] ._x_extension_select_menu_2024_unique_ {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1, 1);
         pointer-events: auto;
       }
       ._x_extension_select_option_2024_unique_ {
@@ -1292,12 +1635,29 @@
         height: 14px;
         display: block;
         pointer-events: none;
+        transition: color 160ms ease, transform 180ms ease;
+      }
+      ._x_extension_select_wrap_2024_unique_:hover ._x_extension_select_icon_2024_unique_ {
+        color: rgba(0, 0, 0, 0.9);
+      }
+      ._x_extension_select_wrap_2024_unique_[data-open="true"] ._x_extension_select_icon_2024_unique_ {
+        color: rgba(0, 0, 0, 0.98);
+        transform: translateY(-50%) rotate(180deg);
+      }
+      body[data-theme="dark"] ._x_extension_select_wrap_2024_unique_:hover ._x_extension_select_icon_2024_unique_ {
+        color: rgba(255, 255, 255, 0.92);
+      }
+      body[data-theme="dark"] ._x_extension_select_wrap_2024_unique_[data-open="true"] ._x_extension_select_icon_2024_unique_ {
+        color: rgba(255, 255, 255, 1);
       }
       .ri-icon {
         width: var(--ri-size, 16px);
         height: var(--ri-size, 16px);
-        display: inline-block;
-        fill: currentColor;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        font-size: var(--ri-size, 16px);
         flex-shrink: 0;
       }
       .ri-size-8 { --ri-size: 8px; }
@@ -1346,8 +1706,9 @@
         transform: translateX(18px);
       }
       ._x_extension_setting_divider_2024_unique_ {
-        height: 1px;
-        width: 100%;
+        height: 0.5px;
+        width: calc(100% - 28px);
+        margin: 0 14px;
         background: var(--setting-divider);
         border-radius: 999px;
       }
@@ -1365,18 +1726,33 @@
       <div class="_x_extension_settings_tabs_row_2024_unique_">
         <div id="_x_extension_settings_tabs_2024_unique_">
           <span class="_x_extension_tabs_indicator_2024_unique_"></span>
-          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="general" data-active="false" data-i18n="settings_tab_general">常规</button>
-          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="appearance" data-active="true" data-i18n="settings_tab_appearance">外观</button>
-          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="shortcuts" data-active="false" data-i18n="settings_tab_shortcuts">站内搜索</button>
+          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="general" data-active="false">
+            <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-command-fill" aria-hidden="true"></i>
+            <span data-i18n="settings_tab_general">常规</span>
+          </button>
+          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="appearance" data-active="true">
+            <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-moon-clear-fill" aria-hidden="true"></i>
+            <span data-i18n="settings_tab_appearance">外观</span>
+          </button>
+          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="shortcuts" data-active="false">
+            <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-search-ai-4-fill" aria-hidden="true"></i>
+            <span data-i18n="settings_tab_shortcuts">站内搜索</span>
+          </button>
+          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="labs" data-active="false">
+            <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-test-tube-fill" aria-hidden="true"></i>
+            <span data-i18n="settings_tab_labs">实验室功能</span>
+          </button>
         </div>
         <div id="_x_extension_settings_version_2024_unique_" class="_x_extension_settings_version_badge_2024_unique_" aria-label="version"></div>
       </div>
       <div id="_x_extension_settings_panel_2024_unique_" data-theme="light">
         <div class="_x_extension_settings_content_2024_unique_" data-content="general" data-active="false">
           <div class="_x_extension_setting_row_2024_unique_">
+            <p class="_x_extension_section_title_2024_unique_" data-i18n="settings_global_section_title">全局设置</p>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
             <div>
               <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_language_title">语言</p>
-              <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_language_desc">选择界面显示语言</p>
             </div>
             <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_language_select_2024_unique_">
               <select id="_x_extension_language_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
@@ -1387,53 +1763,48 @@
                 <option value="en" data-i18n="language_en">English</option>
               </select>
               <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                </svg>
+                <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
               </button>
               <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+            </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <div class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
+                <span data-i18n="settings_sync_title">Lumno 配置</span>
+                <span id="_x_extension_sync_status_2024_unique_" class="_x_extension_sync_status_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-tooltip="同步信息说明" data-i18n-tooltip="sync_status_hint" aria-label="同步信息说明" role="img">
+                  <span id="_x_extension_sync_status_text_2024_unique_" data-i18n="sync_status_ready">自动同步已开启</span>
+                  <i class="ri-icon ri-size-12 ri-question-line" aria-hidden="true"></i>
+                </span>
+              </div>
+            </div>
+            <div class="_x_extension_sync_actions_2024_unique_">
+              <div class="_x_extension_sync_buttons_2024_unique_">
+                <button id="_x_extension_sync_export_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_ _x_extension_sync_icon_faded_2024_unique_" type="button">
+                  <i class="ri-icon ri-size-16 ri-upload-line" aria-hidden="true"></i>
+                  <span data-i18n="sync_action_export">导出配置</span>
+                </button>
+                <button id="_x_extension_sync_import_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_ _x_extension_sync_icon_faded_2024_unique_" type="button">
+                  <i class="ri-icon ri-size-16 ri-download-line" aria-hidden="true"></i>
+                  <span data-i18n="sync_action_import">导入配置</span>
+                </button>
+                <button id="_x_extension_sync_now_2024_unique_" class="_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_ _x_extension_sync_button_2024_unique_" type="button" data-tooltip="">
+                  <i class="ri-icon ri-size-16 _x_extension_sync_now_icon_2024_unique_ ri-refresh-line" aria-hidden="true"></i>
+                  <span data-i18n="sync_action_now">手动同步</span>
+                </button>
+              </div>
+              <input id="_x_extension_sync_import_input_2024_unique_" type="file" accept="application/json" style="display:none;" />
             </div>
           </div>
           <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
             <div class="_x_extension_setting_divider_2024_unique_"></div>
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
-            <div>
-              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_recent_sites_title">显示最近/最常访问站点</p>
-              <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_newtab_scope_desc">新标签页</p>
-            </div>
-            <div class="_x_extension_recent_select_group_2024_unique_">
-              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_recent_mode_select_2024_unique_">
-                <select id="_x_extension_recent_mode_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
-                  <option value="latest" data-i18n="recent_mode_latest">显示最近访问</option>
-                  <option value="most" data-i18n="recent_mode_most">显示最常访问</option>
-                </select>
-                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                  <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                  </svg>
-                </button>
-                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
-              </div>
-              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_recent_count_select_2024_unique_">
-                <select id="_x_extension_recent_count_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
-                  <option value="4" data-i18n="recent_count_4">显示 4 个</option>
-                  <option value="8" data-i18n="recent_count_8">显示 8 个</option>
-                  <option value="0" data-i18n="recent_count_off">不显示</option>
-                </select>
-                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                  <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                  </svg>
-                </button>
-                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
-              </div>
-            </div>
+            <p class="_x_extension_section_title_2024_unique_" data-i18n="settings_newtab_section_title">新标签页设置</p>
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
             <div>
-              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_bookmarks_title">显示书签</p>
-              <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_newtab_scope_desc">新标签页</p>
+              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_bookmarks_title">书签</p>
             </div>
             <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_bookmark_count_select_2024_unique_">
               <select id="_x_extension_bookmark_count_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
@@ -1443,59 +1814,109 @@
                 <option value="32" data-i18n="bookmark_count_32">显示 32 个</option>
               </select>
               <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                </svg>
+                <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
               </button>
               <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+            </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_recent_sites_title">站点卡片</p>
+            </div>
+            <div class="_x_extension_recent_select_group_2024_unique_">
+              <div id="_x_extension_recent_mode_tabs_wrap_2024_unique_" class="_x_extension_theme_picker_2024_unique_ _x_extension_inline_tabs_2024_unique_" role="tablist" aria-label="recent mode">
+                <span class="_x_extension_theme_indicator_2024_unique_"></span>
+                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="latest" data-active="true" aria-pressed="true" type="button">
+                  <i class="ri-icon ri-size-14 ri-time-line" aria-hidden="true"></i>
+                  <span data-i18n="recent_mode_latest">最近访问</span>
+                </button>
+                <button class="_x_extension_theme_option_2024_unique_" data-recent-mode="most" data-active="false" aria-pressed="false" type="button">
+                  <i class="ri-icon ri-size-14 ri-vip-diamond-line" aria-hidden="true"></i>
+                  <span data-i18n="recent_mode_most">最常访问</span>
+                </button>
+                <select id="_x_extension_recent_mode_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true" style="display:none;">
+                  <option value="latest" data-i18n="recent_mode_latest">最近访问</option>
+                  <option value="most" data-i18n="recent_mode_most">最常访问</option>
+                </select>
+              </div>
+              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_recent_count_select_2024_unique_">
+                <select id="_x_extension_recent_count_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+                  <option value="0" data-i18n="recent_count_off">不显示</option>
+                  <option value="4" data-i18n="recent_count_4">显示 4 个</option>
+                  <option value="8" data-i18n="recent_count_8">显示 8 个</option>
+                </select>
+                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+              </div>
             </div>
           </div>
           <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
             <div class="_x_extension_setting_divider_2024_unique_"></div>
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
+            <p class="_x_extension_section_title_2024_unique_" data-i18n="settings_shortcuts_section_title">快捷键设置</p>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
             <div>
-              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_shortcuts_title">键盘快捷键</p>
-              <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_shortcuts_desc">用于唤起 Lumno 搜索框</p>
+              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_shortcuts_title">快捷键绑定</p>
             </div>
             <div class="_x_extension_sync_actions_2024_unique_ _x_extension_shortcuts_actions_2024_unique_">
-              <span id="_x_extension_shortcuts_status_2024_unique_" class="_x_extension_setting_desc_2024_unique_ _x_extension_shortcut_status_2024_unique_" data-i18n="settings_shortcuts_status">当前：未设置</span>
-              <button id="_x_extension_open_shortcuts_2024_unique_" class="_x_extension_shortcut_secondary_2024_unique_" type="button">
-                <span data-i18n="settings_shortcuts_action">前往设置</span>
-                <svg class="ri-icon ri-size-14" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-external-link-line"></use>
-                </svg>
-              </button>
+              <div class="_x_extension_shortcuts_hotkey_wrap_2024_unique_">
+                <button id="_x_extension_reset_shortcut_2024_unique_" class="_x_extension_shortcuts_hotkey_action_2024_unique_" data-side="left" data-can-reset="false" aria-label="恢复默认" type="button" disabled>
+                  <i class="ri-icon ri-size-14 ri-arrow-go-back-line" aria-hidden="true"></i>
+                </button>
+                <input
+                  id="_x_extension_shortcuts_input_2024_unique_"
+                  class="_x_extension_shortcuts_hotkey_input_2024_unique_"
+                  type="text"
+                  readonly
+                  autocomplete="off"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                  data-i18n-placeholder="settings_shortcuts_record_placeholder"
+                  placeholder="按下快捷键" />
+                <div id="_x_extension_shortcuts_tokens_2024_unique_" class="_x_extension_shortcuts_hotkey_tokens_2024_unique_" data-empty="true" data-placeholder="按下快捷键"></div>
+                <button id="_x_extension_clear_shortcut_2024_unique_" class="_x_extension_shortcuts_hotkey_action_2024_unique_" data-side="right" title="清空快捷键" aria-label="清空快捷键" type="button">
+                  <i class="ri-icon ri-size-16 ri-close-circle-fill" aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
           </div>
           <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
-            <div class="_x_extension_setting_left_2024_unique_">
+            <div>
               <p class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
-                <svg class="ri-icon ri-size-14 _x_extension_setting_icon_hint_2024_unique_" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-drop-right-line"></use>
-                </svg>
-                <span data-i18n="settings_restricted_title">在受限页效果</span>
+                <span data-i18n="settings_restricted_title">在受限页按下快捷键效果</span>
+                <span
+                  class="_x_extension_shortcut_hint_2024_unique_ _x_extension_shortcut_group_action_2024_unique_"
+                  data-i18n-tooltip="settings_restricted_tooltip"
+                  data-tooltip="受限页（如 chrome://、扩展商店、部分 file:// 页面）无法开启浮层；按下快捷键将按此处规则处理。"
+                  aria-label="受限页（如 chrome://、扩展商店、部分 file:// 页面）无法开启浮层；按下快捷键将按此处规则处理。"
+                  role="img">
+                  <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
+                </span>
               </p>
             </div>
-            <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_restricted_action_select_2024_unique_">
-              <select id="_x_extension_restricted_action_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+            <div id="_x_extension_restricted_action_tabs_wrap_2024_unique_" class="_x_extension_theme_picker_2024_unique_ _x_extension_inline_tabs_2024_unique_" role="tablist" aria-label="restricted action">
+              <span class="_x_extension_theme_indicator_2024_unique_"></span>
+              <button class="_x_extension_theme_option_2024_unique_" data-restricted-action="default" data-active="true" aria-pressed="true" type="button">
+                <i class="ri-icon ri-size-14 ri-file-add-line" aria-hidden="true"></i>
+                <span data-i18n="restricted_action_default">前往新标签页</span>
+              </button>
+              <button class="_x_extension_theme_option_2024_unique_" data-restricted-action="none" data-active="false" aria-pressed="false" type="button">
+                <span data-i18n="restricted_action_none">无操作</span>
+              </button>
+              <select id="_x_extension_restricted_action_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true" style="display:none;">
                 <option value="default" data-i18n="restricted_action_default" selected>前往新标签页</option>
                 <option value="none" data-i18n="restricted_action_none">无操作</option>
               </select>
-              <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                </svg>
-              </button>
-              <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
             </div>
           </div>
-          <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
-            <div class="_x_extension_setting_left_2024_unique_">
-              <p class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
-                <svg class="ri-icon ri-size-14 _x_extension_setting_icon_hint_2024_unique_" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-drop-right-line"></use>
-                </svg>
+          <div id="_x_extension_overlay_tab_priority_row_2024_unique_" class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">
                 <span data-i18n="settings_overlay_tab_priority_title">快速切换已开启标签页</span>
               </p>
             </div>
@@ -1504,51 +1925,11 @@
               <span class="_x_extension_switch_slider_2024_unique_" aria-hidden="true"></span>
             </label>
           </div>
-          <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
-            <div class="_x_extension_setting_divider_2024_unique_"></div>
-          </div>
-          <div class="_x_extension_setting_row_2024_unique_">
-            <div>
-              <div class="_x_extension_setting_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_">
-                <span data-i18n="settings_sync_title">Lumno 配置</span>
-                <span id="_x_extension_sync_status_2024_unique_" class="_x_extension_sync_status_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-tooltip="同步信息说明" data-i18n-tooltip="sync_status_hint" aria-label="同步信息说明" role="img">
-                  <span id="_x_extension_sync_status_text_2024_unique_" data-i18n="sync_status_ready">自动同步已开启</span>
-                  <svg class="ri-icon ri-size-12" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-question-line"></use>
-                  </svg>
-                </span>
-              </div>
-            </div>
-            <div class="_x_extension_sync_actions_2024_unique_">
-              <div class="_x_extension_sync_buttons_2024_unique_">
-                <button id="_x_extension_sync_export_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_ _x_extension_sync_icon_faded_2024_unique_" type="button">
-                  <svg class="ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-upload-line"></use>
-                  </svg>
-                  <span data-i18n="sync_action_export">导出配置</span>
-                </button>
-                <button id="_x_extension_sync_import_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_ _x_extension_sync_icon_faded_2024_unique_" type="button">
-                  <svg class="ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-download-line"></use>
-                  </svg>
-                  <span data-i18n="sync_action_import">导入配置</span>
-                </button>
-                <button id="_x_extension_sync_now_2024_unique_" class="_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_ _x_extension_sync_button_2024_unique_" type="button" data-tooltip="">
-                  <svg class="ri-icon ri-size-16 _x_extension_sync_now_icon_2024_unique_" aria-hidden="true" focusable="false">
-                    <use href="remixicon.symbol.svg#ri-refresh-line"></use>
-                  </svg>
-                  <span data-i18n="sync_action_now">手动同步</span>
-                </button>
-              </div>
-              <input id="_x_extension_sync_import_input_2024_unique_" type="file" accept="application/json" style="display:none;" />
-            </div>
-          </div>
         </div>
         <div class="_x_extension_settings_content_2024_unique_" data-content="appearance" data-active="true">
         <div class="_x_extension_setting_row_2024_unique_">
           <div>
             <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_theme_title">深浅色模式</p>
-            <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_theme_desc">跟随系统或手动选择主题</p>
           </div>
           <div class="_x_extension_theme_picker_2024_unique_" role="group" aria-label="主题模式" data-i18n-aria-label="settings_theme_title">
             <span class="_x_extension_theme_indicator_2024_unique_"></span>
@@ -1557,42 +1938,14 @@
             <button class="_x_extension_theme_option_2024_unique_" data-mode="dark" data-i18n="settings_theme_dark">深色</button>
           </div>
         </div>
-        <div class="_x_extension_setting_row_2024_unique_">
-          <div>
-            <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_wallpaper_title">新标签页壁纸</p>
-            <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_wallpaper_desc">上传本地图片作为 newtab 背景</p>
-            <p id="_x_extension_wallpaper_status_2024_unique_" class="_x_extension_setting_desc_2024_unique_ _x_extension_wallpaper_status_2024_unique_" data-i18n="settings_wallpaper_status_none">未上传壁纸</p>
-          </div>
-          <div class="_x_extension_wallpaper_actions_2024_unique_">
-            <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_wallpaper_fit_select_2024_unique_">
-              <select id="_x_extension_wallpaper_fit_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
-                <option value="cover" data-i18n="settings_wallpaper_fit_cover">填充</option>
-                <option value="contain" data-i18n="settings_wallpaper_fit_contain">完整显示</option>
-              </select>
-              <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <svg class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16" aria-hidden="true" focusable="false">
-                  <use href="remixicon.symbol.svg#ri-arrow-down-s-line"></use>
-                </svg>
-              </button>
-              <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
-            </div>
-            <button id="_x_extension_wallpaper_remove_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_" type="button" data-disabled="true">
-              <span data-i18n="settings_wallpaper_remove">移除</span>
-            </button>
-            <button id="_x_extension_wallpaper_upload_2024_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_" type="button">
-              <span data-i18n="settings_wallpaper_upload">上传图片</span>
-            </button>
-            <input id="_x_extension_wallpaper_upload_input_2024_unique_" type="file" accept="image/png,image/jpeg,image/webp,image/avif" style="display:none;" />
-          </div>
-        </div>
         </div>
         <div class="_x_extension_settings_content_2024_unique_" data-content="shortcuts" data-active="false">
           <div class="_x_extension_shortcuts_section_2024_unique_">
             <div class="_x_extension_shortcut_group_2024_unique_">
               <div class="_x_extension_shortcut_group_header_2024_unique_">
-                <div class="_x_extension_shortcut_group_title_2024_unique_" data-i18n="shortcuts_group_custom">自定义</div>
+                <div class="_x_extension_shortcut_group_title_2024_unique_ _x_extension_section_title_2024_unique_" data-i18n="shortcuts_group_custom">自定义</div>
                 <button id="_x_extension_custom_clear_2024_unique_" class="_x_extension_shortcut_group_action_2024_unique_" title="清空自定义" aria-label="清空自定义" data-tooltip="清空自定义" data-i18n-tooltip="shortcuts_clear_custom">
-                  <svg class="ri-icon ri-size-14" aria-hidden="true" focusable="false"><use href="remixicon.symbol.svg#ri-delete-bin-4-line"></use></svg>
+                  <i class="ri-icon ri-size-14 ri-delete-bin-4-line" aria-hidden="true"></i>
                 </button>
               </div>
               <div id="_x_extension_site_search_custom_list_2024_unique_" class="_x_extension_shortcut_list_2024_unique_"></div>
@@ -1600,7 +1953,7 @@
             <div class="_x_extension_shortcut_form_2024_unique_" data-expanded="false">
               <div class="_x_extension_shortcut_form_trigger_2024_unique_">
                 <button id="_x_extension_site_search_expand_2024_unique_" class="_x_extension_shortcut_submit_2024_unique_">
-                  <svg class="ri-icon ri-size-14" aria-hidden="true" focusable="false"><use href="remixicon.symbol.svg#ri-add-line"></use></svg>
+                  <i class="ri-icon ri-size-14 ri-add-line" aria-hidden="true"></i>
                   <span data-i18n="shortcuts_add">添加站内搜索</span>
                 </button>
               </div>
@@ -1611,7 +1964,7 @@
                       <span data-i18n="shortcuts_label_template">搜索模板</span><span class="_x_extension_shortcut_required_2024_unique_">*</span>
                     </label>
                     <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_shortcut_group_action_2024_unique_" data-i18n-tooltip="shortcuts_template_help" data-tooltip="1.打开你想添加的网站&#10;2.输入任一搜索词，触发搜索&#10;3.将搜索结果页面 url 粘贴在此处&#10;4.将关键词替换为{query}" aria-label="模板说明" role="img">
-                      <svg class="ri-icon ri-size-14" aria-hidden="true" focusable="false"><use href="remixicon.symbol.svg#ri-question-line"></use></svg>
+                      <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                     </span>
                   </div>
                   <input id="_x_extension_site_search_template_2024_unique_" class="_x_extension_shortcut_input_2024_unique_" placeholder="https://example.com/search?q={query}" data-i18n-placeholder="shortcuts_placeholder_template" />
@@ -1639,15 +1992,32 @@
                 <div id="_x_extension_site_search_error_2024_unique_" class="_x_extension_shortcut_error_2024_unique_" style="display:none;"></div>
               </div>
             </div>
+            <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
+              <div class="_x_extension_setting_divider_2024_unique_"></div>
+            </div>
             <div class="_x_extension_shortcut_group_2024_unique_">
               <div class="_x_extension_shortcut_group_header_2024_unique_">
-                <div class="_x_extension_shortcut_group_title_2024_unique_" data-i18n="shortcuts_group_builtin">内置</div>
+                <div class="_x_extension_shortcut_group_title_2024_unique_ _x_extension_section_title_2024_unique_" data-i18n="shortcuts_group_builtin">内置</div>
                 <button id="_x_extension_builtin_reset_2024_unique_" class="_x_extension_shortcut_group_action_2024_unique_" title="重置为初始列表" aria-label="重置为初始列表" data-tooltip="重置为初始列表" data-i18n-tooltip="shortcuts_reset_builtin">
-                  <svg class="ri-icon ri-size-14" aria-hidden="true" focusable="false"><use href="remixicon.symbol.svg#ri-refresh-line"></use></svg>
+                  <i class="ri-icon ri-size-14 ri-refresh-line" aria-hidden="true"></i>
                 </button>
               </div>
               <div id="_x_extension_site_search_builtin_list_2024_unique_" class="_x_extension_shortcut_list_2024_unique_"></div>
             </div>
+          </div>
+        </div>
+        <div class="_x_extension_settings_content_2024_unique_" data-content="labs" data-active="false">
+          <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">
+                <span data-i18n="settings_auto_pip_title">视频自动画中画</span>
+              </p>
+              <p class="_x_extension_setting_desc_2024_unique_" data-i18n="settings_auto_pip_desc">在网页上播放视频时，若切换至其他标签页，则正在播放中的视频将以浮窗的形式播放。</p>
+            </div>
+            <label class="_x_extension_switch_2024_unique_" for="_x_extension_auto_pip_toggle_2024_unique_">
+              <input id="_x_extension_auto_pip_toggle_2024_unique_" type="checkbox" checked>
+              <span class="_x_extension_switch_slider_2024_unique_" aria-hidden="true"></span>
+            </label>
           </div>
         </div>
       </div>

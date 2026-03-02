@@ -5,13 +5,9 @@
   window._x_extension_hotkey_listener_2024_unique_ = true;
 
   const REFRESH_SHORTCUT_MS = 15000;
-  const DOUBLE_SHIFT_WINDOW_MS = 320;
-  const FORCE_CMD_T_FALLBACK = true;
   let shortcutRaw = '';
   let shortcutSpec = null;
   let lastRefreshAt = 0;
-  let lastPlainShiftAt = 0;
-  const isMac = typeof navigator !== 'undefined' && /mac/i.test(String(navigator.platform || ''));
 
   function triggerOverlay() {
     try {
@@ -122,21 +118,6 @@
     return eventKey === spec.key;
   }
 
-  function matchForcedCmdTFallback(event) {
-    if (!FORCE_CMD_T_FALLBACK || !event) {
-      return false;
-    }
-    if (event.altKey || event.shiftKey) {
-      return false;
-    }
-    const expectedMeta = isMac;
-    const expectedCtrl = !isMac;
-    if (Boolean(event.metaKey) !== expectedMeta || Boolean(event.ctrlKey) !== expectedCtrl) {
-      return false;
-    }
-    return String(event.key || '').toLowerCase() === 't';
-  }
-
   function refreshShortcut(force) {
     const now = Date.now();
     if (!force && (now - lastRefreshAt) < REFRESH_SHORTCUT_MS) {
@@ -176,29 +157,6 @@
     }
     refreshShortcut(false);
     if (isEditableTarget(event.target)) {
-      return;
-    }
-    const now = Date.now();
-    const isPlainShift = !event.ctrlKey &&
-      !event.altKey &&
-      !event.metaKey &&
-      event.key === 'Shift';
-    if (isPlainShift) {
-      if ((now - lastPlainShiftAt) <= DOUBLE_SHIFT_WINDOW_MS) {
-        lastPlainShiftAt = 0;
-        event.preventDefault();
-        event.stopPropagation();
-        triggerOverlay();
-        return;
-      }
-      lastPlainShiftAt = now;
-    } else {
-      lastPlainShiftAt = 0;
-    }
-    if (matchForcedCmdTFallback(event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      triggerOverlay();
       return;
     }
     if (shortcutSpec && shortcutMatchesEvent(event, shortcutSpec)) {

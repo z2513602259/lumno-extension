@@ -12,6 +12,8 @@
   if (!host || !/(^|\.)youtube\.com$/.test(host)) {
     return;
   }
+  const AUTO_PIP_ENABLED_STORAGE_KEY = "_x_extension_auto_pip_enabled_2026_unique_";
+  let autoPipEnabled = true;
 
   const state = {
     activeVideo: null,
@@ -31,6 +33,45 @@
   const ENTER_SUPPRESS_AFTER_EXIT_MS = 1200;
   const ENTER_SUPPRESS_AFTER_VISIBLE_MS = 1400;
   let pageBridgeRequestSeq = 0;
+
+  function normalizeAutoPipEnabled(value) {
+    return value !== false;
+  }
+
+  function setAutoPipEnabled(value) {
+    autoPipEnabled = normalizeAutoPipEnabled(value);
+  }
+
+  function syncAutoPipEnabledSetting() {
+    if (!chrome || !chrome.storage) {
+      return;
+    }
+    const storageArea = chrome.storage.sync || chrome.storage.local;
+    if (!storageArea || typeof storageArea.get !== "function") {
+      return;
+    }
+    storageArea.get([AUTO_PIP_ENABLED_STORAGE_KEY], (result) => {
+      const rawValue = result ? result[AUTO_PIP_ENABLED_STORAGE_KEY] : undefined;
+      const normalized = normalizeAutoPipEnabled(rawValue);
+      setAutoPipEnabled(normalized);
+      if (rawValue !== normalized && typeof storageArea.set === "function") {
+        storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: normalized });
+      }
+    });
+    if (!chrome.storage.onChanged || typeof chrome.storage.onChanged.addListener !== "function") {
+      return;
+    }
+    chrome.storage.onChanged.addListener((changes) => {
+      if (!changes || !changes[AUTO_PIP_ENABLED_STORAGE_KEY]) {
+        return;
+      }
+      setAutoPipEnabled(changes[AUTO_PIP_ENABLED_STORAGE_KEY].newValue);
+      if (!autoPipEnabled && (state.managedPiP || document.pictureInPictureElement)) {
+        maybeExitPiP("settings_disabled").catch(() => {});
+      }
+    });
+  }
+  syncAutoPipEnabledSetting();
 
   const DEBUG = false;
   function debugLog(stage, detail) {
@@ -573,6 +614,9 @@
   }
 
   function scheduleDeferredEnterPiP(reason) {
+    if (!autoPipEnabled) {
+      return;
+    }
     clearEnterRetryTimer();
     if (document.visibilityState !== "hidden") {
       return;
@@ -590,6 +634,9 @@
   }
 
   async function maybeEnterPiP(reason) {
+    if (!autoPipEnabled) {
+      return false;
+    }
     if (!canEnterPiP() || !canExitPiP() || state.enteringPiP || state.exitingPiP) {
       return false;
     }

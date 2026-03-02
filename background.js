@@ -38,6 +38,18 @@ function openNewtabFallback() {
   chrome.tabs.create({ url: newtabUrl });
 }
 
+function getResolvedTabUrl(tab) {
+  if (!tab || typeof tab !== 'object') {
+    return '';
+  }
+  const directUrl = typeof tab.url === 'string' ? String(tab.url).trim() : '';
+  if (directUrl) {
+    return directUrl;
+  }
+  const pendingUrl = typeof tab.pendingUrl === 'string' ? String(tab.pendingUrl).trim() : '';
+  return pendingUrl;
+}
+
 function isLumnoNewtabUrl(url) {
   const value = String(url || '');
   if (!value || !chrome || !chrome.runtime || typeof chrome.runtime.getURL !== 'function') {
@@ -60,7 +72,7 @@ function shouldRecoverFromCommandNewtab(activeTab, source) {
   if (source !== 'commands' || !activeTab) {
     return false;
   }
-  const activeUrl = typeof activeTab.url === 'string' ? activeTab.url : '';
+  const activeUrl = getResolvedTabUrl(activeTab);
   return isLumnoNewtabUrl(activeUrl) || isBrowserNewtabUrl(activeUrl);
 }
 
@@ -228,6 +240,7 @@ const storageAreaName = storageArea
   : null;
 const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
 const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const HOTKEY_DUP_GUARD_MS = 180;
 let restrictedActionCache = 'default';
@@ -286,10 +299,15 @@ function openOverlayOnTab(activeTab, tabs, source) {
     logHotkeyDebug('duplicate-ignored', { tabId: activeTab.id, source: source || '' });
     return;
   }
-  const activeUrl = typeof activeTab.url === 'string' ? activeTab.url : '';
+  const activeUrl = getResolvedTabUrl(activeTab);
+  const rawUrl = typeof activeTab.url === 'string' ? activeTab.url : '';
+  const rawPendingUrl = typeof activeTab.pendingUrl === 'string' ? activeTab.pendingUrl : '';
   const restricted = isRestrictedUrl(activeUrl);
   logHotkeyDebug('active-tab', {
     tabId: activeTab.id,
+    resolvedUrl: activeUrl,
+    tabUrl: rawUrl,
+    pendingUrl: rawPendingUrl,
     url: activeUrl,
     restricted: restricted,
     source: source || ''
@@ -372,15 +390,33 @@ function triggerShowSearchForTab(tab, source) {
   });
 }
 
-function getShowSearchCommandShortcut(callback) {
-  if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
-    callback('');
+function getDefaultFallbackShortcutByPlatform(platformOs) {
+  return platformOs === 'mac' ? 'Command+T' : 'Ctrl+T';
+}
+
+function getDefaultFallbackShortcut(callback) {
+  if (!chrome || !chrome.runtime || typeof chrome.runtime.getPlatformInfo !== 'function') {
+    callback('Ctrl+T');
     return;
   }
-  chrome.commands.getAll((commands) => {
-    const items = Array.isArray(commands) ? commands : [];
-    const showSearchCommand = items.find((item) => item && item.name === SHOW_SEARCH_COMMAND_NAME);
-    callback(showSearchCommand && showSearchCommand.shortcut ? showSearchCommand.shortcut : '');
+  chrome.runtime.getPlatformInfo((info) => {
+    const os = info && typeof info.os === 'string' ? info.os : '';
+    callback(getDefaultFallbackShortcutByPlatform(os));
+  });
+}
+
+function getConfiguredFallbackShortcut(callback) {
+  getDefaultFallbackShortcut((defaultShortcut) => {
+    if (!storageArea) {
+      callback(defaultShortcut);
+      return;
+    }
+    storageArea.get([FALLBACK_SHORTCUT_STORAGE_KEY], (result) => {
+      const stored = result && typeof result[FALLBACK_SHORTCUT_STORAGE_KEY] === 'string'
+        ? String(result[FALLBACK_SHORTCUT_STORAGE_KEY]).trim()
+        : '';
+      callback(stored || defaultShortcut);
+    });
   });
 }
 
@@ -413,7 +449,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     sendResponse({ ok: true });
     return;
   } else if (request.action === 'getShowSearchShortcut') {
-    getShowSearchCommandShortcut((shortcut) => {
+    getConfiguredFallbackShortcut((shortcut) => {
       sendResponse({ shortcut: shortcut || '' });
     });
     return true;
@@ -1288,6 +1324,7 @@ migrateStorageIfNeeded([
   DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
   OVERLAY_TAB_PRIORITY_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
+  FALLBACK_SHORTCUT_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
   SITE_SEARCH_DISABLED_STORAGE_KEY
 ]);
@@ -1403,6 +1440,14 @@ function getGoogleFaviconUrl(hostname) {
     return '';
   }
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=${FAVICON_GOOGLE_SIZE}`;
+}
+
+function getFaviconIsUrl(hostname) {
+  const normalized = normalizeFaviconHost(hostname);
+  if (!normalized) {
+    return '';
+  }
+  return `https://favicon.is/${encodeURIComponent(normalized)}`;
 }
 
 function normalizeHost(hostname) {
@@ -1861,19 +1906,35 @@ function normalizeLocaleForMessages(locale) {
 }
 
 function isLocalNetworkHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
+  const host = String(hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
   if (!host) {
     return false;
   }
-  if (host === 'localhost' || host.endsWith('.local')) {
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host === 'host.docker.internal'
+  ) {
     return true;
+  }
+  if (/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(host)) {
+    const shortParts = host.split('.').map((part) => Number(part));
+    if (shortParts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+      return true;
+    }
   }
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
     const parts = host.split('.').map((part) => Number(part));
     if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
       return false;
     }
-    if (parts[0] === 10 || parts[0] === 127) {
+    if (
+      parts[0] === 0 ||
+      parts[0] === 10 ||
+      parts[0] === 127 ||
+      (parts[0] === 169 && parts[1] === 254)
+    ) {
       return true;
     }
     if (parts[0] === 192 && parts[1] === 168) {
@@ -1882,7 +1943,24 @@ function isLocalNetworkHost(hostname) {
     if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) {
       return true;
     }
+    if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) {
+      return true;
+    }
     return false;
+  }
+  const ipv6 = host.split('%')[0];
+  if (
+    ipv6 === '::1' ||
+    ipv6 === '0:0:0:0:0:0:0:1' ||
+    ipv6 === '::' ||
+    /^fe[89ab][0-9a-f]*:/i.test(ipv6) ||
+    /^[fd][0-9a-f]{1,3}:/i.test(ipv6)
+  ) {
+    return true;
+  }
+  const mappedIpv4 = ipv6.match(/::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (mappedIpv4 && mappedIpv4[1]) {
+    return isLocalNetworkHost(mappedIpv4[1]);
   }
   return false;
 }
@@ -1899,8 +1977,23 @@ function isBlockedLocalFaviconUrl(url) {
       return raw;
     }
   })();
-  const localPattern = /(https?:\/\/)?(localhost|127(?:\.\d{1,3}){0,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?::\d+)?(?:[/?#]|$)/i;
-  if (localPattern.test(decodedRaw)) {
+  const withoutScheme = decodedRaw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const authority = withoutScheme.split(/[/?#]/)[0] || '';
+  const hostCandidateRaw = authority.includes('@') ? authority.split('@').pop() : authority;
+  const hostCandidate = (() => {
+    const value = String(hostCandidateRaw || '').trim().toLowerCase();
+    if (!value) {
+      return '';
+    }
+    if (value.startsWith('[')) {
+      const endBracket = value.indexOf(']');
+      if (endBracket > 1) {
+        return value.slice(1, endBracket);
+      }
+    }
+    return value.replace(/^\[|\]$/g, '').split(':')[0];
+  })();
+  if (hostCandidate && isLocalNetworkHost(hostCandidate)) {
     return true;
   }
   try {
@@ -2171,6 +2264,7 @@ function buildFaviconFallbackCandidates(pageUrl, hostOverride, fallbackUrl, pref
     candidates.push({ url: `https://${host}/favicon.ico`, score: 24 });
     candidates.push({ url: `https://${host}/apple-touch-icon.png`, score: 16 });
     candidates.push({ url: getGoogleFaviconUrl(host), score: 8 });
+    candidates.push({ url: getFaviconIsUrl(host), score: 1 });
   }
   if (inputUrl) {
     candidates.push({ url: getChromeFaviconUrl(inputUrl), score: 12 });
@@ -2993,16 +3087,9 @@ async function getSearchSuggestions(query) {
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
-  const RI_SPRITE_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('remixicon.symbol.svg')
-    : 'remixicon.symbol.svg';
-  const INLINE_RI_SVG = {
-    'ri-search-line': '<g><path fill="none" d="M0 0h24v24H0z"/><path d="M18.031 16.617l4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0 1 11 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 0 1-1.969 5.617zm-2.006-.742A6.977 6.977 0 0 0 18 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 0 0 4.875-1.975l.15-.15z"/></g>',
-    'ri-arrow-right-line': '<g><path fill="none" d="M0 0h24v24H0z"/><path d="M16.172 11l-5.364-5.364 1.414-1.414L20 12l-7.778 7.778-1.414-1.414L16.172 13H4v-2z"/></g>',
-    'ri-window-2-line': '<g><path fill="none" d="M0 0h24v24H0z"/><path d="M3 3h18a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm17 8H4v8h16v-8zm0-2V5H4v4h16zm-5-3h4v2h-4V6z"/></g>',
-    'ri-add-line': '<g><path fill="none" d="M0 0h24v24H0z"/><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"/></g>',
-    'ri-settings-3-line': '<g><path fill="none" d="M0 0h24v24H0z"/><path d="M3.34 17a10.018 10.018 0 0 1-.978-2.326 3 3 0 0 0 .002-5.347A9.99 9.99 0 0 1 4.865 4.99a3 3 0 0 0 4.631-2.674 9.99 9.99 0 0 1 5.007.002 3 3 0 0 0 4.632 2.672c.579.59 1.093 1.261 1.525 2.01.433.749.757 1.53.978 2.326a3 3 0 0 0-.002 5.347 9.99 9.99 0 0 1-2.501 4.337 3 3 0 0 0-4.631 2.674 9.99 9.99 0 0 1-5.007-.002 3 3 0 0 0-4.632-2.672A10.018 10.018 0 0 1 3.34 17zm5.66.196a4.993 4.993 0 0 1 2.25 2.77c.499.047 1 .048 1.499.001A4.993 4.993 0 0 1 15 17.197a4.993 4.993 0 0 1 3.525-.565c.29-.408.54-.843.748-1.298A4.993 4.993 0 0 1 18 12c0-1.26.47-2.437 1.273-3.334a8.126 8.126 0 0 0-.75-1.298A4.993 4.993 0 0 1 15 6.804a4.993 4.993 0 0 1-2.25-2.77c-.499-.047-1-.048-1.499-.001A4.993 4.993 0 0 1 9 6.803a4.993 4.993 0 0 1-3.525.565 7.99 7.99 0 0 0-.748 1.298A4.993 4.993 0 0 1 6 12c0 1.26-.47 2.437-1.273 3.334a8.126 8.126 0 0 0 .75 1.298A4.993 4.993 0 0 1 9 17.196zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-2a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></g>'
-  };
+  const RI_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
+    ? chrome.runtime.getURL('remixicon/fonts/remixicon.css')
+    : 'remixicon/fonts/remixicon.css';
   const overlayMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let overlayThemeMode = 'system';
   let overlayThemeListenerAttached = false;
@@ -3077,38 +3164,22 @@ async function getSearchSuggestions(query) {
     searchTemplate: ''
   };
 
-  async function ensureInlineSprite() {
-    if (document.getElementById('_x_extension_remix_sprite_2024_unique_')) {
+  async function ensureRemixIconStyles() {
+    if (document.getElementById('_x_extension_remixicon_css_2024_unique_')) {
       return;
     }
-    try {
-      const response = await fetch(RI_SPRITE_URL);
-      if (!response.ok) {
-        return;
-      }
-      const text = await response.text();
-      const container = document.createElement('div');
-      container.innerHTML = text;
-      const svg = container.querySelector('svg');
-      if (!svg) {
-        return;
-      }
-      svg.setAttribute('id', '_x_extension_remix_sprite_2024_unique_');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.style.position = 'absolute';
-      svg.style.width = '0';
-      svg.style.height = '0';
-      svg.style.visibility = 'hidden';
-      const host = document.body || document.documentElement;
-      if (host) {
-        host.appendChild(svg);
-      }
-    } catch (e) {
+    const host = document.head || document.documentElement;
+    if (!host) {
       return;
     }
+    const link = document.createElement('link');
+    link.id = '_x_extension_remixicon_css_2024_unique_';
+    link.rel = 'stylesheet';
+    link.href = RI_CSS_URL;
+    host.appendChild(link);
   }
 
-  await ensureInlineSprite();
+  await ensureRemixIconStyles();
 
   function normalizeLocale(locale) {
     const raw = String(locale || '').trim();
@@ -3206,15 +3277,7 @@ async function getSearchSuggestions(query) {
   function getRiSvg(id, sizeClass, extraClass) {
     const size = sizeClass || 'ri-size-16';
     const extra = extraClass ? ` ${extraClass}` : '';
-    const inlineSprite = document.getElementById('_x_extension_remix_sprite_2024_unique_');
-    if (inlineSprite) {
-      return `<svg class="ri-icon ${size}${extra}" aria-hidden="true" focusable="false"><use href="#${id}"></use></svg>`;
-    }
-    const inline = INLINE_RI_SVG[id];
-    if (inline) {
-      return `<svg class="ri-icon ${size}${extra}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${inline}</svg>`;
-    }
-    return `<svg class="ri-icon ${size}${extra}" aria-hidden="true" focusable="false"><use href="${RI_SPRITE_URL}#${id}"></use></svg>`;
+    return `<i class="ri-icon ${size}${extra} ${id}" aria-hidden="true"></i>`;
   }
 
   function buildSearchUrlFromTemplate(template, query) {
@@ -3291,19 +3354,35 @@ async function getSearchSuggestions(query) {
 
 
   function isLocalNetworkHost(hostname) {
-    const host = String(hostname || '').toLowerCase();
+    const host = String(hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
     if (!host) {
       return false;
     }
-    if (host === 'localhost' || host.endsWith('.local')) {
+    if (
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local') ||
+      host === 'host.docker.internal'
+    ) {
       return true;
+    }
+    if (/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(host)) {
+      const shortParts = host.split('.').map((part) => Number(part));
+      if (shortParts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+        return true;
+      }
     }
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
       const parts = host.split('.').map((part) => Number(part));
       if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
         return false;
       }
-      if (parts[0] === 10 || parts[0] === 127) {
+      if (
+        parts[0] === 0 ||
+        parts[0] === 10 ||
+        parts[0] === 127 ||
+        (parts[0] === 169 && parts[1] === 254)
+      ) {
         return true;
       }
       if (parts[0] === 192 && parts[1] === 168) {
@@ -3312,6 +3391,23 @@ async function getSearchSuggestions(query) {
       if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) {
         return true;
       }
+      if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) {
+        return true;
+      }
+    }
+    const ipv6 = host.split('%')[0];
+    if (
+      ipv6 === '::1' ||
+      ipv6 === '0:0:0:0:0:0:0:1' ||
+      ipv6 === '::' ||
+      /^fe[89ab][0-9a-f]*:/i.test(ipv6) ||
+      /^[fd][0-9a-f]{1,3}:/i.test(ipv6)
+    ) {
+      return true;
+    }
+    const mappedIpv4 = ipv6.match(/::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+    if (mappedIpv4 && mappedIpv4[1]) {
+      return isLocalNetworkHost(mappedIpv4[1]);
     }
     return false;
   }
@@ -3321,28 +3417,26 @@ async function getSearchSuggestions(query) {
     if (!raw) {
       return false;
     }
-    const withoutScheme = raw.replace(/^https?:\/\//, '');
-    const host = withoutScheme.split('/')[0] || '';
-    if (!host) {
+    const withoutScheme = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+    const authority = withoutScheme.split(/[/?#]/)[0] || '';
+    const host = authority.includes('@') ? authority.split('@').pop() : authority;
+    const normalizedHost = (() => {
+      const value = String(host || '').trim().toLowerCase();
+      if (!value) {
+        return '';
+      }
+      if (value.startsWith('[')) {
+        const endBracket = value.indexOf(']');
+        if (endBracket > 1) {
+          return value.slice(1, endBracket);
+        }
+      }
+      return value.replace(/^\[|\]$/g, '').split(':')[0];
+    })();
+    if (!normalizedHost) {
       return false;
     }
-    if (host === 'localhost' || host.endsWith('.local')) {
-      return true;
-    }
-    const parts = host.split('.');
-    if (parts[0] === '10' || parts[0] === '127') {
-      return true;
-    }
-    if (parts.length >= 2 && parts[0] === '192' && parts[1] === '168') {
-      return true;
-    }
-    if (parts.length >= 2 && parts[0] === '172') {
-      const second = Number(parts[1]);
-      if (!Number.isNaN(second) && second >= 16 && second <= 31) {
-        return true;
-      }
-    }
-    return false;
+    return isLocalNetworkHost(normalizedHost);
   }
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
@@ -3506,8 +3600,11 @@ async function getSearchSuggestions(query) {
       #_x_extension_overlay_2024_unique_ .ri-icon {
         width: var(--ri-size, 16px);
         height: var(--ri-size, 16px);
-        display: inline-block;
-        fill: currentColor;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        font-size: var(--ri-size, 16px);
         flex-shrink: 0;
       }
       #_x_extension_overlay_2024_unique_ .ri-size-8 { --ri-size: 8px; }
@@ -4337,6 +4434,14 @@ async function getSearchSuggestions(query) {
       return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=128`;
     }
 
+    function getFaviconIsUrl(hostname) {
+      const normalized = normalizeFaviconHost(hostname);
+      if (!normalized) {
+        return '';
+      }
+      return `https://favicon.is/${encodeURIComponent(normalized)}`;
+    }
+
     function getBrandAccentForHost(hostname) {
       const host = String(hostname || '').toLowerCase();
       if (!host) {
@@ -4723,8 +4828,23 @@ async function getSearchSuggestions(query) {
           return raw;
         }
       })();
-      const localPattern = /(https?:\/\/)?(localhost|127(?:\.\d{1,3}){0,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?::\d+)?(?:[/?#]|$)/i;
-      if (localPattern.test(decodedRaw)) {
+      const withoutScheme = decodedRaw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+      const authority = withoutScheme.split(/[/?#]/)[0] || '';
+      const hostCandidateRaw = authority.includes('@') ? authority.split('@').pop() : authority;
+      const hostCandidate = (() => {
+        const value = String(hostCandidateRaw || '').trim().toLowerCase();
+        if (!value) {
+          return '';
+        }
+        if (value.startsWith('[')) {
+          const endBracket = value.indexOf(']');
+          if (endBracket > 1) {
+            return value.slice(1, endBracket);
+          }
+        }
+        return value.replace(/^\[|\]$/g, '').split(':')[0];
+      })();
+      if (hostCandidate && isLocalNetworkHost(hostCandidate)) {
         return true;
       }
       try {
@@ -5210,7 +5330,7 @@ async function getSearchSuggestions(query) {
             if (isLocalNetworkHost(hostname)) {
               return '';
             }
-            return getGoogleFaviconUrl(hostname);
+            return getGoogleFaviconUrl(hostname) || getFaviconIsUrl(hostname);
           }
         } catch (e) {
           // Ignore malformed URLs.
@@ -5519,7 +5639,7 @@ async function getSearchSuggestions(query) {
       try {
         const url = template.replace(/\{query\}/g, 'test');
         const hostname = normalizeHost(new URL(url).hostname);
-        return getGoogleFaviconUrl(hostname);
+        return getGoogleFaviconUrl(hostname) || getFaviconIsUrl(hostname);
       } catch (e) {
         return '';
       }

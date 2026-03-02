@@ -1,7 +1,10 @@
 (function() {
   const panel = document.getElementById('_x_extension_settings_panel_2024_unique_');
-  const themeButtons = Array.from(document.querySelectorAll('._x_extension_theme_option_2024_unique_'));
-  const themePicker = document.querySelector('._x_extension_theme_picker_2024_unique_');
+  const appearanceContent = document.querySelector('._x_extension_settings_content_2024_unique_[data-content="appearance"]');
+  const themePicker = appearanceContent
+    ? appearanceContent.querySelector('._x_extension_theme_picker_2024_unique_')
+    : null;
+  const themeButtons = themePicker ? Array.from(themePicker.querySelectorAll('._x_extension_theme_option_2024_unique_')) : [];
   const themeIndicator = themePicker ? themePicker.querySelector('._x_extension_theme_indicator_2024_unique_') : null;
   const tabButtons = Array.from(document.querySelectorAll('._x_extension_settings_tab_button_2024_unique_'));
   const tabContents = Array.from(document.querySelectorAll('._x_extension_settings_content_2024_unique_'));
@@ -10,13 +13,14 @@
   const settingsVersion = document.getElementById('_x_extension_settings_version_2024_unique_');
   const languageSelect = document.getElementById('_x_extension_language_select_2024_unique_');
   const recentModeSelect = document.getElementById('_x_extension_recent_mode_select_2024_unique_');
+  const recentModeTabButtons = Array.from(document.querySelectorAll('button[data-recent-mode]'));
+  const recentModeTabsWrap = document.getElementById('_x_extension_recent_mode_tabs_wrap_2024_unique_');
+  const recentModeTabsIndicator = recentModeTabsWrap
+    ? recentModeTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
-  const wallpaperFitSelect = document.getElementById('_x_extension_wallpaper_fit_select_2024_unique_');
-  const wallpaperUploadButton = document.getElementById('_x_extension_wallpaper_upload_2024_unique_');
-  const wallpaperRemoveButton = document.getElementById('_x_extension_wallpaper_remove_2024_unique_');
-  const wallpaperUploadInput = document.getElementById('_x_extension_wallpaper_upload_input_2024_unique_');
-  const wallpaperStatus = document.getElementById('_x_extension_wallpaper_status_2024_unique_');
+  const autoPipToggle = document.getElementById('_x_extension_auto_pip_toggle_2024_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
@@ -25,7 +29,16 @@
   const syncExportButton = document.getElementById('_x_extension_sync_export_2024_unique_');
   const syncImportButton = document.getElementById('_x_extension_sync_import_2024_unique_');
   const syncImportInput = document.getElementById('_x_extension_sync_import_input_2024_unique_');
-  const openShortcutsButton = document.getElementById('_x_extension_open_shortcuts_2024_unique_');
+  const fallbackShortcutInput = document.getElementById('_x_extension_shortcuts_input_2024_unique_');
+  const fallbackShortcutTokens = document.getElementById('_x_extension_shortcuts_tokens_2024_unique_');
+  const fallbackShortcutWrap = document.querySelector('._x_extension_shortcuts_hotkey_wrap_2024_unique_');
+  const restrictedActionSelectWrap = document.getElementById('_x_extension_restricted_action_tabs_wrap_2024_unique_');
+  const restrictedActionTabButtons = Array.from(document.querySelectorAll('button[data-restricted-action]'));
+  const restrictedActionTabsIndicator = restrictedActionSelectWrap
+    ? restrictedActionSelectWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
+  const clearShortcutButton = document.getElementById('_x_extension_clear_shortcut_2024_unique_');
+  const resetShortcutButton = document.getElementById('_x_extension_reset_shortcut_2024_unique_');
   const shortcutsStatus = document.getElementById('_x_extension_shortcuts_status_2024_unique_');
   const customSelectWraps = Array.from(document.querySelectorAll('._x_extension_custom_select_2024_unique_'));
   const siteSearchCustomList = document.getElementById('_x_extension_site_search_custom_list_2024_unique_');
@@ -66,13 +79,9 @@
     ? (localStorageArea === (chrome && chrome.storage ? chrome.storage.local : null) ? 'local' : storageAreaName)
     : null;
 
-  const RI_SPRITE_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('remixicon.symbol.svg')
-    : 'remixicon.symbol.svg';
-
   function getRiSvg(id, sizeClass) {
     const size = sizeClass || 'ri-size-12';
-    return `<svg class="ri-icon ${size}" aria-hidden="true" focusable="false"><use href="${RI_SPRITE_URL}#${id}"></use></svg>`;
+    return `<i class="ri-icon ${size} ${id}" aria-hidden="true"></i>`;
   }
 
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
@@ -81,18 +90,14 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
+  const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
+  const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SYNC_META_KEY = '_x_extension_sync_meta_2024_unique_';
-  const NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY = '_x_extension_newtab_wallpaper_settings_2024_unique_';
-  const NEWTAB_WALLPAPER_DATA_STORAGE_KEY = '_x_extension_newtab_wallpaper_data_2024_unique_';
-  const WALLPAPER_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
-  const WALLPAPER_EXPORT_MAX_DATA_URL_LENGTH = 900 * 1024;
-  const WALLPAPER_MAX_EDGE = 2560;
-  const WALLPAPER_MIN_QUALITY = 0.58;
   const SYNC_KEYS = [
     THEME_STORAGE_KEY,
     LANGUAGE_STORAGE_KEY,
@@ -100,14 +105,18 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
+    AUTO_PIP_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
+    FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
-    DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
-    NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY
+    DEFAULT_SEARCH_ENGINE_STORAGE_KEY
   ];
   const DEBUG_DUPLICATE_CUSTOM_KEY = 'dup';
+  const isMacPlatform = String((navigator && navigator.platform) || '').toLowerCase().includes('mac');
+  const FORCE_TEXT_KEYCAPS_ON_MAC = false;
+  const FORCE_OVERLAY_TAB_QUICK_SWITCH_ENABLED = true;
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let mediaListenerAttached = false;
   let defaultSiteSearchProviders = [];
@@ -126,13 +135,11 @@
   let siteSearchRefreshSuppressUntil = 0;
   let siteSearchRefreshTimer = null;
   let currentShortcutLabel = null;
-  let currentWallpaperSettings = {
-    enabled: false,
-    source: 'none',
-    fit: 'cover',
-    updatedAt: 0
-  };
-  let hasWallpaperData = false;
+  let isCapturingFallbackShortcut = false;
+  let cancelCaptureOnMouseLeave = false;
+  let fallbackCaptureStopTimer = null;
+  let fallbackShortcutBaseWidth = 0;
+  let isFallbackWidthReady = false;
   const fallbackSiteSearchProviders = [
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
@@ -212,6 +219,9 @@
   }
 
   function normalizeOverlayTabQuickSwitch(value) {
+    if (FORCE_OVERLAY_TAB_QUICK_SWITCH_ENABLED) {
+      return true;
+    }
     if (value === 'switchTabFirst') {
       return true;
     }
@@ -224,38 +234,63 @@
     return true;
   }
 
-  function normalizeWallpaperFit(value) {
-    return value === 'contain' ? 'contain' : 'cover';
+  function normalizeAutoPipEnabled(value) {
+    return value !== false;
   }
 
-  function normalizeWallpaperSettings(value) {
-    const next = {
-      enabled: false,
-      source: 'none',
-      fit: 'cover',
-      updatedAt: 0
-    };
-    if (!value || typeof value !== 'object') {
-      return next;
+  function updateInlineTabsIndicator(wrapper, indicator, activeSelector) {
+    if (!wrapper || !indicator) {
+      return;
     }
-    const source = value.source === 'upload-local' ? 'upload-local' : 'none';
-    next.source = source;
-    next.enabled = Boolean(value.enabled) && source !== 'none';
-    next.fit = normalizeWallpaperFit(value.fit);
-    const updatedAt = Number.parseInt(value.updatedAt, 10);
-    next.updatedAt = Number.isFinite(updatedAt) ? updatedAt : 0;
-    if (!next.enabled) {
-      next.source = 'none';
+    const activeButton = wrapper.querySelector(activeSelector);
+    if (!activeButton) {
+      indicator.style.width = '0px';
+      return;
     }
-    return next;
+    const containerRect = wrapper.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    const inset = 3;
+    const offset = Math.round(buttonRect.left - containerRect.left - inset);
+    indicator.style.width = `${Math.round(buttonRect.width)}px`;
+    indicator.style.transform = `translateX(${offset}px)`;
   }
 
-  function isSameWallpaperSettings(a, b) {
-    return Boolean(a && b) &&
-      Boolean(a.enabled) === Boolean(b.enabled) &&
-      String(a.source || '') === String(b.source || '') &&
-      normalizeWallpaperFit(a.fit) === normalizeWallpaperFit(b.fit) &&
-      Number.parseInt(a.updatedAt, 10) === Number.parseInt(b.updatedAt, 10);
+  function updateRecentModeTabsIndicator() {
+    updateInlineTabsIndicator(
+      recentModeTabsWrap,
+      recentModeTabsIndicator,
+      'button[data-recent-mode][data-active="true"]'
+    );
+  }
+
+  function updateRestrictedActionTabsIndicator() {
+    updateInlineTabsIndicator(
+      restrictedActionSelectWrap,
+      restrictedActionTabsIndicator,
+      'button[data-restricted-action][data-active="true"]'
+    );
+  }
+
+  function setRecentModeTabState(mode) {
+    const nextMode = mode === 'most' ? 'most' : 'latest';
+    recentModeTabButtons.forEach((button) => {
+      const buttonMode = button.getAttribute('data-recent-mode') === 'most' ? 'most' : 'latest';
+      const active = buttonMode === nextMode;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(updateRecentModeTabsIndicator);
+  }
+
+  function setRestrictedActionTabState(action) {
+    const nextAction = action === 'none' ? 'none' : 'default';
+    restrictedActionTabButtons.forEach((button) => {
+      const buttonAction = button.getAttribute('data-restricted-action') === 'none' ? 'none' : 'default';
+      const active = buttonAction === nextAction;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(updateRestrictedActionTabsIndicator);
   }
 
   function storageGet(area, keys) {
@@ -355,6 +390,10 @@
         node.setAttribute('aria-label', message);
       }
     });
+    if (fallbackShortcutInput && fallbackShortcutTokens) {
+      fallbackShortcutTokens.setAttribute('data-placeholder', fallbackShortcutInput.getAttribute('placeholder') || '');
+      renderFallbackShortcutTokens(currentShortcutLabel || '');
+    }
   }
 
   function ensureTooltipElement() {
@@ -565,210 +604,48 @@
       }
       buildCustomSelectMenu(select, wrapper);
     });
+    syncFallbackShortcutWrapWidth();
   }
 
-  function updateWallpaperStatus(statusKey, fallback) {
-    if (!wallpaperStatus) {
+  function syncFallbackShortcutWrapWidth() {
+    if (!fallbackShortcutWrap || !restrictedActionSelectWrap) {
       return;
     }
-    wallpaperStatus.setAttribute('data-i18n', statusKey);
-    wallpaperStatus.textContent = getMessage(statusKey, fallback);
+    const width = Math.round(restrictedActionSelectWrap.getBoundingClientRect().width);
+    if (!Number.isFinite(width) || width <= 0) {
+      return;
+    }
+    fallbackShortcutBaseWidth = width;
+    updateFallbackShortcutWrapWidthForContent();
   }
 
-  function updateWallpaperControls() {
-    if (wallpaperFitSelect) {
-      const fit = normalizeWallpaperFit(currentWallpaperSettings.fit);
-      if (wallpaperFitSelect.value !== fit) {
-        wallpaperFitSelect.value = fit;
-        refreshCustomSelects();
+  function updateFallbackShortcutWrapWidthForContent() {
+    if (!fallbackShortcutWrap) {
+      return;
+    }
+    const fallbackBase = Math.max(120, Number.isFinite(fallbackShortcutBaseWidth) ? fallbackShortcutBaseWidth : 0);
+    let nextWidth = fallbackBase || Math.round(fallbackShortcutWrap.getBoundingClientRect().width) || 180;
+    if (fallbackShortcutTokens) {
+      const tokenEls = Array.from(fallbackShortcutTokens.children || []);
+      if (tokenEls.length > 0) {
+        const style = window.getComputedStyle(fallbackShortcutTokens);
+        const gap = Number.parseFloat(style.columnGap || style.gap) || 0;
+        const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+        const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+        const contentWidth = tokenEls.reduce((sum, el) => sum + Math.ceil(el.getBoundingClientRect().width), 0)
+          + Math.max(0, tokenEls.length - 1) * gap;
+        const requiredWidth = Math.ceil(contentWidth + paddingLeft + paddingRight + 2);
+        nextWidth = Math.max(nextWidth, requiredWidth);
       }
     }
-    const canRemove = hasWallpaperData || currentWallpaperSettings.enabled;
-    if (wallpaperRemoveButton) {
-      wallpaperRemoveButton.setAttribute('data-disabled', canRemove ? 'false' : 'true');
-    }
-    if (!currentWallpaperSettings.enabled || currentWallpaperSettings.source === 'none') {
-      updateWallpaperStatus('settings_wallpaper_status_none', '未上传壁纸');
-      return;
-    }
-    if (currentWallpaperSettings.source === 'upload-local' && hasWallpaperData) {
-      const key = storageAreaName === 'sync'
-        ? 'settings_wallpaper_status_local_only'
-        : 'settings_wallpaper_status_ready';
-      const fallback = storageAreaName === 'sync'
-        ? '已上传壁纸（仅此设备）'
-        : '已上传壁纸';
-      updateWallpaperStatus(key, fallback);
-      return;
-    }
-    updateWallpaperStatus('settings_wallpaper_status_missing', '壁纸文件缺失，请重新上传');
-  }
-
-  function setWallpaperBusy(isBusy) {
-    const busy = Boolean(isBusy);
-    if (wallpaperUploadButton) {
-      wallpaperUploadButton.setAttribute('data-disabled', 'true');
-    }
-    if (wallpaperRemoveButton) {
-      const canRemove = hasWallpaperData || currentWallpaperSettings.enabled;
-      wallpaperRemoveButton.setAttribute('data-disabled', (!canRemove || busy) ? 'true' : 'false');
-    }
-    if (busy) {
-      updateWallpaperStatus('settings_wallpaper_status_processing', '处理中...');
-    } else {
-      updateWallpaperControls();
-    }
-  }
-
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('file-read-failed'));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function loadImageFromDataUrl(dataUrl) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('image-decode-failed'));
-      img.src = dataUrl;
-    });
-  }
-
-  async function compressWallpaperDataUrl(dataUrl) {
-    const image = await loadImageFromDataUrl(dataUrl);
-    let width = Number.isFinite(image.naturalWidth) ? image.naturalWidth : 0;
-    let height = Number.isFinite(image.naturalHeight) ? image.naturalHeight : 0;
-    if (width <= 0 || height <= 0) {
-      throw new Error('image-size-invalid');
-    }
-
-    const maxEdge = Math.max(width, height);
-    if (maxEdge > WALLPAPER_MAX_EDGE) {
-      const scale = WALLPAPER_MAX_EDGE / maxEdge;
-      width = Math.max(1, Math.round(width * scale));
-      height = Math.max(1, Math.round(height * scale));
-    }
-
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d', { alpha: false });
-    if (!context) {
-      throw new Error('canvas-unavailable');
-    }
-    canvas.width = width;
-    canvas.height = height;
-    context.drawImage(image, 0, 0, width, height);
-
-    let quality = 0.86;
-    let nextDataUrl = canvas.toDataURL('image/webp', quality);
-    while (nextDataUrl.length > WALLPAPER_EXPORT_MAX_DATA_URL_LENGTH && quality > WALLPAPER_MIN_QUALITY) {
-      quality -= 0.08;
-      nextDataUrl = canvas.toDataURL('image/webp', quality);
-    }
-    if (nextDataUrl.length > WALLPAPER_EXPORT_MAX_DATA_URL_LENGTH) {
-      throw new Error('wallpaper-too-large-after-compress');
-    }
-    return nextDataUrl;
-  }
-
-  function getWallpaperSettingsArea() {
-    return storageArea || localStorageArea;
-  }
-
-  async function loadWallpaperFromStorage() {
-    const settingsArea = getWallpaperSettingsArea();
-    const [settingsResult, dataResult] = await Promise.all([
-      storageGet(settingsArea, [NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]),
-      storageGet(localStorageArea, [NEWTAB_WALLPAPER_DATA_STORAGE_KEY])
-    ]);
-    const rawSettings = settingsResult[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY];
-    const normalized = normalizeWallpaperSettings(rawSettings);
-    if (typeof rawSettings !== 'undefined' && !isSameWallpaperSettings(rawSettings, normalized)) {
-      storageSet(settingsArea, {
-        [NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]: normalized
-      }).catch(() => {});
-    }
-    const dataUrl = dataResult[NEWTAB_WALLPAPER_DATA_STORAGE_KEY];
-    hasWallpaperData = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/');
-    currentWallpaperSettings = normalized;
-    updateWallpaperControls();
-  }
-
-  async function saveWallpaperSettings(nextSettings) {
-    const settingsArea = getWallpaperSettingsArea();
-    const normalized = normalizeWallpaperSettings(nextSettings);
-    await storageSet(settingsArea, {
-      [NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]: normalized
-    });
-    currentWallpaperSettings = normalized;
-    updateWallpaperControls();
-  }
-
-  async function handleWallpaperUpload(file) {
-    // Temporarily disable wallpaper upload path.
-    // if (!file) {
-    //   return;
-    // }
-    // const mime = String(file.type || '').toLowerCase();
-    // if (!mime.startsWith('image/')) {
-    //   showToast(getMessage('settings_wallpaper_error_type', '请上传图片文件（JPG / PNG / WEBP）。'), true);
-    //   return;
-    // }
-    // if (Number.isFinite(file.size) && file.size > WALLPAPER_UPLOAD_MAX_BYTES) {
-    //   showToast(getMessage('settings_wallpaper_error_oversize', '图片太大，请上传 8MB 以内文件。'), true);
-    //   return;
-    // }
-    //
-    // setWallpaperBusy(true);
-    // try {
-    //   const sourceDataUrl = await readFileAsDataUrl(file);
-    //   const compressedDataUrl = await compressWallpaperDataUrl(sourceDataUrl);
-    //   await storageSet(localStorageArea, {
-    //     [NEWTAB_WALLPAPER_DATA_STORAGE_KEY]: compressedDataUrl
-    //   });
-    //   const nextFit = normalizeWallpaperFit(wallpaperFitSelect ? wallpaperFitSelect.value : currentWallpaperSettings.fit);
-    //   await saveWallpaperSettings({
-    //     enabled: true,
-    //     source: 'upload-local',
-    //     fit: nextFit,
-    //     updatedAt: Date.now()
-    //   });
-    //   hasWallpaperData = true;
-    //   setWallpaperBusy(false);
-    //   showToast(getMessage('settings_wallpaper_upload_done', '壁纸已更新'), false);
-    // } catch (error) {
-    //   setWallpaperBusy(false);
-    //   const message = (error && error.message === 'wallpaper-too-large-after-compress')
-    //     ? getMessage('settings_wallpaper_error_oversize_after_compress', '图片过大，请换一张更小的图片。')
-    //     : getMessage('settings_wallpaper_error_save', '壁纸保存失败，请重试');
-    //   showToast(message, true);
-    // }
-    if (!file) {
-      return;
-    }
-    showToast('上传壁纸功能暂时关闭', true);
-  }
-
-  async function removeWallpaper() {
-    setWallpaperBusy(true);
-    try {
-      await storageRemove(localStorageArea, NEWTAB_WALLPAPER_DATA_STORAGE_KEY);
-      const nextFit = normalizeWallpaperFit(wallpaperFitSelect ? wallpaperFitSelect.value : currentWallpaperSettings.fit);
-      await saveWallpaperSettings({
-        enabled: false,
-        source: 'none',
-        fit: nextFit,
-        updatedAt: Date.now()
+    fallbackShortcutWrap.style.width = `${nextWidth}px`;
+    if (!isFallbackWidthReady) {
+      requestAnimationFrame(() => {
+        isFallbackWidthReady = true;
+        if (fallbackShortcutWrap) {
+          fallbackShortcutWrap.setAttribute('data-width-ready', 'true');
+        }
       });
-      hasWallpaperData = false;
-      setWallpaperBusy(false);
-      showToast(getMessage('settings_wallpaper_remove_done', '壁纸已移除'), false);
-    } catch (error) {
-      setWallpaperBusy(false);
-      showToast(getMessage('settings_wallpaper_error_save', '壁纸保存失败，请重试'), true);
     }
   }
 
@@ -1262,13 +1139,14 @@
       requestAnimationFrame(() => {
         updateTabIndicator();
         updateThemeIndicator();
+        updateRecentModeTabsIndicator();
+        updateRestrictedActionTabsIndicator();
       });
       setEditingState(editingSiteSearchKey);
       updateBuiltinResetTooltip();
       updateCustomClearTooltip();
       refreshSyncStatus();
       refreshShortcutsStatus();
-      updateWallpaperControls();
       if (confirmCancel) confirmCancel.textContent = getMessage('confirm_cancel', '取消');
       if (confirmOk) confirmOk.textContent = getMessage('confirm_ok', '确认');
       renderSiteSearchList();
@@ -1298,18 +1176,403 @@
     });
   }
 
+  function getDefaultFallbackShortcut() {
+    return isMacPlatform ? 'Command+T' : 'Ctrl+T';
+  }
 
-  function loadCurrentShortcut() {
-    if (!chrome || !chrome.commands || !chrome.commands.getAll) {
-      currentShortcutLabel = null;
-      refreshShortcutsStatus();
+  function isReservedBrowserShortcut(shortcut) {
+    return false;
+  }
+
+  function normalizeShortcutKeyToken(rawKey) {
+    const value = String(rawKey || '').trim();
+    if (!value) {
+      return '';
+    }
+    const lower = value.toLowerCase();
+    const aliasMap = {
+      tab: 'Tab',
+      enter: 'Enter',
+      return: 'Enter',
+      esc: 'Escape',
+      escape: 'Escape',
+      space: 'Space',
+      spacebar: 'Space',
+      up: 'ArrowUp',
+      down: 'ArrowDown',
+      left: 'ArrowLeft',
+      right: 'ArrowRight',
+      comma: 'Comma',
+      period: 'Period',
+      slash: 'Slash',
+      semicolon: 'Semicolon',
+      quote: 'Quote',
+      minus: 'Minus',
+      plus: 'Plus',
+      backslash: 'Backslash',
+      backquote: 'Backquote',
+      bracketleft: 'BracketLeft',
+      bracketright: 'BracketRight'
+    };
+    if (aliasMap[lower]) {
+      return aliasMap[lower];
+    }
+    if (/^f\d{1,2}$/.test(lower)) {
+      return lower.toUpperCase();
+    }
+    if (value.length === 1) {
+      const charMap = {
+        ' ': 'Space',
+        ',': 'Comma',
+        '<': 'Comma',
+        '.': 'Period',
+        '>': 'Period',
+        '/': 'Slash',
+        '?': 'Slash',
+        ';': 'Semicolon',
+        ':': 'Semicolon',
+        '\'': 'Quote',
+        '"': 'Quote',
+        '-': 'Minus',
+        '_': 'Minus',
+        '+': 'Plus',
+        '\\': 'Backslash',
+        '|': 'Backslash',
+        '`': 'Backquote',
+        '[': 'BracketLeft',
+        '{': 'BracketLeft',
+        ']': 'BracketRight',
+        '}': 'BracketRight'
+      };
+      if (charMap[value]) {
+        return charMap[value];
+      }
+      if (/^[a-z0-9]$/i.test(value)) {
+        return value.toUpperCase();
+      }
+    }
+    return '';
+  }
+
+  function normalizeFallbackShortcut(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+      return '';
+    }
+    const parts = text
+      .split('+')
+      .map((token) => String(token || '').trim())
+      .filter(Boolean);
+    if (parts.length < 2) {
+      return '';
+    }
+    const keyToken = normalizeShortcutKeyToken(parts.pop());
+    if (!keyToken) {
+      return '';
+    }
+    const modifierState = {
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false
+    };
+    for (const token of parts) {
+      const lower = token.toLowerCase();
+      if (lower === 'ctrl' || lower === 'control' || lower === 'macctrl') {
+        modifierState.ctrl = true;
+      } else if (lower === 'alt' || lower === 'option') {
+        modifierState.alt = true;
+      } else if (lower === 'shift') {
+        modifierState.shift = true;
+      } else if (lower === 'command' || lower === 'cmd' || lower === 'meta' || lower === 'super') {
+        modifierState.meta = true;
+      } else {
+        return '';
+      }
+    }
+    const hasModifier = modifierState.ctrl || modifierState.alt || modifierState.shift || modifierState.meta;
+    if (!hasModifier) {
+      return '';
+    }
+    const normalized = [];
+    if (modifierState.ctrl) normalized.push('Ctrl');
+    if (modifierState.alt) normalized.push('Alt');
+    if (modifierState.shift) normalized.push('Shift');
+    if (modifierState.meta) normalized.push('Command');
+    normalized.push(keyToken);
+    return normalized.join('+');
+  }
+
+  function buildShortcutFromEvent(event) {
+    if (!event) {
+      return '';
+    }
+    const key = String(event.key || '');
+    if (!key || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta' || key === 'AltGraph') {
+      return '';
+    }
+    const keyToken = normalizeShortcutKeyToken(key);
+    if (!keyToken) {
+      return '';
+    }
+    const modifiers = [];
+    if (event.ctrlKey) modifiers.push('Ctrl');
+    if (event.altKey) modifiers.push('Alt');
+    if (event.shiftKey) modifiers.push('Shift');
+    if (event.metaKey) modifiers.push('Command');
+    if (modifiers.length === 0) {
+      return '';
+    }
+    modifiers.push(keyToken);
+    return modifiers.join('+');
+  }
+
+  function formatShortcutForDisplay(shortcut) {
+    const normalized = normalizeFallbackShortcut(shortcut);
+    if (!normalized) {
+      return '';
+    }
+    if (!isMacPlatform) {
+      return normalized;
+    }
+    const parts = normalized.split('+').filter(Boolean);
+    if (parts.length === 0) {
+      return normalized;
+    }
+    const keyToken = parts.pop();
+    const modifierSymbols = [];
+    parts.forEach((token) => {
+      if (token === 'Ctrl') modifierSymbols.push('⌃');
+      else if (token === 'Alt') modifierSymbols.push('⌥');
+      else if (token === 'Shift') modifierSymbols.push('⇧');
+      else if (token === 'Command') modifierSymbols.push('⌘');
+    });
+    const keyMap = {
+      ArrowUp: '↑',
+      ArrowDown: '↓',
+      ArrowLeft: '←',
+      ArrowRight: '→',
+      Enter: '↩',
+      Escape: '⎋',
+      Tab: '⇥',
+      Space: 'Space',
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Semicolon: ';',
+      Quote: '\'',
+      Minus: '-',
+      Plus: '+',
+      Backslash: '\\',
+      Backquote: '`',
+      BracketLeft: '[',
+      BracketRight: ']'
+    };
+    const keyLabel = keyMap[keyToken] || keyToken;
+    return `${modifierSymbols.join('')}${keyLabel}`;
+  }
+
+  function getShortcutDisplayTokens(shortcut) {
+    const normalized = normalizeFallbackShortcut(shortcut);
+    if (!normalized) {
+      return [];
+    }
+    const shouldUseMacSymbols = isMacPlatform && !FORCE_TEXT_KEYCAPS_ON_MAC;
+    const parts = normalized.split('+').filter(Boolean);
+    if (parts.length === 0) {
+      return [];
+    }
+    const keyToken = parts.pop();
+    const tokens = [];
+    parts.forEach((token) => {
+      if (!shouldUseMacSymbols) {
+        tokens.push(token === 'Command' ? 'Cmd' : token);
+        return;
+      }
+      if (token === 'Ctrl') tokens.push('⌃');
+      else if (token === 'Alt') tokens.push('⌥');
+      else if (token === 'Shift') tokens.push('⇧');
+      else if (token === 'Command') tokens.push('⌘');
+    });
+    const keyMapMac = {
+      ArrowUp: '↑',
+      ArrowDown: '↓',
+      ArrowLeft: '←',
+      ArrowRight: '→',
+      Enter: '↩',
+      Escape: '⎋',
+      Tab: '⇥',
+      Space: 'Space',
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Semicolon: ';',
+      Quote: '\'',
+      Minus: '-',
+      Plus: '+',
+      Backslash: '\\',
+      Backquote: '`',
+      BracketLeft: '[',
+      BracketRight: ']'
+    };
+    const keyMapDefault = {
+      ArrowUp: 'Up',
+      ArrowDown: 'Down',
+      ArrowLeft: 'Left',
+      ArrowRight: 'Right',
+      Escape: 'Esc',
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Semicolon: ';',
+      Quote: '\'',
+      Minus: '-',
+      Plus: '+',
+      Backslash: '\\',
+      Backquote: '`',
+      BracketLeft: '[',
+      BracketRight: ']'
+    };
+    const keyLabel = shouldUseMacSymbols
+      ? (keyMapMac[keyToken] || keyToken)
+      : (keyMapDefault[keyToken] || keyToken);
+    tokens.push(keyLabel);
+    return tokens.map((token) => {
+      const text = String(token || '');
+      return text.length > 1 ? text.toUpperCase() : text;
+    });
+  }
+
+  function renderFallbackShortcutTokens(shortcut, animate) {
+    if (!fallbackShortcutTokens) {
       return;
     }
-    chrome.commands.getAll((commands) => {
-      const items = Array.isArray(commands) ? commands : [];
-      const showSearch = items.find((command) => command && command.name === 'show-search');
-      currentShortcutLabel = showSearch && showSearch.shortcut ? showSearch.shortcut : null;
-      refreshShortcutsStatus();
+    const shouldAnimate = Boolean(animate);
+    const tokens = getShortcutDisplayTokens(shortcut);
+    fallbackShortcutTokens.innerHTML = '';
+    const emptyPlaceholder = isCapturingFallbackShortcut
+      ? (fallbackShortcutInput ? (fallbackShortcutInput.getAttribute('placeholder') || '') : '')
+      : getMessage('settings_shortcuts_empty_state', '无');
+    fallbackShortcutTokens.setAttribute('data-placeholder', emptyPlaceholder);
+    if (tokens.length === 0) {
+      fallbackShortcutTokens.setAttribute('data-empty', 'true');
+      updateFallbackShortcutWrapWidthForContent();
+      return;
+    }
+    fallbackShortcutTokens.setAttribute('data-empty', 'false');
+    const pendingAnimatedTokens = [];
+    tokens.forEach((label, index) => {
+      const tokenEl = document.createElement('span');
+      tokenEl.className = '_x_extension_shortcuts_hotkey_token_2024_unique_';
+      const textLabel = String(label || '');
+      if (textLabel.length > 1) {
+        const minWidth = Math.max(17, Math.round(textLabel.length * 7.5 + 12));
+        tokenEl.style.minWidth = `${minWidth}px`;
+      }
+      if (shouldAnimate) {
+        tokenEl.style.animationDelay = `${index * 36}ms`;
+        pendingAnimatedTokens.push(tokenEl);
+      }
+      tokenEl.textContent = label;
+      fallbackShortcutTokens.appendChild(tokenEl);
+    });
+    if (shouldAnimate && pendingAnimatedTokens.length > 0) {
+      requestAnimationFrame(() => {
+        pendingAnimatedTokens.forEach((tokenEl) => {
+          tokenEl.classList.add('_x_extension_shortcuts_hotkey_token_pop_2024_unique_');
+        });
+      });
+    }
+    updateFallbackShortcutWrapWidthForContent();
+  }
+
+  function setFallbackShortcutLabel(value, animate) {
+    currentShortcutLabel = value || '';
+    if (fallbackShortcutInput) {
+      fallbackShortcutInput.value = '';
+    }
+    renderFallbackShortcutTokens(currentShortcutLabel, animate);
+    updateFallbackShortcutResetVisibility();
+    refreshShortcutsStatus();
+  }
+
+  function updateFallbackShortcutResetVisibility() {
+    if (!resetShortcutButton) {
+      return;
+    }
+    const normalizedCurrent = normalizeFallbackShortcut(currentShortcutLabel || '');
+    const normalizedDefault = normalizeFallbackShortcut(getDefaultFallbackShortcut());
+    const canReset = normalizedCurrent !== normalizedDefault;
+    resetShortcutButton.setAttribute('data-can-reset', canReset ? 'true' : 'false');
+    if (canReset) {
+      resetShortcutButton.removeAttribute('disabled');
+    } else {
+      resetShortcutButton.setAttribute('disabled', 'disabled');
+    }
+  }
+
+  function stopFallbackShortcutCapture() {
+    if (fallbackCaptureStopTimer) {
+      clearTimeout(fallbackCaptureStopTimer);
+      fallbackCaptureStopTimer = null;
+    }
+    isCapturingFallbackShortcut = false;
+    cancelCaptureOnMouseLeave = false;
+    if (fallbackShortcutWrap) {
+      fallbackShortcutWrap.removeAttribute('data-capturing');
+    }
+    if (fallbackShortcutInput && document.activeElement === fallbackShortcutInput) {
+      fallbackShortcutInput.blur();
+    }
+    if (!currentShortcutLabel) {
+      renderFallbackShortcutTokens('');
+    }
+  }
+
+  function stopFallbackShortcutCaptureDeferred(delayMs) {
+    if (fallbackCaptureStopTimer) {
+      clearTimeout(fallbackCaptureStopTimer);
+      fallbackCaptureStopTimer = null;
+    }
+    fallbackCaptureStopTimer = setTimeout(() => {
+      fallbackCaptureStopTimer = null;
+      stopFallbackShortcutCapture();
+    }, Math.max(0, Number(delayMs) || 0));
+  }
+
+  function persistFallbackShortcut(value, onDone) {
+    if (!storageArea) {
+      if (typeof onDone === 'function') {
+        onDone(true);
+      }
+      return;
+    }
+    storageArea.set({ [FALLBACK_SHORTCUT_STORAGE_KEY]: value }, () => {
+      const ok = !(chrome.runtime && chrome.runtime.lastError);
+      if (typeof onDone === 'function') {
+        onDone(ok);
+      }
+    });
+  }
+
+
+  function loadCurrentShortcut() {
+    const defaultShortcut = getDefaultFallbackShortcut();
+    if (!storageArea) {
+      setFallbackShortcutLabel(defaultShortcut);
+      return;
+    }
+    storageArea.get([FALLBACK_SHORTCUT_STORAGE_KEY], (result) => {
+      const hasStored = Boolean(result && Object.prototype.hasOwnProperty.call(result, FALLBACK_SHORTCUT_STORAGE_KEY));
+      const stored = hasStored ? result[FALLBACK_SHORTCUT_STORAGE_KEY] : '';
+      const normalized = normalizeFallbackShortcut(stored);
+      const nextValue = hasStored
+        ? ((normalized && !isReservedBrowserShortcut(normalized)) ? normalized : '')
+        : defaultShortcut;
+      setFallbackShortcutLabel(nextValue);
+      if (hasStored && stored && normalized && stored !== normalized && !isReservedBrowserShortcut(normalized)) {
+        storageArea.set({ [FALLBACK_SHORTCUT_STORAGE_KEY]: normalized });
+      }
     });
   }
 
@@ -1470,48 +1733,6 @@
     });
   });
 
-  if (wallpaperFitSelect) {
-    wallpaperFitSelect.addEventListener('change', () => {
-      const nextFit = normalizeWallpaperFit(wallpaperFitSelect.value);
-      saveWallpaperSettings({
-        ...currentWallpaperSettings,
-        fit: nextFit
-      }).catch(() => {
-        showToast(getMessage('settings_wallpaper_error_save', '壁纸保存失败，请重试'), true);
-      });
-    });
-  }
-
-  if (wallpaperUploadButton && wallpaperUploadInput) {
-    wallpaperUploadButton.setAttribute('data-disabled', 'true');
-    // Temporarily disable wallpaper upload triggers.
-    // wallpaperUploadButton.addEventListener('click', () => {
-    //   if (wallpaperUploadButton.getAttribute('data-disabled') === 'true') {
-    //     return;
-    //   }
-    //   wallpaperUploadInput.click();
-    // });
-    // wallpaperUploadInput.addEventListener('change', (event) => {
-    //   const file = event && event.target && event.target.files ? event.target.files[0] : null;
-    //   handleWallpaperUpload(file).finally(() => {
-    //     wallpaperUploadInput.value = '';
-    //   });
-    // });
-  }
-
-  if (wallpaperRemoveButton) {
-    wallpaperRemoveButton.addEventListener('click', () => {
-      if (wallpaperRemoveButton.getAttribute('data-disabled') === 'true') {
-        return;
-      }
-      removeWallpaper();
-    });
-  }
-
-  loadWallpaperFromStorage().catch(() => {
-    updateWallpaperControls();
-  });
-
   if (!storageArea) {
     applyLanguageMode('system');
   }
@@ -1543,6 +1764,9 @@
   }
   window.addEventListener('resize', updateTabIndicator);
   window.addEventListener('resize', updateThemeIndicator);
+  window.addEventListener('resize', updateRecentModeTabsIndicator);
+  window.addEventListener('resize', updateRestrictedActionTabsIndicator);
+  window.addEventListener('resize', syncFallbackShortcutWrapWidth);
   migrateStorageIfNeeded([
     THEME_STORAGE_KEY,
     LANGUAGE_STORAGE_KEY,
@@ -1551,10 +1775,10 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
+    FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
-    DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
-    NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY
+    DEFAULT_SEARCH_ENGINE_STORAGE_KEY
   ]);
   refreshSyncStatus();
 
@@ -1674,10 +1898,26 @@
     recentModeSelect.addEventListener('change', () => {
       const rawMode = recentModeSelect.value;
       const nextMode = rawMode === 'most' ? 'most' : 'latest';
+      setRecentModeTabState(nextMode);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
+    });
+  }
+  if (recentModeTabButtons.length > 0) {
+    recentModeTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextMode = button.getAttribute('data-recent-mode') === 'most' ? 'most' : 'latest';
+        setRecentModeTabState(nextMode);
+        if (recentModeSelect) {
+          recentModeSelect.value = nextMode;
+        }
+        if (!storageArea) {
+          return;
+        }
+        storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
+      });
     });
   }
   if (bookmarkCountSelect) {
@@ -1698,28 +1938,160 @@
       storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
     });
   }
+  if (autoPipToggle) {
+    autoPipToggle.addEventListener('change', () => {
+      const next = Boolean(autoPipToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: next });
+    });
+  }
 
   if (restrictedActionSelect) {
     restrictedActionSelect.addEventListener('change', () => {
       const next = restrictedActionSelect.value || 'default';
+      setRestrictedActionTabState(next);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [RESTRICTED_ACTION_STORAGE_KEY]: next });
     });
   }
+  if (restrictedActionTabButtons.length > 0) {
+    restrictedActionTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextAction = button.getAttribute('data-restricted-action') === 'none' ? 'none' : 'default';
+        setRestrictedActionTabState(nextAction);
+        if (restrictedActionSelect) {
+          restrictedActionSelect.value = nextAction;
+        }
+        if (!storageArea) {
+          return;
+        }
+        storageArea.set({ [RESTRICTED_ACTION_STORAGE_KEY]: nextAction });
+      });
+    });
+  }
 
-  if (openShortcutsButton) {
-    openShortcutsButton.addEventListener('click', () => {
-      if (chrome && chrome.tabs && chrome.tabs.create) {
-        chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
-      } else {
-        window.open('chrome://extensions/shortcuts', '_blank');
+  if (fallbackShortcutInput) {
+    const handleFallbackShortcutKeydown = (event) => {
+      if (!event) {
+        return;
+      }
+      if (event.key === 'Tab') {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        fallbackShortcutInput.value = '';
+        renderFallbackShortcutTokens(currentShortcutLabel || getDefaultFallbackShortcut());
+        stopFallbackShortcutCapture();
+        return;
+      }
+      const nextShortcut = buildShortcutFromEvent(event);
+      if (nextShortcut) {
+        fallbackShortcutInput.value = '';
+        const normalized = normalizeFallbackShortcut(nextShortcut);
+        if (!normalized) {
+          return;
+        }
+        if (isReservedBrowserShortcut(normalized)) {
+          showToast(getMessage('settings_shortcuts_invalid', '快捷键无效，请按组合键（如 Ctrl+K）'), true);
+          renderFallbackShortcutTokens(currentShortcutLabel || '');
+          return;
+        }
+        if (normalized === currentShortcutLabel) {
+          renderFallbackShortcutTokens(normalized, true);
+          stopFallbackShortcutCaptureDeferred(260);
+          return;
+        }
+        setFallbackShortcutLabel(normalized, true);
+        persistFallbackShortcut(normalized, (ok) => {
+          if (!ok) {
+            showToast(getMessage('toast_error', '操作失败，请重试'), true);
+          }
+        });
+        stopFallbackShortcutCaptureDeferred(260);
+      }
+    };
+    const captureWindowKeydown = (event) => {
+      if (!isCapturingFallbackShortcut) {
+        return;
+      }
+      handleFallbackShortcutKeydown(event);
+    };
+    window.addEventListener('keydown', captureWindowKeydown, true);
+    if (fallbackShortcutWrap) {
+      fallbackShortcutWrap.addEventListener('pointerdown', (event) => {
+        const target = event && event.target;
+        if (target && target.closest && target.closest('button')) {
+          return;
+        }
+        event.preventDefault();
+        fallbackShortcutInput.focus();
+      });
+      fallbackShortcutWrap.addEventListener('mouseleave', () => {
+        if (!cancelCaptureOnMouseLeave) {
+          return;
+        }
+        cancelCaptureOnMouseLeave = false;
+        stopFallbackShortcutCapture();
+      });
+    }
+    fallbackShortcutInput.addEventListener('focus', () => {
+      isCapturingFallbackShortcut = true;
+      if (fallbackShortcutWrap) {
+        fallbackShortcutWrap.setAttribute('data-capturing', 'true');
+      }
+      fallbackShortcutInput.value = '';
+      if (!currentShortcutLabel) {
+        renderFallbackShortcutTokens('');
+      }
+    });
+    fallbackShortcutInput.addEventListener('blur', () => {
+      stopFallbackShortcutCapture();
+    });
+    fallbackShortcutInput.addEventListener('input', () => {
+      fallbackShortcutInput.value = '';
+    });
+    fallbackShortcutInput.addEventListener('keydown', handleFallbackShortcutKeydown);
+  }
+
+  if (clearShortcutButton) {
+    clearShortcutButton.addEventListener('click', () => {
+      setFallbackShortcutLabel('');
+      persistFallbackShortcut('', (ok) => {
+        if (!ok) {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        }
+      });
+      cancelCaptureOnMouseLeave = true;
+      if (fallbackShortcutInput) {
+        fallbackShortcutInput.focus();
+      }
+    });
+  }
+
+  if (resetShortcutButton) {
+    resetShortcutButton.addEventListener('click', () => {
+      const defaultShortcut = getDefaultFallbackShortcut();
+      setFallbackShortcutLabel(defaultShortcut, true);
+      persistFallbackShortcut(defaultShortcut, (ok) => {
+        if (!ok) {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        }
+      });
+      cancelCaptureOnMouseLeave = true;
+      if (fallbackShortcutInput) {
+        fallbackShortcutInput.focus();
       }
     });
   }
 
   loadCurrentShortcut();
+  requestAnimationFrame(syncFallbackShortcutWrapWidth);
 
   if (syncNowButton) {
     syncNowButton.addEventListener('click', () => {
@@ -1912,6 +2284,7 @@
       if (recentModeSelect) {
         recentModeSelect.value = mode;
       }
+      setRecentModeTabState(mode);
       if (!hasStored) {
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: mode });
       }
@@ -1939,6 +2312,17 @@
       }
       refreshCustomSelects();
     });
+    storageArea.get([AUTO_PIP_ENABLED_STORAGE_KEY], (result) => {
+      const rawValue = result[AUTO_PIP_ENABLED_STORAGE_KEY];
+      const stored = normalizeAutoPipEnabled(rawValue);
+      if (autoPipToggle) {
+        autoPipToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
 
     storageArea.get([RESTRICTED_ACTION_STORAGE_KEY], (result) => {
       const stored = result[RESTRICTED_ACTION_STORAGE_KEY];
@@ -1948,6 +2332,7 @@
       if (restrictedActionSelect) {
         restrictedActionSelect.value = nextAction;
       }
+      setRestrictedActionTabState(nextAction);
       if (!hasStored || normalizedStored !== stored) {
         storageArea.set({ [RESTRICTED_ACTION_STORAGE_KEY]: nextAction });
       }
@@ -2655,7 +3040,6 @@
             customSiteSearchProviders = filteredCustom;
             disabledSiteSearchKeys = new Set();
             renderSiteSearchList();
-            showToast(getMessage('toast_reset', '已重置'), false);
           }).catch(() => {
             showToast(getMessage('toast_error', '操作失败，请重试'), true);
           });
@@ -2701,13 +3085,6 @@
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const isPrimaryArea = Boolean(storageAreaName) && areaName === storageAreaName;
-    const isLocalArea = Boolean(localStorageAreaName) && areaName === localStorageAreaName;
-    if ((isPrimaryArea && changes[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]) ||
-        (isLocalArea && changes[NEWTAB_WALLPAPER_DATA_STORAGE_KEY])) {
-      loadWallpaperFromStorage().catch(() => {
-        updateWallpaperControls();
-      });
-    }
     if (!isPrimaryArea) {
       return;
     }
@@ -2717,12 +3094,13 @@
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
+        changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
+        changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
         changes[SITE_SEARCH_DISABLED_STORAGE_KEY] ||
-        changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY] ||
-        changes[NEWTAB_WALLPAPER_SETTINGS_STORAGE_KEY]) {
+        changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY]) {
       refreshSyncStatus();
     }
     if (changes[THEME_STORAGE_KEY]) {
@@ -2743,6 +3121,7 @@
       const nextValue = changes[RECENT_MODE_STORAGE_KEY].newValue;
       const mode = nextValue === 'most' ? 'most' : 'latest';
       recentModeSelect.value = mode;
+      setRecentModeTabState(mode);
       refreshCustomSelects();
     }
     if (changes[BOOKMARK_COUNT_STORAGE_KEY] && bookmarkCountSelect) {
@@ -2758,14 +3137,38 @@
       }
       refreshCustomSelects();
     }
+    if (changes[AUTO_PIP_ENABLED_STORAGE_KEY] && autoPipToggle) {
+      const raw = changes[AUTO_PIP_ENABLED_STORAGE_KEY].newValue;
+      const next = normalizeAutoPipEnabled(raw);
+      autoPipToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
     if (changes[RESTRICTED_ACTION_STORAGE_KEY] && restrictedActionSelect) {
       const raw = changes[RESTRICTED_ACTION_STORAGE_KEY].newValue;
       const nextValue = raw === 'none' ? 'none' : 'default';
       restrictedActionSelect.value = nextValue;
+      setRestrictedActionTabState(nextValue);
       if (raw !== nextValue && storageArea) {
         storageArea.set({ [RESTRICTED_ACTION_STORAGE_KEY]: nextValue });
       }
       refreshCustomSelects();
+    }
+    if (changes[FALLBACK_SHORTCUT_STORAGE_KEY]) {
+      const raw = changes[FALLBACK_SHORTCUT_STORAGE_KEY].newValue;
+      const normalized = normalizeFallbackShortcut(raw);
+      const nextValue = typeof raw === 'undefined'
+        ? getDefaultFallbackShortcut()
+        : ((normalized && !isReservedBrowserShortcut(normalized)) ? normalized : '');
+      if (nextValue === (currentShortcutLabel || '')) {
+        return;
+      }
+      setFallbackShortcutLabel(nextValue);
+      if (typeof raw !== 'undefined' && normalized && raw !== normalized && !isReservedBrowserShortcut(normalized) && storageArea) {
+        storageArea.set({ [FALLBACK_SHORTCUT_STORAGE_KEY]: normalized });
+      }
     }
     if (!changes[SITE_SEARCH_STORAGE_KEY] && !changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
       return;
