@@ -89,7 +89,7 @@
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
   function normalizeBookmarkCount(value) {
     const parsed = Number.parseInt(value, 10);
-    if (parsed === 0 || parsed === 8 || parsed === 16 || parsed === 32) {
+    if (parsed === 0 || parsed === 4 || parsed === 8 || parsed === 16 || parsed === 32) {
       return parsed;
     }
     return 8;
@@ -101,7 +101,8 @@
       return 8;
     }
     const rows = Math.max(1, Math.round(normalized / 4));
-    const columns = Math.max(1, normalizeBookmarkColumns(currentBookmarkColumns));
+    // Use the actual rendered column count so "show N rows" remains accurate on responsive layouts.
+    const columns = Math.max(1, getBookmarkGridColumnCount());
     return rows * columns;
   }
 

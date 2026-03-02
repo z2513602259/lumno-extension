@@ -218,7 +218,7 @@
 
   function normalizeBookmarkCount(value) {
     const parsed = Number.parseInt(value, 10);
-    if (parsed === 0 || parsed === 8 || parsed === 16 || parsed === 32) {
+    if (parsed === 0 || parsed === 4 || parsed === 8 || parsed === 16 || parsed === 32) {
       return parsed;
     }
     return 8;
