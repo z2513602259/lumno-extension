@@ -476,7 +476,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
   const reason = String(details.reason || '');
   if (reason === 'install') {
-    openReleasePage({ reason: 'install' });
+    openOnboardingPage();
     return;
   }
   if (reason === 'update') {
@@ -2924,6 +2924,22 @@ async function getSearchSuggestions(query) {
         else if (daysSinceVisit < 7) score += 5;
         else if (daysSinceVisit < 30) score += 2;
       }
+
+      // Visit-frequency and strong recency boosts for history ranking.
+      const visitCount = Number(item.visitCount) > 0 ? Number(item.visitCount) : 0;
+      const typedCount = Number(item.typedCount) > 0 ? Number(item.typedCount) : 0;
+      if (visitCount > 0) {
+        score += Math.min(24, Math.log2(visitCount + 1) * 6);
+      }
+      if (typedCount > 0) {
+        score += Math.min(12, typedCount * 2);
+      }
+      if (item.lastVisitTime) {
+        const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
+        if (hoursSinceVisit < 2) score += 28;
+        else if (hoursSinceVisit < 24) score += 18;
+        else if (hoursSinceVisit < 72) score += 10;
+      }
       
       return score;
     }
@@ -2956,7 +2972,9 @@ async function getSearchSuggestions(query) {
             url: item.url,
             favicon: faviconUrl,
             score: score,
-            lastVisitTime: item.lastVisitTime || 0
+            lastVisitTime: item.lastVisitTime || 0,
+            visitCount: Number(item.visitCount) || 0,
+            typedCount: Number(item.typedCount) || 0
           };
           suggestions.push(suggestion);
           processedUrls.add(item.url);
@@ -3095,16 +3113,44 @@ async function getSearchSuggestions(query) {
       }
     });
     
-    // Sort by top site, then relevance, then recency
+    function getRecentPopularityBoost(suggestion) {
+      if (!suggestion) {
+        return 0;
+      }
+      let boost = 0;
+      const visitCount = Number(suggestion.visitCount) > 0 ? Number(suggestion.visitCount) : 0;
+      const typedCount = Number(suggestion.typedCount) > 0 ? Number(suggestion.typedCount) : 0;
+      if (visitCount > 0) {
+        boost += Math.min(16, Math.log2(visitCount + 1) * 4);
+      }
+      if (typedCount > 0) {
+        boost += Math.min(8, typedCount * 1.5);
+      }
+      const lastVisitTime = Number(suggestion.lastVisitTime) || 0;
+      if (lastVisitTime > 0) {
+        const hoursSinceVisit = (Date.now() - lastVisitTime) / (1000 * 60 * 60);
+        if (hoursSinceVisit < 2) boost += 16;
+        else if (hoursSinceVisit < 24) boost += 10;
+        else if (hoursSinceVisit < 72) boost += 6;
+      }
+      return boost;
+    }
+
+    // Sort by top site, then relevance + recent-popularity boost, then recency.
     suggestions.sort((a, b) => {
       const aTop = a.isTopSite || a.type === 'topSite';
       const bTop = b.isTopSite || b.type === 'topSite';
       if (aTop !== bTop) {
         return aTop ? -1 : 1;
       }
-      const scoreDiff = (b.score || 0) - (a.score || 0);
+      const scoreDiff = ((b.score || 0) + getRecentPopularityBoost(b)) -
+        ((a.score || 0) + getRecentPopularityBoost(a));
       if (scoreDiff !== 0) {
         return scoreDiff;
+      }
+      const visitDiff = (Number(b.visitCount) || 0) - (Number(a.visitCount) || 0);
+      if (visitDiff !== 0) {
+        return visitDiff;
       }
       const aVisit = a.lastVisitTime || 0;
       const bVisit = b.lastVisitTime || 0;
