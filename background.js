@@ -170,6 +170,47 @@ function openExtensionOptionsPage(callback) {
   });
 }
 
+const ONBOARDING_URL = 'https://lumno.kubai.design/onboarding/';
+const RELEASE_URL = 'https://lumno.kubai.design/release/';
+
+function openOnboardingPage(callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  chrome.tabs.create({ url: ONBOARDING_URL }, () => {
+    done(!(chrome.runtime && chrome.runtime.lastError));
+  });
+}
+
+function getExtensionVersionTag() {
+  const version = chrome && chrome.runtime && chrome.runtime.getManifest
+    ? String((chrome.runtime.getManifest() || {}).version || '').trim()
+    : '';
+  if (!version) {
+    return '';
+  }
+  return /^v/i.test(version) ? version : `v${version}`;
+}
+
+function buildReleaseUrl(options) {
+  const params = new URLSearchParams();
+  params.set('entry', 'ext');
+  const reason = options && typeof options.reason === 'string' ? String(options.reason).trim().toLowerCase() : '';
+  if (reason) {
+    params.set('reason', reason);
+  }
+  const version = getExtensionVersionTag();
+  if (version) {
+    params.set('version', version);
+  }
+  return `${RELEASE_URL}?${params.toString()}`;
+}
+
+function openReleasePage(options, callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  chrome.tabs.create({ url: buildReleaseUrl(options) }, () => {
+    done(!(chrome.runtime && chrome.runtime.lastError));
+  });
+}
+
 function getBookmarkManagerUrls() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent)
     ? String(navigator.userAgent).toLowerCase()
@@ -430,10 +471,17 @@ chrome.commands.onCommand.addListener(function(command) {
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
-  if (!details || details.reason !== 'install') {
+  if (!details) {
     return;
   }
-  openExtensionOptionsPage();
+  const reason = String(details.reason || '');
+  if (reason === 'install') {
+    openReleasePage({ reason: 'install' });
+    return;
+  }
+  if (reason === 'update') {
+    openReleasePage({ reason: 'update' });
+  }
 });
 
 if (chrome.action && chrome.action.onClicked) {
@@ -2593,7 +2641,7 @@ function loadSiteSearchProviders() {
   if (siteSearchPromise) {
     return siteSearchPromise;
   }
-  const localUrl = chrome.runtime.getURL('site-search.json');
+  const localUrl = chrome.runtime.getURL('assets/data/site-search.json');
   siteSearchPromise = fetch(localUrl)
     .then((response) => response.json())
     .then((data) => {
@@ -2628,7 +2676,7 @@ function loadShortcutRules() {
   if (shortcutRulesPromise) {
     return shortcutRulesPromise;
   }
-  const rulesUrl = chrome.runtime.getURL('shortcut-rules.json');
+  const rulesUrl = chrome.runtime.getURL('assets/data/shortcut-rules.json');
   shortcutRulesPromise = fetch(rulesUrl)
     .then((response) => response.json())
     .then((data) => {
@@ -2707,7 +2755,7 @@ async function getSearchSuggestions(query) {
   try {
     const [
       engineSuggestions,
-      historyItems,
+      historyItemsRaw,
       topSites,
       bookmarks,
       bookmarkTree
@@ -2732,6 +2780,27 @@ async function getSearchSuggestions(query) {
         chrome.bookmarks.getTree(resolve);
       })
     ]);
+    let historyItems = Array.isArray(historyItemsRaw) ? historyItemsRaw : [];
+    if (historyItems.length === 0 && query && query.trim().length > 0) {
+      const fallbackHistoryItems = await new Promise((resolve) => {
+        chrome.history.search({
+          text: '',
+          maxResults: 300,
+          startTime: Date.now() - (90 * 24 * 60 * 60 * 1000)
+        }, resolve);
+      });
+      const queryLower = query.toLowerCase();
+      historyItems = Array.isArray(fallbackHistoryItems)
+        ? fallbackHistoryItems.filter((item) => {
+          if (!item || !item.url) {
+            return false;
+          }
+          const titleLower = item.title ? item.title.toLowerCase() : '';
+          const urlLower = item.url.toLowerCase();
+          return titleLower.includes(queryLower) || urlLower.includes(queryLower);
+        })
+        : [];
+    }
 
     engineSuggestions.forEach((suggestion) => {
       if (suggestion && suggestion !== query) {
@@ -2770,6 +2839,8 @@ async function getSearchSuggestions(query) {
       const queryLower = query.toLowerCase();
       const titleLower = item.title ? item.title.toLowerCase() : '';
       const urlLower = item.url.toLowerCase();
+      const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
+      let hostname = '';
       
       let score = 0;
       
@@ -2780,7 +2851,6 @@ async function getSearchSuggestions(query) {
       if (titleLower.startsWith(queryLower)) score += 50;
       
       // Query words in title
-      const queryWords = queryLower.split(' ').filter(word => word.length > 0);
       queryWords.forEach(word => {
         if (titleLower.includes(word)) score += 20;
       });
@@ -2790,15 +2860,62 @@ async function getSearchSuggestions(query) {
       
       // URL domain match
       try {
-        const domain = normalizeHost(new URL(item.url).hostname);
-        if (domain.includes(queryLower)) score += 10;
-        if (domain.startsWith(queryLower)) score += 20;
+        hostname = normalizeHost(new URL(item.url).hostname);
+        if (hostname.includes(queryLower)) score += 10;
+        if (hostname.startsWith(queryLower)) score += 20;
       } catch (e) {
         // Invalid URL, skip domain scoring
       }
       
-      // URL path match
-      if (urlLower.includes(queryLower)) score += 5;
+      // URL path match: boost token-level hits so "/release/"-like keywords rank higher.
+      if (urlLower.includes(queryLower)) score += 8;
+      try {
+        const parsedUrl = new URL(item.url);
+        const pathnameLower = String(parsedUrl.pathname || '').toLowerCase();
+        const decodedPathnameLower = decodeURIComponent(pathnameLower);
+        const pathSegments = decodedPathnameLower.split('/').filter(Boolean);
+        const pathTokens = [];
+        pathSegments.forEach((segment) => {
+          const segmentTokens = segment.split(/[^a-z0-9\u4e00-\u9fff]+/i).filter(Boolean);
+          if (segmentTokens.length > 0) {
+            pathTokens.push(...segmentTokens);
+          }
+        });
+        if (decodedPathnameLower && queryWords.length > 0) {
+          queryWords.forEach((word) => {
+            if (!word) {
+              return;
+            }
+            if (pathTokens.includes(word)) {
+              score += 30;
+              return;
+            }
+            const hasPrefixToken = pathTokens.some((token) => token.startsWith(word));
+            if (hasPrefixToken) {
+              score += 20;
+              return;
+            }
+            const hasPartialToken = pathTokens.some((token) => token.includes(word));
+            if (hasPartialToken) {
+              score += 12;
+              return;
+            }
+            if (decodedPathnameLower.includes(word)) {
+              score += 8;
+            }
+          });
+        }
+      } catch (e) {
+        // Ignore invalid URL parsing/decoding errors.
+      }
+
+      // Local-network/dev pages should surface earlier for quick workflows.
+      if (hostname && isLocalNetworkHost(hostname)) {
+        if (titleLower === queryLower) score += 90;
+        else if (titleLower.startsWith(queryLower)) score += 70;
+        else if (titleLower.includes(queryLower)) score += 45;
+        else if (urlLower.includes(queryLower)) score += 20;
+      }
       
       // Recency bonus (for history items)
       if (item.lastVisitTime) {
@@ -3097,11 +3214,11 @@ async function getSearchSuggestions(query) {
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
   const RI_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('remixicon/fonts/remixicon.css')
-    : 'remixicon/fonts/remixicon.css';
+    ? chrome.runtime.getURL('assets/remixicon/fonts/remixicon.css')
+    : 'assets/remixicon/fonts/remixicon.css';
   const OPEN_SANS_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('fonts/open-sans/open-sans.css')
-    : 'fonts/open-sans/open-sans.css';
+    ? chrome.runtime.getURL('assets/fonts/open-sans/open-sans.css')
+    : 'assets/fonts/open-sans/open-sans.css';
   const overlayMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let overlayThemeMode = 'system';
   let overlayThemeListenerAttached = false;
@@ -3694,7 +3811,7 @@ async function getSearchSuggestions(query) {
       inputId: '_x_extension_search_input_2024_unique_',
       iconId: '_x_extension_search_icon_2024_unique_',
       containerId: '_x_extension_input_container_2024_unique_',
-      rightIconUrl: chrome.runtime.getURL('lumno-input-light.png'),
+      rightIconUrl: chrome.runtime.getURL('assets/images/lumno-input-light.png'),
       rightIconStyleOverrides: {
         cursor: 'pointer'
       },
@@ -3899,7 +4016,7 @@ async function getSearchSuggestions(query) {
           mode: getThemeModeLabel(nextMode)
         }),
         url: '',
-        favicon: chrome.runtime.getURL('lumno.png'),
+        favicon: chrome.runtime.getURL('assets/images/lumno.png'),
         nextMode: nextMode
       };
     }
@@ -4715,6 +4832,10 @@ async function getSearchSuggestions(query) {
         return Promise.resolve(defaultTheme);
       }
       const hostKey = hostOverride || getHostFromUrl(url);
+      if (isBlockedLocalFaviconUrl(url) || (hostKey && isLocalNetworkHost(hostKey))) {
+        const fallbackTheme = buildFallbackThemeForHost(hostKey);
+        return Promise.resolve(fallbackTheme || defaultTheme);
+      }
       const isProxy = isFaviconProxyUrl(url);
       const useHostCache = hostKey && (!isProxy || Boolean(hostOverride));
       if (useHostCache && themeHostCache.has(hostKey)) {
@@ -4855,6 +4976,10 @@ async function getSearchSuggestions(query) {
         }
       }
       const hostKey = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
+      if (hostKey && isLocalNetworkHost(hostKey)) {
+        const fallbackTheme = buildFallbackThemeForHost(hostKey);
+        return Promise.resolve(fallbackTheme || defaultTheme);
+      }
       const siteFavicon = hostKey ? getSiteFaviconUrl(hostKey) : '';
       if (siteFavicon) {
         return getThemeFromUrl(siteFavicon, hostKey).then((theme) => {
@@ -5798,7 +5923,7 @@ async function getSearchSuggestions(query) {
       if (siteSearchProvidersCache) {
         return Promise.resolve(siteSearchProvidersCache);
       }
-      const localUrl = chrome.runtime.getURL('site-search.json');
+      const localUrl = chrome.runtime.getURL('assets/data/site-search.json');
       const localFallback = fetch(localUrl)
         .then((response) => response.json())
         .then((data) => {
@@ -7129,7 +7254,7 @@ async function getSearchSuggestions(query) {
       if (window[promiseKey]) {
         return window[promiseKey];
       }
-      const rulesUrl = chrome.runtime.getURL('shortcut-rules.json');
+      const rulesUrl = chrome.runtime.getURL('assets/data/shortcut-rules.json');
       const rulesPromise = fetch(rulesUrl)
         .then((response) => response.json())
         .then((data) => {
