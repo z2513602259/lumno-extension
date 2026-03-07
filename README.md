@@ -20,8 +20,6 @@
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/59161f7d-0089-4997-b57f-8d3b936a4619" alt="Lumno preview 1" width="100%" /> 
-  &nbsp
-  <img src="https://github.com/user-attachments/assets/994eac47-3298-4b76-8f3e-8c14bcbd9d99" alt="Lumno preview 2" width="100%" />
   &nbsp;
   <img src="https://github.com/user-attachments/assets/8057bd2b-51db-41f8-8d11-c6a13f8308ac" alt="Lumno preview 3" width="100%" />
 </p>
