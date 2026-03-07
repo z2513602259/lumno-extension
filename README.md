@@ -1,34 +1,113 @@
-<img width="100" height="100" alt="lumno" src="https://github.com/user-attachments/assets/a614cde2-f311-47d1-9a2e-803edd2d0f55" />
+<p align="center">
+  <img src="./lumno.png" alt="Lumno logo" width="96" height="96" />
+</p>
 
-A lightweight new-tab search and quick navigation overlay for Chromium browsers.
+<h1 align="center">Lumno</h1>
 
-## Core Features
+<p align="center">
+  A lightweight command bar for Chromium browsers.
+  <br />
+  Open a floating search overlay from any page, search faster, jump to URLs, switch tabs, and upgrade the new tab experience.
+</p>
 
-- Global command to open a floating search overlay from any page.
-- Smart suggestions from history, bookmarks, top sites, and Google suggestions.
-- Keyword shortcuts for internal pages (e.g., `settings`, `extensions`).
-- URL recognition and direct navigation with Tab autocomplete.
-- Site search shortcuts (e.g., type `gh ` then press Tab for GitHub search).
-- New tab page with the same unified search experience.
+<p align="center">
+  <img src="https://img.shields.io/badge/Manifest-MV3-111827?style=flat-square" alt="Manifest V3" />
+  <img src="https://img.shields.io/badge/Browser-Chromium-2563eb?style=flat-square" alt="Chromium" />
+  <img src="https://img.shields.io/badge/Language-JavaScript-f59e0b?style=flat-square" alt="JavaScript" />
+  <img src="https://img.shields.io/badge/License-GPL--3.0-16a34a?style=flat-square" alt="GPL-3.0" />
+  <img src="https://img.shields.io/badge/Build-No%20build%20step-7c3aed?style=flat-square" alt="No build step" />
+</p>
 
-## Local Installation (No Store Required)
+<p align="center">
+  <img src="./settings-bg-light.png" alt="Lumno settings preview" width="720" />
+</p>
+
+## ✨ Why Lumno
+
+Lumno turns the browser into a faster command surface:
+
+- Open a unified search overlay on top of any page.
+- Search history, bookmarks, top sites, open tabs, and web suggestions in one place.
+- Jump directly to URLs and internal browser pages with keyword shortcuts.
+- Use the same search workflow in the overridden new tab page.
+- Add site search shortcuts like `gh`, `yt`, `bb`, or your own custom providers.
+- Enable automatic Picture-in-Picture for supported video sites when switching tabs.
+
+## 🚀 Highlights
+
+### Global command overlay
+
+- Trigger Lumno from anywhere with a keyboard shortcut.
+- Recognize URLs instantly and navigate without extra clicks.
+- Use Tab autocomplete to accept smart completions quickly.
+- Switch to already opened tabs instead of opening duplicates.
+
+### Smarter search flows
+
+- Mix results from browser history, bookmarks, top sites, and suggestions.
+- Use built-in commands like `settings` or `extensions` for fast browser navigation.
+- Trigger site-specific search with a keyword, then press Tab to lock the search target.
+- Add, edit, disable, reset, export, or import custom site-search shortcuts in the settings page.
+
+### Better new tab page
+
+- Replace the default new tab with the same Lumno search input.
+- Show recent or most visited sites.
+- Show bookmarks with configurable counts and columns.
+- Support theme mode, wallpaper, language selection, and synced settings.
+
+### Extra quality-of-life features
+
+- Optional automatic Picture-in-Picture for supported sites such as YouTube, Bilibili, iQIYI, Youku, Tencent Video, and Douyin.
+- Separate handling for restricted pages where overlays cannot be injected.
+- Localized UI with English, Simplified Chinese, Traditional Chinese (Taiwan), and Traditional Chinese (Hong Kong).
+
+## 📦 Installation
+
+Install from the Chrome Web Store:
+
+[Install Lumno on Chrome Web Store](https://chromewebstore.google.com/detail/nggfkkbmogmadfoikakkfegkoilfcfao?utm_source=item-share-cb)
+
+For manual installation:
 
 1. Clone or download this repository.
-2. Open `chrome://extensions` (or your Chromium browser equivalent).
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select the repo folder.
-5. Optional: set a custom shortcut at `chrome://extensions/shortcuts`.
+2. Open `chrome://extensions`.
+3. Enable `Developer mode`.
+4. Click `Load unpacked` and select the repository folder.
 
-## Usage
+## 🛠️ Basic usage
 
-- Press the command shortcut (default `Ctrl+T` / `Command+T`) to open the overlay.
-- Type to search history, bookmarks, and top sites.
-- Enter a site key + space and press Tab to switch to site search.
-- Use Tab to accept autocomplete, Enter to navigate.
+```text
+Open overlay         -> Press the configured shortcut
+Search GitHub        -> Type gh react query, then press Tab
+Open a URL           -> Type example.com, then press Enter
+Switch to open tab   -> Type a matching tab title, then press Enter
+Open settings        -> Type settings
+```
 
-## Development Notes
+## 🔎 Built-in site search examples
 
-- No build step required.
-- Source files are plain JavaScript.
+Lumno ships with built-in providers such as:
 
-Author: Kubai087
+- `gh` for GitHub
+- `yt` for YouTube
+- `bb` for Bilibili
+- `gg` for Google
+- `bi` for Bing
+- `zh` for Zhihu
+- `rd` for Reddit
+- `wk` for Wikipedia
+
+You can also add your own providers using a URL template like:
+
+```text
+https://example.com/search?q={query}
+```
+
+## 🙌 Credits
+
+- Created and maintained by [Kubai087](https://github.com/kubai087)
+- Bundled icon set: [Remix Icon](https://remixicon.com/)
+- Bundled typeface: Open Sans
+
+[![Star History Chart](https://api.star-history.com/svg?repos=kubai087/lumno-extension&type=Date)](https://www.star-history.com/#kubai087/lumno-extension&Date)
