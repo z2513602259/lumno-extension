@@ -44,6 +44,7 @@
   const clearShortcutButton = document.getElementById('_x_extension_clear_shortcut_2024_unique_');
   const resetShortcutButton = document.getElementById('_x_extension_reset_shortcut_2024_unique_');
   const shortcutsStatus = document.getElementById('_x_extension_shortcuts_status_2024_unique_');
+  const openShortcutsPageButton = document.getElementById('_x_extension_open_shortcuts_page_2026_unique_');
   const customSelectWraps = Array.from(document.querySelectorAll('._x_extension_custom_select_2024_unique_'));
   const siteSearchCustomList = document.getElementById('_x_extension_site_search_custom_list_2024_unique_');
   const siteSearchBuiltinList = document.getElementById('_x_extension_site_search_builtin_list_2024_unique_');
@@ -150,19 +151,19 @@
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
     { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-    { key: 'so', aliases: ['baidu', 'bd'], name: '百度', template: 'https://www.baidu.com/s?wd={query}' },
+    { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
     { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
     { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
-    { key: 'zh', aliases: ['zhihu'], name: '知乎', template: 'https://www.zhihu.com/search?q={query}' },
-    { key: 'db', aliases: ['douban'], name: '豆瓣', template: 'https://www.douban.com/search?q={query}' },
-    { key: 'jj', aliases: ['juejin'], name: '掘金', template: 'https://juejin.cn/search?query={query}' },
-    { key: 'tb', aliases: ['taobao'], name: '淘宝', template: 'https://s.taobao.com/search?q={query}' },
-    { key: 'tm', aliases: ['tmall'], name: '天猫', template: 'https://list.tmall.com/search_product.htm?q={query}' },
-    { key: 'wx', aliases: ['weixin', 'wechat'], name: '微信', template: 'https://weixin.sogou.com/weixin?query={query}' },
+    { key: 'zh', aliases: ['zhihu'], name: 'Zhihu', template: 'https://www.zhihu.com/search?q={query}' },
+    { key: 'db', aliases: ['douban'], name: 'Douban', template: 'https://www.douban.com/search?q={query}' },
+    { key: 'jj', aliases: ['juejin'], name: 'Juejin', template: 'https://juejin.cn/search?query={query}' },
+    { key: 'tb', aliases: ['taobao'], name: 'Taobao', template: 'https://s.taobao.com/search?q={query}' },
+    { key: 'tm', aliases: ['tmall'], name: 'Tmall', template: 'https://list.tmall.com/search_product.htm?q={query}' },
+    { key: 'wx', aliases: ['weixin', 'wechat'], name: 'WeChat', template: 'https://weixin.sogou.com/weixin?query={query}' },
     { key: 'tw', aliases: ['twitter', 'x'], name: 'X', template: 'https://x.com/search?q={query}' },
     { key: 'rd', aliases: ['reddit'], name: 'Reddit', template: 'https://www.reddit.com/search/?q={query}' },
     { key: 'wk', aliases: ['wiki', 'wikipedia'], name: 'Wikipedia', template: 'https://en.wikipedia.org/wiki/Special:Search?search={query}' },
-    { key: 'zw', aliases: ['zhwiki'], name: '维基百科', template: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}' }
+    { key: 'zw', aliases: ['zhwiki'], name: 'Wikipedia', template: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}' }
   ];
 
   let currentMessages = null;
@@ -1125,7 +1126,7 @@
       return 'en';
     }
     if (lower === 'zh-hk' || lower === 'zh_hk') {
-      return 'zh-HK';
+      return 'zh-TW';
     }
     if (lower === 'zh-tw' || lower === 'zh_tw' || lower === 'zh-mo' || lower === 'zh_mo' || lower.includes('hant')) {
       return 'zh-TW';
@@ -1226,15 +1227,11 @@
 
   function refreshShortcutsStatus() {
     if (!shortcutsStatus) return;
-    const fallback = `当前快捷键 ${currentShortcutLabel || '未设置'}`;
-    const template = getMessage('settings_shortcuts_status', fallback);
-    shortcutsStatus.textContent = formatTemplate(template, {
-      shortcut: currentShortcutLabel || getMessage('settings_shortcuts_unset', '未设置')
-    });
+    shortcutsStatus.textContent = currentShortcutLabel || getMessage('settings_shortcuts_unset', '未设置');
   }
 
   function getDefaultFallbackShortcut() {
-    return isMacPlatform ? 'Command+T' : 'Ctrl+T';
+    return isMacPlatform ? 'Command+Shift+L' : 'Ctrl+Shift+L';
   }
 
   function isReservedBrowserShortcut(shortcut) {
@@ -1311,6 +1308,54 @@
     return '';
   }
 
+  function getShortcutKeyTokenFromCode(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) {
+      return '';
+    }
+    if (/^Key[A-Z]$/.test(code)) {
+      return code.slice(3);
+    }
+    if (/^Digit[0-9]$/.test(code)) {
+      return code.slice(5);
+    }
+    const codeMap = {
+      Backquote: 'Backquote',
+      Minus: 'Minus',
+      Equal: 'Plus',
+      BracketLeft: 'BracketLeft',
+      BracketRight: 'BracketRight',
+      Backslash: 'Backslash',
+      Semicolon: 'Semicolon',
+      Quote: 'Quote',
+      Comma: 'Comma',
+      Period: 'Period',
+      Slash: 'Slash',
+      Space: 'Space',
+      Tab: 'Tab',
+      Enter: 'Enter',
+      Escape: 'Escape',
+      ArrowUp: 'ArrowUp',
+      ArrowDown: 'ArrowDown',
+      ArrowLeft: 'ArrowLeft',
+      ArrowRight: 'ArrowRight'
+    };
+    if (codeMap[code]) {
+      return codeMap[code];
+    }
+    if (/^F\d{1,2}$/.test(code)) {
+      return code;
+    }
+    return '';
+  }
+
+  function getShortcutKeyTokenFromEvent(event) {
+    if (!event) {
+      return '';
+    }
+    return getShortcutKeyTokenFromCode(event.code) || normalizeShortcutKeyToken(event.key);
+  }
+
   function normalizeFallbackShortcut(value) {
     const text = String(value || '').trim();
     if (!text) {
@@ -1368,7 +1413,7 @@
     if (!key || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta' || key === 'AltGraph') {
       return '';
     }
-    const keyToken = normalizeShortcutKeyToken(key);
+    const keyToken = getShortcutKeyTokenFromEvent(event);
     if (!keyToken) {
       return '';
     }
@@ -1615,21 +1660,22 @@
 
   function loadCurrentShortcut() {
     const defaultShortcut = getDefaultFallbackShortcut();
-    if (!storageArea) {
-      setFallbackShortcutLabel(defaultShortcut);
+    if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
+      setFallbackShortcutLabel(formatShortcutForDisplay(defaultShortcut) || defaultShortcut);
       return;
     }
-    storageArea.get([FALLBACK_SHORTCUT_STORAGE_KEY], (result) => {
-      const hasStored = Boolean(result && Object.prototype.hasOwnProperty.call(result, FALLBACK_SHORTCUT_STORAGE_KEY));
-      const stored = hasStored ? result[FALLBACK_SHORTCUT_STORAGE_KEY] : '';
-      const normalized = normalizeFallbackShortcut(stored);
-      const nextValue = hasStored
-        ? ((normalized && !isReservedBrowserShortcut(normalized)) ? normalized : '')
-        : defaultShortcut;
-      setFallbackShortcutLabel(nextValue);
-      if (hasStored && stored && normalized && stored !== normalized && !isReservedBrowserShortcut(normalized)) {
-        storageArea.set({ [FALLBACK_SHORTCUT_STORAGE_KEY]: normalized });
+    chrome.commands.getAll((commands) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        setFallbackShortcutLabel(formatShortcutForDisplay(defaultShortcut) || defaultShortcut);
+        return;
       }
+      const items = Array.isArray(commands) ? commands : [];
+      const command = items.find((item) => item && item.name === 'show-search');
+      const shortcut = command && typeof command.shortcut === 'string'
+        ? String(command.shortcut).trim()
+        : '';
+      const effectiveShortcut = shortcut || defaultShortcut;
+      setFallbackShortcutLabel(formatShortcutForDisplay(effectiveShortcut) || effectiveShortcut);
     });
   }
 
@@ -2072,6 +2118,20 @@
     });
   }
 
+  if (openShortcutsPageButton) {
+    openShortcutsPageButton.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'openExtensionShortcutsPage' }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+          return;
+        }
+        if (!response || response.ok === false) {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        }
+      });
+    });
+  }
+
   if (fallbackShortcutInput) {
     const handleFallbackShortcutKeydown = (event) => {
       if (!event) {
@@ -2190,6 +2250,14 @@
 
   loadCurrentShortcut();
   requestAnimationFrame(syncFallbackShortcutWrapWidth);
+  window.addEventListener('focus', () => {
+    loadCurrentShortcut();
+  }, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      loadCurrentShortcut();
+    }
+  }, true);
 
   if (syncNowButton) {
     syncNowButton.addEventListener('click', () => {
@@ -2558,6 +2626,28 @@
       return key && !customKeys.has(key) && !disabledSiteSearchKeys.has(key);
     });
     const builtinTemplateSet = new Set(defaultSiteSearchProviders.map((item) => normalizeSiteSearchTemplate(String(item.template || '').trim())).filter(Boolean));
+    function getLocalizedBuiltinProviderName(item) {
+      if (!item || item._xIsCustom) {
+        return item && (item.name || item.key) ? (item.name || item.key) : '';
+      }
+      const key = String(item.key || '').toLowerCase();
+      const keyToMessage = {
+        so: ['site_search_name_baidu', 'Baidu'],
+        zh: ['site_search_name_zhihu', 'Zhihu'],
+        db: ['site_search_name_douban', 'Douban'],
+        jj: ['site_search_name_juejin', 'Juejin'],
+        jd: ['site_search_name_juejin', 'Juejin'],
+        tb: ['site_search_name_taobao', 'Taobao'],
+        tm: ['site_search_name_tmall', 'Tmall'],
+        wx: ['site_search_name_wechat', 'WeChat'],
+        zw: ['site_search_name_wikipedia', 'Wikipedia']
+      };
+      const mapping = keyToMessage[key];
+      if (!mapping) {
+        return item.name || item.key;
+      }
+      return getMessage(mapping[0], mapping[1]);
+    }
     const renderItem = (item, list) => {
       const row = document.createElement('div');
       row.className = '_x_extension_shortcut_item_2024_unique_';
@@ -2581,7 +2671,7 @@
         ? getMessage('shortcuts_badge_custom', '自定义')
         : getMessage('shortcuts_badge_builtin', '内置');
       const titleText = document.createElement('span');
-      titleText.textContent = item.name || item.key;
+      titleText.textContent = getLocalizedBuiltinProviderName(item);
       title.appendChild(badge);
       if (item._xIsCustom && normalizedTemplate && builtinTemplateSet.has(normalizedTemplate)) {
         const duplicateTag = document.createElement('button');
@@ -2867,7 +2957,7 @@
   }
 
   function loadDefaultSiteSearchProviders() {
-    const localUrl = chrome.runtime.getURL('site-search.json');
+    const localUrl = chrome.runtime.getURL('assets/data/site-search.json');
     return fetch(localUrl)
       .then((resp) => resp.json())
       .then((data) => {
@@ -3276,18 +3366,7 @@
       refreshCustomSelects();
     }
     if (changes[FALLBACK_SHORTCUT_STORAGE_KEY]) {
-      const raw = changes[FALLBACK_SHORTCUT_STORAGE_KEY].newValue;
-      const normalized = normalizeFallbackShortcut(raw);
-      const nextValue = typeof raw === 'undefined'
-        ? getDefaultFallbackShortcut()
-        : ((normalized && !isReservedBrowserShortcut(normalized)) ? normalized : '');
-      if (nextValue === (currentShortcutLabel || '')) {
-        return;
-      }
-      setFallbackShortcutLabel(nextValue);
-      if (typeof raw !== 'undefined' && normalized && raw !== normalized && !isReservedBrowserShortcut(normalized) && storageArea) {
-        storageArea.set({ [FALLBACK_SHORTCUT_STORAGE_KEY]: normalized });
-      }
+      loadCurrentShortcut();
     }
     if (!changes[SITE_SEARCH_STORAGE_KEY] && !changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
       return;

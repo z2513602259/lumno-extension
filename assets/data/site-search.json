@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "key": "yt",
+      "aliases": ["youtube"],
+      "name": "YouTube",
+      "template": "https://www.youtube.com/results?search_query={query}"
+    },
+    {
+      "key": "bb",
+      "aliases": ["bilibili", "bili"],
+      "name": "Bilibili",
+      "template": "https://search.bilibili.com/all?keyword={query}"
+    },
+    {
+      "key": "gh",
+      "aliases": ["github"],
+      "name": "GitHub",
+      "template": "https://github.com/search?q={query}"
+    },
+    {
+      "key": "so",
+      "aliases": ["baidu", "bd"],
+      "name": "Baidu",
+      "template": "https://www.baidu.com/s?wd={query}"
+    },
+    {
+      "key": "bi",
+      "aliases": ["bing"],
+      "name": "Bing",
+      "template": "https://www.bing.com/search?q={query}"
+    },
+    {
+      "key": "gg",
+      "aliases": ["google"],
+      "name": "Google",
+      "template": "https://www.google.com/search?q={query}"
+    },
+    {
+      "key": "zh",
+      "aliases": ["zhihu"],
+      "name": "Zhihu",
+      "template": "https://www.zhihu.com/search?q={query}"
+    },
+    {
+      "key": "db",
+      "aliases": ["douban"],
+      "name": "Douban",
+      "template": "https://www.douban.com/search?q={query}"
+    },
+    {
+      "key": "jj",
+      "aliases": ["juejin"],
+      "name": "Juejin",
+      "template": "https://juejin.cn/search?query={query}"
+    },
+    {
+      "key": "tb",
+      "aliases": ["taobao"],
+      "name": "Taobao",
+      "template": "https://s.taobao.com/search?q={query}"
+    },
+    {
+      "key": "tm",
+      "aliases": ["tmall"],
+      "name": "Tmall",
+      "template": "https://list.tmall.com/search_product.htm?q={query}"
+    },
+    {
+      "key": "wx",
+      "aliases": ["weixin", "wechat"],
+      "name": "WeChat",
+      "template": "https://weixin.sogou.com/weixin?query={query}"
+    },
+    {
+      "key": "tw",
+      "aliases": ["twitter", "x"],
+      "name": "X",
+      "template": "https://x.com/search?q={query}"
+    },
+    {
+      "key": "rd",
+      "aliases": ["reddit"],
+      "name": "Reddit",
+      "template": "https://www.reddit.com/search/?q={query}"
+    },
+    {
+      "key": "wk",
+      "aliases": ["wiki", "wikipedia"],
+      "name": "Wikipedia",
+      "template": "https://en.wikipedia.org/wiki/Special:Search?search={query}"
+    },
+    {
+      "key": "zw",
+      "aliases": ["zhwiki"],
+      "name": "Wikipedia",
+      "template": "https://zh.wikipedia.org/wiki/Special:Search?search={query}"
+    }
+  ]
+}

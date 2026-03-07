@@ -123,6 +123,16 @@
       ]
     },
     {
+      test: /(^|\.)bilibili\.tv$/,
+      selectors: [
+        ".bpx-player-video-wrap video",
+        ".bilibili-player-video-wrap video",
+        ".bilibili-player-video video",
+        "#bilibili-player video",
+        "#player video"
+      ]
+    },
+    {
       test: /(^|\.)youku\.com$/,
       selectors: [
         ".html5player-video video",
@@ -136,12 +146,28 @@
       selectors: [
         ".txp_video_container video",
         ".txp-player video",
+        ".txp_videos_container video",
+        ".txp_video video",
+        ".mod_player video",
         "#mod_player video",
-        "#player video"
-      ]
+        "#player video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='preview'] video",
+        "[class*='recommend'] video"
+      ],
+      allowDisablePiP: true,
+      allowEnterWhenHiddenVideo: true,
+      autoResumeOnHiddenEnter: true,
+      allowNoUserGesture: true,
+      allowEnterWhenNotPlaying: true,
+      minVisibleArea: 30000,
+      hiddenRetryLimit: 16,
+      hiddenRetryDelayMs: 180
     },
     {
-      test: /(^|\.)iqiyi\.com$/,
+      test: /(^|\.)(iqiyi\.com|iq\.com)$/,
       selectors: [
         ".iqp-player video",
         ".iqp-player-videolayer video",
@@ -157,6 +183,161 @@
       allowEnterWhenHiddenVideo: true,
       autoResumeOnHiddenEnter: true,
       allowNoUserGesture: true
+    },
+    {
+      test: /(^|\.)(kuaishou\.com|kwai\.com)$/,
+      selectors: [
+        ".ks-player video",
+        ".video-player video",
+        "[class*='player'] video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".video-card video",
+        ".sidebar video",
+        "[class*='preview'] video"
+      ],
+      minVisibleArea: 36000
+    },
+    {
+      test: /(^|\.)netflix\.com$/,
+      selectors: [
+        ".watch-video video",
+        "[data-uia='video-canvas'] video",
+        ".NFPlayer video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".previewModal video",
+        "[class*='preview'] video",
+        "[class*='billboard'] video"
+      ],
+      minVisibleArea: 56000
+    },
+    {
+      test: /(^|\.)vimeo\.com$/,
+      selectors: [
+        ".vp-video video",
+        ".player video",
+        ".js-player video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".vp-preview video",
+        "[class*='thumbnail'] video"
+      ]
+    },
+    {
+      test: /(^|\.)dailymotion\.com$/,
+      selectors: [
+        ".dmp_Player video",
+        ".dmp_VideoContainer video",
+        "#player video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".sd_video_list video",
+        "[class*='preview'] video"
+      ]
+    },
+    {
+      test: /(^|\.)(primevideo\.com|amazon\.(com|co\.uk|de|co\.jp|in))$/,
+      selectors: [
+        ".webPlayerSDKContainer video",
+        ".atvwebplayersdk-video video",
+        "#dv-web-player video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='trailer'] video",
+        "[class*='preview'] video"
+      ],
+      minVisibleArea: 56000
+    },
+    {
+      test: /(^|\.)(disneyplus\.com|hotstar\.com)$/,
+      selectors: [
+        ".btm-media-client-element video",
+        ".video-container video",
+        "[data-testid='videoPlayer'] video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='preview'] video",
+        "[class*='trailer'] video"
+      ],
+      minVisibleArea: 56000
+    },
+    {
+      test: /(^|\.)(max\.com|hbomax\.com)$/,
+      selectors: [
+        ".video-player video",
+        ".player-container video",
+        "[data-testid='video-player'] video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='preview'] video",
+        "[class*='sizzle'] video"
+      ],
+      minVisibleArea: 56000
+    },
+    {
+      test: /(^|\.)tiktok\.com$/,
+      selectors: [
+        "[data-e2e='video-player'] video",
+        ".tiktok-player video",
+        "[class*='DivVideoContainer'] video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='recommend'] video",
+        "[class*='preview'] video"
+      ],
+      allowEnterWhenHiddenVideo: true,
+      autoResumeOnHiddenEnter: true,
+      allowNoUserGesture: true,
+      minVisibleArea: 26000
+    },
+    {
+      test: /(^|\.)tubitv\.com$/,
+      selectors: [
+        ".video-js video",
+        ".vjs-tech",
+        "#video_player video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".poster video",
+        "[class*='preview'] video"
+      ]
+    },
+    {
+      test: /(^|\.)pluto\.tv$/,
+      selectors: [
+        ".video-js video",
+        ".vjs-tech",
+        ".player video",
+        "video"
+      ],
+      rejectSelectors: [
+        "[class*='grid'] video",
+        "[class*='preview'] video"
+      ]
+    },
+    {
+      test: /(^|\.)twitch\.tv$/,
+      selectors: [
+        ".video-player video",
+        ".persistent-player video",
+        "[data-a-target='player-overlay-click-handler'] video",
+        "video"
+      ],
+      rejectSelectors: [
+        ".channel-root__player-container--theatre + * video",
+        "[class*='preview'] video"
+      ],
+      minVisibleArea: 42000
     }
   ];
 

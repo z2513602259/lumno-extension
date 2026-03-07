@@ -1,11 +1,17 @@
 
+function isBrowserExtensionProtocol(protocol) {
+  const normalized = String(protocol || '').toLowerCase();
+  return normalized === 'chrome-extension:' ||
+    normalized === 'moz-extension:' ||
+    normalized === 'ms-browser-extension:';
+}
+
 function isRestrictedUrl(url) {
   if (!url) {
     return true;
   }
   const lower = String(url).toLowerCase();
   if (lower.startsWith('chrome://') ||
-    lower.startsWith('chrome-extension://') ||
     lower.startsWith('edge://') ||
     lower.startsWith('brave://') ||
     lower.startsWith('vivaldi://') ||
@@ -16,6 +22,9 @@ function isRestrictedUrl(url) {
   try {
     const parsed = new URL(url);
     const protocol = String(parsed.protocol || '').toLowerCase();
+    if (isBrowserExtensionProtocol(protocol)) {
+      return true;
+    }
     if (protocol !== 'http:' && protocol !== 'https:') {
       return true;
     }
@@ -66,6 +75,27 @@ function isBrowserNewtabUrl(url) {
     lower === 'edge://newtab/' ||
     lower === 'brave://newtab/' ||
     lower === 'opera://startpage/';
+}
+
+function isOwnExtensionUrl(url) {
+  if (!url || !chrome || !chrome.runtime || !chrome.runtime.id) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    const protocol = String(parsed.protocol || '').toLowerCase();
+    return isBrowserExtensionProtocol(protocol) &&
+      String(parsed.hostname || '') === String(chrome.runtime.id);
+  } catch (e) {
+    return false;
+  }
+}
+
+function getOwnExtensionFaviconUrl() {
+  if (!chrome || !chrome.runtime || typeof chrome.runtime.getURL !== 'function') {
+    return '';
+  }
+  return chrome.runtime.getURL('assets/images/lumno.png');
 }
 
 function shouldRecoverFromCommandNewtab(activeTab, source) {
@@ -284,8 +314,10 @@ const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024
 const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const HOTKEY_DUP_GUARD_MS = 180;
+const PAGE_HOTKEY_NEWTAB_RECOVER_MS = 1200;
 let restrictedActionCache = 'default';
 const hotkeyInvokeAtByTabId = new Map();
+let lastPageHotkeyContext = null;
 
 if (storageArea) {
   storageArea.get([RESTRICTED_ACTION_STORAGE_KEY], (result) => {
@@ -328,6 +360,83 @@ function shouldIgnoreDuplicateHotkey(tabId) {
   const lastAt = hotkeyInvokeAtByTabId.get(tabId) || 0;
   hotkeyInvokeAtByTabId.set(tabId, now);
   return (now - lastAt) <= HOTKEY_DUP_GUARD_MS;
+}
+
+function rememberPageHotkeyContext(tab) {
+  if (!tab || typeof tab.id !== 'number' || typeof tab.windowId !== 'number') {
+    lastPageHotkeyContext = null;
+    return;
+  }
+  lastPageHotkeyContext = {
+    at: Date.now(),
+    tabId: tab.id,
+    windowId: tab.windowId
+  };
+}
+
+function getRecentPageHotkeyContext(windowId) {
+  if (!lastPageHotkeyContext) {
+    return null;
+  }
+  const age = Date.now() - Number(lastPageHotkeyContext.at || 0);
+  if (age > PAGE_HOTKEY_NEWTAB_RECOVER_MS) {
+    lastPageHotkeyContext = null;
+    return null;
+  }
+  if (typeof windowId === 'number' && lastPageHotkeyContext.windowId !== windowId) {
+    return null;
+  }
+  return lastPageHotkeyContext;
+}
+
+function clearRecentPageHotkeyContext() {
+  lastPageHotkeyContext = null;
+}
+
+function recoverFromPageHotkeyNewtab(newTabId, windowId) {
+  const recentContext = getRecentPageHotkeyContext(windowId);
+  if (!recentContext || typeof newTabId !== 'number') {
+    return;
+  }
+  chrome.tabs.query({ windowId: recentContext.windowId }, (tabs) => {
+    const tabList = Array.isArray(tabs) ? tabs : [];
+    const newTab = tabList.find((item) => item && item.id === newTabId) || null;
+    const sourceTab = tabList.find((item) => item && item.id === recentContext.tabId) || null;
+    const newTabUrl = getResolvedTabUrl(newTab);
+    if (!newTab || (!isLumnoNewtabUrl(newTabUrl) && !isBrowserNewtabUrl(newTabUrl))) {
+      return;
+    }
+    if (!sourceTab || isRestrictedUrl(getResolvedTabUrl(sourceTab))) {
+      clearRecentPageHotkeyContext();
+      return;
+    }
+    clearRecentPageHotkeyContext();
+    logHotkeyDebug('page-hotkey-newtab-recover-start', {
+      windowId: recentContext.windowId,
+      sourceTabId: sourceTab.id,
+      newTabId: newTab.id,
+      sourceUrl: getResolvedTabUrl(sourceTab),
+      newTabUrl: newTabUrl
+    });
+    chrome.tabs.update(sourceTab.id, { active: true }, () => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        logHotkeyDebug('page-hotkey-newtab-recover-failed', {
+          step: 'activate-source',
+          sourceTabId: sourceTab.id,
+          error: chrome.runtime.lastError.message || 'unknown'
+        });
+        return;
+      }
+      chrome.tabs.remove(newTab.id, () => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          logHotkeyDebug('page-hotkey-newtab-close-failed', {
+            newTabId: newTab.id,
+            error: chrome.runtime.lastError.message || 'unknown'
+          });
+        }
+      });
+    });
+  });
 }
 
 function openOverlayOnTab(activeTab, tabs, source) {
@@ -432,12 +541,12 @@ function triggerShowSearchForTab(tab, source) {
 }
 
 function getDefaultFallbackShortcutByPlatform(platformOs) {
-  return platformOs === 'mac' ? 'Command+T' : 'Ctrl+T';
+  return platformOs === 'mac' ? 'Command+Shift+L' : 'Ctrl+Shift+L';
 }
 
 function getDefaultFallbackShortcut(callback) {
   if (!chrome || !chrome.runtime || typeof chrome.runtime.getPlatformInfo !== 'function') {
-    callback('Ctrl+T');
+    callback('Ctrl+Shift+L');
     return;
   }
   chrome.runtime.getPlatformInfo((info) => {
@@ -448,16 +557,29 @@ function getDefaultFallbackShortcut(callback) {
 
 function getConfiguredFallbackShortcut(callback) {
   getDefaultFallbackShortcut((defaultShortcut) => {
-    if (!storageArea) {
+    if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
       callback(defaultShortcut);
       return;
     }
-    storageArea.get([FALLBACK_SHORTCUT_STORAGE_KEY], (result) => {
-      const stored = result && typeof result[FALLBACK_SHORTCUT_STORAGE_KEY] === 'string'
-        ? String(result[FALLBACK_SHORTCUT_STORAGE_KEY]).trim()
+    chrome.commands.getAll((commands) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        callback(defaultShortcut);
+        return;
+      }
+      const items = Array.isArray(commands) ? commands : [];
+      const command = items.find((item) => item && item.name === SHOW_SEARCH_COMMAND_NAME);
+      const shortcut = command && typeof command.shortcut === 'string'
+        ? String(command.shortcut).trim()
         : '';
-      callback(stored || defaultShortcut);
+      callback(shortcut || defaultShortcut);
     });
+  });
+}
+
+function openExtensionShortcutsPage(callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }, () => {
+    done(!(chrome.runtime && chrome.runtime.lastError));
   });
 }
 
@@ -468,6 +590,16 @@ chrome.commands.onCommand.addListener(function(command) {
       triggerShowSearchForTab(activeTabs[0], 'commands');
     });
   }
+});
+
+chrome.tabs.onCreated.addListener((tab) => {
+  const recentContext = getRecentPageHotkeyContext(tab && typeof tab.windowId === 'number' ? tab.windowId : null);
+  if (!recentContext || !tab || typeof tab.id !== 'number') {
+    return;
+  }
+  setTimeout(() => {
+    recoverFromPageHotkeyNewtab(tab.id, recentContext.windowId);
+  }, 120);
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -504,14 +636,21 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === 'triggerShowSearchFromPageHotkey') {
     const senderTab = sender && sender.tab ? sender.tab : null;
     if (!senderTab || typeof senderTab.id !== 'number') {
+      logHotkeyDebug('page-hotkey-invalid-sender', {
+        hasSender: Boolean(sender),
+        hasTab: Boolean(sender && sender.tab)
+      });
       sendResponse({ ok: false });
       return;
     }
     logHotkeyDebug('received', {
       command: SHOW_SEARCH_COMMAND_NAME,
       source: 'page-hotkey',
-      tabId: senderTab.id
+      tabId: senderTab.id,
+      url: senderTab.url || '',
+      pendingUrl: senderTab.pendingUrl || ''
     });
+    rememberPageHotkeyContext(senderTab);
     triggerShowSearchForTab(senderTab, 'page-hotkey');
     sendResponse({ ok: true });
     return;
@@ -1298,6 +1437,11 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       sendResponse({ ok: ok !== false });
     });
     return true;
+  } else if (request.action === 'openExtensionShortcutsPage') {
+    openExtensionShortcutsPage((ok) => {
+      sendResponse({ ok: ok !== false });
+    });
+    return true;
   } else if (request.action === 'openBookmarkManager') {
     openBookmarkManagerPage().then((url) => {
       sendResponse({ ok: true, url: url });
@@ -1415,7 +1559,7 @@ const SEARCH_ENGINE_DEFS = [
   },
   {
     id: 'baidu',
-    name: '百度',
+    name: 'Baidu',
     hostMatches: ['baidu.com'],
     searchTemplate: 'https://www.baidu.com/s?wd={query}',
     searchUrl: (query) => `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`
@@ -1489,6 +1633,11 @@ function getGoogleFaviconUrl(hostname) {
   const normalized = normalizeFaviconHost(hostname);
   if (!normalized) {
     return '';
+  }
+  if (normalized === 'lumno.kubai.design') {
+    return (chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+      ? chrome.runtime.getURL('assets/images/lumno.png')
+      : 'https://lumno.kubai.design/favicon.png';
   }
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=${FAVICON_GOOGLE_SIZE}`;
 }
@@ -2127,6 +2276,14 @@ function getKnownThemedFaviconCandidates(hostname, preferredTheme) {
   const mode = normalizeThemePreference(preferredTheme);
   if (!host) {
     return [];
+  }
+  if (host === 'lumno.kubai.design') {
+    const lumnoIconUrl = (chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+      ? chrome.runtime.getURL('assets/images/lumno.png')
+      : 'https://lumno.kubai.design/favicon.png';
+    return [
+      { url: lumnoIconUrl, score: 58 }
+    ];
   }
   if (host === 'github.com' || host.endsWith('.github.com')) {
     if (mode === 'dark') {
@@ -2957,13 +3114,17 @@ async function getSearchSuggestions(query) {
         if (score > 0) {
           // Get favicon URL using Google's favicon service (more reliable)
         let faviconUrl = '';
-        try {
-          const urlObj = new URL(item.url);
-          const host = normalizeHost(urlObj.hostname);
-          faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
-        } catch (e) {
-          // Fallback to direct favicon URL (skip local network)
-          faviconUrl = isLocalNetworkHost(item.url) ? '' : item.url + '/favicon.ico';
+        if (isOwnExtensionUrl(item.url)) {
+          faviconUrl = getOwnExtensionFaviconUrl();
+        } else {
+          try {
+            const urlObj = new URL(item.url);
+            const host = normalizeHost(urlObj.hostname);
+            faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
+          } catch (e) {
+            // Fallback to direct favicon URL (skip local network)
+            faviconUrl = isLocalNetworkHost(item.url) ? '' : item.url + '/favicon.ico';
+          }
         }
         
           const suggestion = {
@@ -3017,12 +3178,16 @@ async function getSearchSuggestions(query) {
       }
       if (score > 0) {
         let faviconUrl = '';
-        try {
-          const urlObj = new URL(site.url);
-          const host = normalizeHost(urlObj.hostname);
-          faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
-        } catch (e) {
-          faviconUrl = isLocalNetworkHost(site.url) ? '' : site.url + '/favicon.ico';
+        if (isOwnExtensionUrl(site.url)) {
+          faviconUrl = getOwnExtensionFaviconUrl();
+        } else {
+          try {
+            const urlObj = new URL(site.url);
+            const host = normalizeHost(urlObj.hostname);
+            faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
+          } catch (e) {
+            faviconUrl = isLocalNetworkHost(site.url) ? '' : site.url + '/favicon.ico';
+          }
         }
         
         const suggestion = {
@@ -3056,13 +3221,17 @@ async function getSearchSuggestions(query) {
           
           // Get favicon URL using Google's favicon service
           let faviconUrl = '';
-          try {
-            const urlObj = new URL(bookmark.url);
-            const host = normalizeHost(urlObj.hostname);
-            faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
-          } catch (e) {
-            // Fallback to direct favicon URL (skip local network)
-            faviconUrl = isLocalNetworkHost(bookmark.url) ? '' : bookmark.url + '/favicon.ico';
+          if (isOwnExtensionUrl(bookmark.url)) {
+            faviconUrl = getOwnExtensionFaviconUrl();
+          } else {
+            try {
+              const urlObj = new URL(bookmark.url);
+              const host = normalizeHost(urlObj.hostname);
+              faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
+            } catch (e) {
+              // Fallback to direct favicon URL (skip local network)
+              faviconUrl = isLocalNetworkHost(bookmark.url) ? '' : bookmark.url + '/favicon.ico';
+            }
           }
           
           const pathParts = [];
@@ -3206,12 +3375,16 @@ async function getSearchSuggestions(query) {
     if (finalSuggestions.length === 0 && fallbackTopSites.length > 0) {
       const fallbackResults = fallbackTopSites.slice(0, 3).map((site, index) => {
         let faviconUrl = '';
-        try {
-          const urlObj = new URL(site.url);
-          const host = normalizeHost(urlObj.hostname);
-          faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
-        } catch (e) {
-          faviconUrl = isLocalNetworkHost(site.url) ? '' : site.url + '/favicon.ico';
+        if (isOwnExtensionUrl(site.url)) {
+          faviconUrl = getOwnExtensionFaviconUrl();
+        } else {
+          try {
+            const urlObj = new URL(site.url);
+            const host = normalizeHost(urlObj.hostname);
+            faviconUrl = isLocalNetworkHost(host) ? '' : getGoogleFaviconUrl(host);
+          } catch (e) {
+            faviconUrl = isLocalNetworkHost(site.url) ? '' : site.url + '/favicon.ico';
+          }
         }
         return {
           type: 'topSite',
@@ -3268,6 +3441,13 @@ async function getSearchSuggestions(query) {
   const overlayMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let overlayThemeMode = 'system';
   let overlayThemeListenerAttached = false;
+
+  function isInjectedBrowserExtensionProtocol(protocol) {
+    const normalized = String(protocol || '').toLowerCase();
+    return normalized === 'chrome-extension:' ||
+      normalized === 'moz-extension:' ||
+      normalized === 'ms-browser-extension:';
+  }
 
   function stopOverlayPageThemeObserver() {
     if (overlayPageThemeSyncRaf !== null) {
@@ -3414,7 +3594,19 @@ async function getSearchSuggestions(query) {
       return Promise.resolve({});
     }
     const localePath = chrome.runtime.getURL(`_locales/${normalized}/messages.json`);
-    if (!localePath || localePath.startsWith('chrome-extension://invalid/')) {
+    const isInvalidExtensionUrl = (() => {
+      if (!localePath) {
+        return true;
+      }
+      try {
+        const parsed = new URL(localePath);
+        return isInjectedBrowserExtensionProtocol(parsed.protocol) &&
+          String(parsed.hostname || '').toLowerCase() === 'invalid';
+      } catch (e) {
+        return false;
+      }
+    })();
+    if (isInvalidExtensionUrl) {
       return new Promise((resolve) => {
         if (!chrome.runtime.sendMessage) {
           resolve({});
@@ -4121,19 +4313,19 @@ async function getSearchSuggestions(query) {
       { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
       { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
       { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-      { key: 'so', aliases: ['baidu', 'bd'], name: '百度', template: 'https://www.baidu.com/s?wd={query}' },
+      { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
       { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
       { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
-      { key: 'zh', aliases: ['zhihu'], name: '知乎', template: 'https://www.zhihu.com/search?q={query}' },
-      { key: 'db', aliases: ['douban'], name: '豆瓣', template: 'https://www.douban.com/search?q={query}' },
-      { key: 'jd', aliases: ['juejin'], name: '掘金', template: 'https://juejin.cn/search?query={query}' },
-      { key: 'tb', aliases: ['taobao'], name: '淘宝', template: 'https://s.taobao.com/search?q={query}' },
-      { key: 'tm', aliases: ['tmall'], name: '天猫', template: 'https://list.tmall.com/search_product.htm?q={query}' },
-      { key: 'wx', aliases: ['weixin', 'wechat'], name: '微信', template: 'https://weixin.sogou.com/weixin?query={query}' },
+      { key: 'zh', aliases: ['zhihu'], name: 'Zhihu', template: 'https://www.zhihu.com/search?q={query}' },
+      { key: 'db', aliases: ['douban'], name: 'Douban', template: 'https://www.douban.com/search?q={query}' },
+      { key: 'jd', aliases: ['juejin'], name: 'Juejin', template: 'https://juejin.cn/search?query={query}' },
+      { key: 'tb', aliases: ['taobao'], name: 'Taobao', template: 'https://s.taobao.com/search?q={query}' },
+      { key: 'tm', aliases: ['tmall'], name: 'Tmall', template: 'https://list.tmall.com/search_product.htm?q={query}' },
+      { key: 'wx', aliases: ['weixin', 'wechat'], name: 'WeChat', template: 'https://weixin.sogou.com/weixin?query={query}' },
       { key: 'tw', aliases: ['twitter', 'x'], name: 'X', template: 'https://x.com/search?q={query}' },
       { key: 'rd', aliases: ['reddit'], name: 'Reddit', template: 'https://www.reddit.com/search/?q={query}' },
       { key: 'wk', aliases: ['wiki', 'wikipedia'], name: 'Wikipedia', template: 'https://en.wikipedia.org/wiki/Special:Search?search={query}' },
-      { key: 'zw', aliases: ['zhwiki'], name: '维基百科', template: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}' }
+      { key: 'zw', aliases: ['zhwiki'], name: 'Wikipedia', template: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}' }
     ];
     const defaultAccentColor = [59, 130, 246];
     const themeColorCache = window._x_extension_theme_color_cache_2024_unique_ || new Map();
@@ -4710,6 +4902,11 @@ async function getSearchSuggestions(query) {
       if (!normalized) {
         return '';
       }
+      if (normalized === 'lumno.kubai.design') {
+        return (chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+          ? chrome.runtime.getURL('assets/images/lumno.png')
+          : 'https://lumno.kubai.design/favicon.png';
+      }
       return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=128`;
     }
 
@@ -5283,8 +5480,11 @@ async function getSearchSuggestions(query) {
       img.setAttribute('data-x-ov-favicon-host', String(hostKey || ''));
       img.setAttribute('data-x-ov-favicon-fallback-url', String(fallbackUrl || ''));
       const cacheKey = `${String(hostKey || '')}::${String(pageUrl || '')}::${String(fallbackUrl || '')}::${preferredTheme}`;
+      const shouldBypassCachedUrl = normalizeFaviconHost(hostKey || '') === 'lumno.kubai.design';
       const cachedUrl = resolvedFaviconUrlCache.get(cacheKey) || '';
-      const safeCachedUrl = (isBlockedLocalFaviconUrl(cachedUrl) || isChromeMonogramFaviconUrl(cachedUrl)) ? '' : cachedUrl;
+      const safeCachedUrl = (shouldBypassCachedUrl || isBlockedLocalFaviconUrl(cachedUrl) || isChromeMonogramFaviconUrl(cachedUrl))
+        ? ''
+        : cachedUrl;
       const safeFallbackUrl = isBlockedLocalFaviconUrl(fallbackUrl) ? '' : String(fallbackUrl || '');
       const quickUrl = safeCachedUrl || safeFallbackUrl;
       const trySetCandidate = (nextUrl) => {
@@ -6061,6 +6261,22 @@ async function getSearchSuggestions(query) {
     function getSiteSearchDisplayName(provider) {
       if (!provider) {
         return t('site_search_default', '站内');
+      }
+      const key = String(provider.key || '').toLowerCase();
+      const keyToMessage = {
+        so: ['site_search_name_baidu', 'Baidu'],
+        zh: ['site_search_name_zhihu', 'Zhihu'],
+        db: ['site_search_name_douban', 'Douban'],
+        jd: ['site_search_name_juejin', 'Juejin'],
+        jj: ['site_search_name_juejin', 'Juejin'],
+        tb: ['site_search_name_taobao', 'Taobao'],
+        tm: ['site_search_name_tmall', 'Tmall'],
+        wx: ['site_search_name_wechat', 'WeChat'],
+        zw: ['site_search_name_wikipedia', 'Wikipedia']
+      };
+      const mapping = keyToMessage[key];
+      if (mapping) {
+        return t(mapping[0], mapping[1]);
       }
       return provider.name || provider.key || t('site_search_default', '站内');
     }

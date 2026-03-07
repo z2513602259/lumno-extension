@@ -9,11 +9,27 @@
   let shortcutSpec = null;
   let lastRefreshAt = 0;
 
+  function logHotkeyListenerDebug(stage, payload) {
+    try {
+      const detail = payload && typeof payload === 'object' ? payload : {};
+      console.log(`[Lumno][hotkey-listener] ${stage}`, detail);
+    } catch (e) {
+      // Ignore logging errors.
+    }
+  }
+
   function triggerOverlay() {
+    logHotkeyListenerDebug('trigger-overlay', {
+      shortcut: shortcutRaw || '',
+      href: location && location.href ? location.href : ''
+    });
     try {
       chrome.runtime.sendMessage({ action: 'triggerShowSearchFromPageHotkey' });
     } catch (e) {
       // Ignore runtime bridge failures.
+      logHotkeyListenerDebug('trigger-overlay-failed', {
+        error: e && e.message ? e.message : String(e || '')
+      });
     }
   }
 
@@ -90,6 +106,54 @@
     return spec;
   }
 
+  function getShortcutKeyTokenFromCode(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) {
+      return '';
+    }
+    if (/^Key[A-Z]$/.test(code)) {
+      return code.slice(3).toLowerCase();
+    }
+    if (/^Digit[0-9]$/.test(code)) {
+      return code.slice(5);
+    }
+    const codeMap = {
+      Backquote: '`',
+      Minus: '-',
+      Equal: '+',
+      BracketLeft: '[',
+      BracketRight: ']',
+      Backslash: '\\',
+      Semicolon: ';',
+      Quote: '\'',
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Space: ' ',
+      Tab: 'Tab',
+      Enter: 'Enter',
+      Escape: 'Escape',
+      ArrowUp: 'ArrowUp',
+      ArrowDown: 'ArrowDown',
+      ArrowLeft: 'ArrowLeft',
+      ArrowRight: 'ArrowRight'
+    };
+    if (codeMap[code]) {
+      return codeMap[code];
+    }
+    if (/^F\d{1,2}$/.test(code)) {
+      return code.toUpperCase();
+    }
+    return '';
+  }
+
+  function getShortcutKeyTokenFromEvent(event) {
+    if (!event) {
+      return '';
+    }
+    return getShortcutKeyTokenFromCode(event.code) || String(event.key || '');
+  }
+
   function isEditableTarget(target) {
     const element = target && target.nodeType === 1 ? target : (target && target.parentElement ? target.parentElement : null);
     if (!element || !element.closest) {
@@ -108,7 +172,7 @@
       Boolean(event.metaKey) !== spec.meta) {
       return false;
     }
-    const eventKey = String(event.key || '');
+    const eventKey = getShortcutKeyTokenFromEvent(event);
     if (spec.key.length === 1) {
       return eventKey.toLowerCase() === spec.key;
     }
@@ -127,6 +191,9 @@
     try {
       chrome.runtime.sendMessage({ action: 'getShowSearchShortcut' }, (response) => {
         if (chrome.runtime && chrome.runtime.lastError) {
+          logHotkeyListenerDebug('shortcut-refresh-error', {
+            error: chrome.runtime.lastError.message || 'unknown'
+          });
           return;
         }
         const nextShortcut = response && typeof response.shortcut === 'string'
@@ -137,13 +204,23 @@
         }
         shortcutRaw = nextShortcut;
         shortcutSpec = parseShortcut(nextShortcut);
+        logHotkeyListenerDebug('shortcut-refresh', {
+          shortcut: shortcutRaw,
+          hasSpec: Boolean(shortcutSpec)
+        });
       });
     } catch (e) {
       // Ignore runtime bridge failures on restricted frames.
+      logHotkeyListenerDebug('shortcut-refresh-failed', {
+        error: e && e.message ? e.message : String(e || '')
+      });
     }
   }
 
   refreshShortcut(true);
+  logHotkeyListenerDebug('listener-ready', {
+    href: location && location.href ? location.href : ''
+  });
   window.addEventListener('focus', () => refreshShortcut(true), true);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
@@ -159,7 +236,19 @@
     if (isEditableTarget(event.target)) {
       return;
     }
+    if (event.metaKey && String(event.key || '').toLowerCase() === 't') {
+      logHotkeyListenerDebug('meta-t-seen', {
+        defaultPrevented: Boolean(event.defaultPrevented),
+        targetTag: event.target && event.target.tagName ? String(event.target.tagName).toLowerCase() : '',
+        shortcut: shortcutRaw || '',
+        href: location && location.href ? location.href : ''
+      });
+    }
     if (shortcutSpec && shortcutMatchesEvent(event, shortcutSpec)) {
+      logHotkeyListenerDebug('shortcut-matched', {
+        key: String(event.key || ''),
+        shortcut: shortcutRaw || ''
+      });
       event.preventDefault();
       event.stopPropagation();
       triggerOverlay();

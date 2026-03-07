@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>New Tab</title>
-    <link rel="stylesheet" href="fonts/open-sans/open-sans.css" />
-    <link rel="stylesheet" href="remixicon/fonts/remixicon.css" />
+    <link rel="stylesheet" href="assets/fonts/open-sans/open-sans.css" />
+    <link rel="stylesheet" href="assets/remixicon/fonts/remixicon.css" />
     <!-- Thanks to the Remix Icon project; this extension uses its icon set: https://remixicon.com/ -->
     <style>
       html,
@@ -593,15 +593,15 @@
         grid-template-columns: 25px 1fr;
         column-gap: 7px;
         row-gap: 3px;
-        padding: 13px 13px 10px 15px;
-        height: 98px;
+        padding: 13px 13px 14px 15px;
+        height: 104px;
         box-sizing: border-box;
         align-content: start;
         align-items: start;
         transition: height 220ms ease, transform 220ms ease, margin-bottom 220ms ease;
       }
       .x-nt-recent-card:hover .x-nt-recent-inner {
-        height: 118px;
+        height: 124px;
         transform: translateY(-20px);
         margin-bottom: -20px;
         /* background-image: linear-gradient(rgba(var(--x-nt-recent-inner-tint-rgb, 247, 232, 218), 0) 0%,rgba(var(--x-nt-recent-inner-tint-rgb, 247, 232, 218), 0.02) 100%),
@@ -609,7 +609,7 @@
       }
       .x-nt-recent-card.x-nt-recent-card--rollback .x-nt-recent-inner,
       .x-nt-recent-card.x-nt-recent-card--rollback:hover .x-nt-recent-inner {
-        height: 98px;
+        height: 104px;
         transform: none;
         margin-bottom: 0;
       }
@@ -667,6 +667,7 @@
         -webkit-line-clamp: var(--x-nt-recent-title-lines);
         -webkit-box-orient: vertical;
         white-space: pre-wrap;
+        padding-bottom: 6px;
       }
       .x-nt-recent-url {
         margin: 0 10px;

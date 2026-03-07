@@ -127,7 +127,7 @@
       const link = document.createElement('link');
       link.id = '_x_extension_remixicon_css_2024_unique_';
       link.rel = 'stylesheet';
-      link.href = chrome.runtime.getURL('remixicon/fonts/remixicon.css');
+      link.href = chrome.runtime.getURL('assets/remixicon/fonts/remixicon.css');
       host.appendChild(link);
     }
 
@@ -145,7 +145,7 @@
       const link = document.createElement('link');
       link.id = '_x_extension_open_sans_css_2024_unique_';
       link.rel = 'stylesheet';
-      link.href = chrome.runtime.getURL('fonts/open-sans/open-sans.css');
+      link.href = chrome.runtime.getURL('assets/fonts/open-sans/open-sans.css');
       host.appendChild(link);
     }
 

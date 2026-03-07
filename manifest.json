@@ -9,8 +9,8 @@
       "show-search": {
          "description": "__MSG_command_show_search__",
          "suggested_key": {
-            "default": "Ctrl+T",
-            "mac": "Command+T"
+            "default": "Ctrl+Shift+L",
+            "mac": "Command+Shift+L"
          }
       }
    },
@@ -21,8 +21,34 @@
          "run_at": "document_start"
       },
       {
-         "matches": [ "\u003Call_urls>" ],
-         "exclude_matches": [ "*://*.youtube.com/*", "*://youtube.com/*" ],
+         "matches": [
+            "*://*.iqiyi.com/*",
+            "*://*.iq.com/*",
+            "*://*.kuaishou.com/*",
+            "*://*.kwai.com/*",
+            "*://*.netflix.com/*",
+            "*://*.vimeo.com/*",
+            "*://*.dailymotion.com/*",
+            "*://*.primevideo.com/*",
+            "*://*.amazon.com/*",
+            "*://*.amazon.co.uk/*",
+            "*://*.amazon.de/*",
+            "*://*.amazon.co.jp/*",
+            "*://*.amazon.in/*",
+            "*://*.disneyplus.com/*",
+            "*://*.hotstar.com/*",
+            "*://*.max.com/*",
+            "*://*.hbomax.com/*",
+            "*://*.tiktok.com/*",
+            "*://*.tubitv.com/*",
+            "*://*.pluto.tv/*",
+            "*://*.twitch.tv/*",
+            "*://*.douyin.com/*",
+            "*://*.youku.com/*",
+            "*://*.v.qq.com/*",
+            "*://*.bilibili.com/*",
+            "*://*.bilibili.tv/*"
+         ],
          "js": [ "auto-pip-blacklist.js", "site-auto-pip.js" ],
          "run_at": "document_idle"
       },
@@ -38,9 +64,9 @@
    },
    "host_permissions": [ "\u003Call_urls>" ],
    "icons": {
-      "128": "lumno.png",
-      "16": "lumno.png",
-      "48": "lumno.png"
+      "128": "assets/images/lumno.png",
+      "16": "assets/images/lumno.png",
+      "48": "assets/images/lumno.png"
    },
    "options_ui": {
       "page": "options.html",
@@ -48,7 +74,7 @@
    },
    "web_accessible_resources": [
       {
-         "resources": [ "lumno.png", "lumno-input-light.png", "site-search.json", "shortcut-rules.json", "remixicon/fonts/remixicon.css", "remixicon/fonts/remixicon.woff2", "fonts/open-sans/open-sans.css", "fonts/open-sans/OpenSans-VariableFont-wdth-wght.ttf", "youtube-auto-pip-page.js" ],
+         "resources": [ "assets/images/lumno.png", "assets/images/lumno-input-light.png", "assets/data/site-search.json", "assets/data/shortcut-rules.json", "assets/remixicon/fonts/remixicon.css", "assets/remixicon/fonts/remixicon.woff2", "assets/fonts/open-sans/open-sans.css", "assets/fonts/open-sans/OpenSans-VariableFont-wdth-wght.ttf", "youtube-auto-pip-page.js" ],
          "matches": [ "\u003Call_urls>" ]
       }
    ],
@@ -56,6 +82,6 @@
   "default_locale": "zh_CN",
    "name": "__MSG_ext_name__",
    "author": "Kubai087",
-   "permissions": [ "scripting", "tabs", "history", "topSites", "bookmarks", "storage", "search" ],
+   "permissions": [ "scripting", "tabs", "history", "topSites", "bookmarks", "storage" ],
    "version": "0.9.3"
 }

@@ -1668,7 +1668,7 @@
         mode: getThemeModeLabel(nextMode)
       }),
       url: '',
-      favicon: chrome.runtime.getURL('lumno.png'),
+      favicon: chrome.runtime.getURL('assets/images/lumno.png'),
       nextMode: nextMode
     };
   }
@@ -1691,6 +1691,9 @@
   let latestQuery = '';
   let latestRawQuery = '';
   let lastDeletionAt = 0;
+  let fallbackShortcutRaw = '';
+  let fallbackShortcutSpec = null;
+  let fallbackShortcutRefreshAt = 0;
   let autocompleteState = null;
   let inlineSearchState = null;
   let isComposing = false;
@@ -2078,6 +2081,14 @@
     const host = normalizeFaviconHost(hostname);
     if (!host) {
       return [];
+    }
+    if (host === 'lumno.kubai.design') {
+      const lumnoIconUrl = (chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+        ? chrome.runtime.getURL('assets/images/lumno.png')
+        : 'https://lumno.kubai.design/favicon.png';
+      return [
+        lumnoIconUrl
+      ];
     }
     if (host === 'github.com' || host.endsWith('.github.com')) {
       if (preferredTheme === 'dark') {
@@ -4264,13 +4275,19 @@
     }
   }
 
+  function isBrowserExtensionProtocol(protocol) {
+    const normalized = String(protocol || '').toLowerCase();
+    return normalized === 'chrome-extension:' ||
+      normalized === 'moz-extension:' ||
+      normalized === 'ms-browser-extension:';
+  }
+
   function isRestrictedUrl(url) {
     if (!url) {
       return true;
     }
     const lower = String(url).toLowerCase();
     if (lower.startsWith('chrome://') ||
-      lower.startsWith('chrome-extension://') ||
       lower.startsWith('edge://') ||
       lower.startsWith('brave://') ||
       lower.startsWith('vivaldi://') ||
@@ -4280,6 +4297,9 @@
     }
     try {
       const parsed = new URL(url);
+      if (isBrowserExtensionProtocol(parsed.protocol)) {
+        return true;
+      }
       const host = parsed.hostname.toLowerCase();
       const path = parsed.pathname.toLowerCase();
       if ((host === 'chrome.google.com' && path.startsWith('/webstore')) ||
@@ -4298,7 +4318,7 @@
     if (!url) {
       return '';
     }
-    if (location && location.protocol === 'chrome-extension:') {
+    if (location && isBrowserExtensionProtocol(location.protocol)) {
       return '';
     }
     return `chrome://favicon2/?size=128&scale_factor=2x&show_fallback_monogram=1&url=${encodeURIComponent(url)}`;
@@ -4308,6 +4328,11 @@
     const normalized = normalizeFaviconHost(hostname);
     if (!normalized) {
       return '';
+    }
+    if (normalized === 'lumno.kubai.design') {
+      return (chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+        ? chrome.runtime.getURL('assets/images/lumno.png')
+        : 'https://lumno.kubai.design/favicon.png';
     }
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=${FAVICON_GOOGLE_SIZE}`;
   }
@@ -4394,13 +4419,14 @@
       return;
     }
     const faviconHostKey = normalizeFaviconHost(hostKey);
+    const shouldBypassPersistedForHost = faviconHostKey === 'lumno.kubai.design';
     const preferredTheme = getFaviconPreferredTheme();
     const knownThemedCandidates = getKnownThemedFaviconCandidates(faviconHostKey, preferredTheme);
     const previousWorkingSrc = getLastWorkingFaviconSrc(img);
     const faviconCacheKey = faviconHostKey ? `${preferredTheme}::${faviconHostKey}` : '';
-    const persistedEntry = getPersistedFaviconEntry(faviconCacheKey);
+    const persistedEntry = shouldBypassPersistedForHost ? null : getPersistedFaviconEntry(faviconCacheKey);
     let persistedFavicon = persistedEntry && persistedEntry.url ? persistedEntry.url : '';
-    const persistedDataEntry = getPersistedFaviconDataEntry(faviconCacheKey);
+    const persistedDataEntry = shouldBypassPersistedForHost ? null : getPersistedFaviconDataEntry(faviconCacheKey);
     let persistedDataUrl = persistedDataEntry && persistedDataEntry.dataUrl ? persistedDataEntry.dataUrl : '';
     const now = Date.now();
     const persistedDataAge = persistedDataEntry && Number.isFinite(persistedDataEntry.updatedAt)
@@ -5060,6 +5086,7 @@
     const rawTitle = String(title || '').trim();
     const host = String(hostname || '').toLowerCase().replace(/^(www|m)\./i, '');
     const brandMap = {
+      'lumno.kubai.design': 'Lumno',
       'github.com': 'GitHub',
       'youtube.com': 'YouTube',
       'google.com': 'Google',
@@ -5862,7 +5889,7 @@
     if (siteSearchProvidersCache) {
       return Promise.resolve(siteSearchProvidersCache);
     }
-    const localUrl = chrome.runtime.getURL('site-search.json');
+    const localUrl = chrome.runtime.getURL('assets/data/site-search.json');
     const localFallback = fetch(localUrl)
       .then((response) => response.json())
       .then((data) => {
@@ -5933,6 +5960,22 @@
   function getSiteSearchDisplayName(provider) {
     if (!provider) {
       return t('site_search_default', '站内');
+    }
+    const key = String(provider.key || '').toLowerCase();
+    const keyToMessage = {
+      so: ['site_search_name_baidu', 'Baidu'],
+      zh: ['site_search_name_zhihu', 'Zhihu'],
+      db: ['site_search_name_douban', 'Douban'],
+      jd: ['site_search_name_juejin', 'Juejin'],
+      jj: ['site_search_name_juejin', 'Juejin'],
+      tb: ['site_search_name_taobao', 'Taobao'],
+      tm: ['site_search_name_tmall', 'Tmall'],
+      wx: ['site_search_name_wechat', 'WeChat'],
+      zw: ['site_search_name_wikipedia', 'Wikipedia']
+    };
+    const mapping = keyToMessage[key];
+    if (mapping) {
+      return t(mapping[0], mapping[1]);
     }
     return provider.name || provider.key || t('site_search_default', '站内');
   }
@@ -6268,7 +6311,7 @@
     if (window._x_extension_shortcut_rules_promise_2024_unique_) {
       return window._x_extension_shortcut_rules_promise_2024_unique_;
     }
-    const rulesUrl = chrome.runtime.getURL('shortcut-rules.json');
+    const rulesUrl = chrome.runtime.getURL('assets/data/shortcut-rules.json');
     const rulesPromise = fetch(rulesUrl)
       .then((response) => response.json())
       .then((data) => {
@@ -7943,6 +7986,172 @@
     return Boolean(el.isContentEditable);
   }
 
+  function parseFallbackShortcut(shortcut) {
+    const value = String(shortcut || '').trim();
+    if (!value) {
+      return null;
+    }
+    const parts = value.split('+').map((item) => String(item || '').trim()).filter(Boolean);
+    if (parts.length === 0) {
+      return null;
+    }
+    const keyToken = parts[parts.length - 1];
+    const modifierTokens = parts.slice(0, -1);
+    const spec = {
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+      key: ''
+    };
+
+    modifierTokens.forEach((token) => {
+      const lower = token.toLowerCase();
+      if (lower === 'ctrl' || lower === 'control' || lower === 'macctrl') {
+        spec.ctrl = true;
+      } else if (lower === 'alt' || lower === 'option') {
+        spec.alt = true;
+      } else if (lower === 'shift') {
+        spec.shift = true;
+      } else if (lower === 'command' || lower === 'cmd' || lower === 'meta' || lower === 'super') {
+        spec.meta = true;
+      }
+    });
+
+    const keyLower = keyToken.toLowerCase();
+    const specialMap = {
+      tab: 'Tab',
+      enter: 'Enter',
+      return: 'Enter',
+      esc: 'Escape',
+      escape: 'Escape',
+      space: ' ',
+      spacebar: ' ',
+      up: 'ArrowUp',
+      down: 'ArrowDown',
+      left: 'ArrowLeft',
+      right: 'ArrowRight',
+      comma: ',',
+      period: '.',
+      slash: '/',
+      semicolon: ';',
+      quote: '\'',
+      minus: '-',
+      plus: '+',
+      backslash: '\\',
+      backquote: '`',
+      bracketleft: '[',
+      bracketright: ']'
+    };
+    if (specialMap[keyLower]) {
+      spec.key = specialMap[keyLower];
+      return spec;
+    }
+    if (/^f\d{1,2}$/.test(keyLower)) {
+      spec.key = keyLower.toUpperCase();
+      return spec;
+    }
+    if (keyLower.length === 1) {
+      spec.key = keyLower;
+      return spec;
+    }
+    spec.key = keyToken;
+    return spec;
+  }
+
+  function getFallbackShortcutKeyTokenFromCode(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) {
+      return '';
+    }
+    if (/^Key[A-Z]$/.test(code)) {
+      return code.slice(3).toLowerCase();
+    }
+    if (/^Digit[0-9]$/.test(code)) {
+      return code.slice(5);
+    }
+    const codeMap = {
+      Backquote: '`',
+      Minus: '-',
+      Equal: '+',
+      BracketLeft: '[',
+      BracketRight: ']',
+      Backslash: '\\',
+      Semicolon: ';',
+      Quote: '\'',
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Space: ' ',
+      Tab: 'Tab',
+      Enter: 'Enter',
+      Escape: 'Escape',
+      ArrowUp: 'ArrowUp',
+      ArrowDown: 'ArrowDown',
+      ArrowLeft: 'ArrowLeft',
+      ArrowRight: 'ArrowRight'
+    };
+    if (codeMap[code]) {
+      return codeMap[code];
+    }
+    if (/^F\d{1,2}$/.test(code)) {
+      return code.toUpperCase();
+    }
+    return '';
+  }
+
+  function getFallbackShortcutKeyTokenFromEvent(event) {
+    if (!event) {
+      return '';
+    }
+    return getFallbackShortcutKeyTokenFromCode(event.code) || String(event.key || '');
+  }
+
+  function shortcutMatchesEvent(event, spec) {
+    if (!event || !spec) {
+      return false;
+    }
+    if (Boolean(event.ctrlKey) !== spec.ctrl ||
+      Boolean(event.altKey) !== spec.alt ||
+      Boolean(event.shiftKey) !== spec.shift ||
+      Boolean(event.metaKey) !== spec.meta) {
+      return false;
+    }
+    const eventKey = getFallbackShortcutKeyTokenFromEvent(event);
+    if (spec.key.length === 1) {
+      return eventKey.toLowerCase() === spec.key;
+    }
+    if (spec.key.startsWith('F')) {
+      return eventKey.toUpperCase() === spec.key;
+    }
+    return eventKey === spec.key;
+  }
+
+  function refreshFallbackShortcut(force) {
+    const now = Date.now();
+    if (!force && (now - fallbackShortcutRefreshAt) < 15000) {
+      return;
+    }
+    fallbackShortcutRefreshAt = now;
+    try {
+      chrome.runtime.sendMessage({ action: 'getShowSearchShortcut' }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          return;
+        }
+        const nextShortcut = response && typeof response.shortcut === 'string'
+          ? response.shortcut
+          : '';
+        if (nextShortcut === fallbackShortcutRaw) {
+          return;
+        }
+        fallbackShortcutRaw = nextShortcut;
+        fallbackShortcutSpec = parseFallbackShortcut(nextShortcut);
+      });
+    } catch (e) {
+      // Ignore runtime bridge failures.
+    }
+  }
+
   function tryFocusSearchInput(force) {
     if (!inputParts || !inputParts.input) {
       return false;
@@ -7965,6 +8174,18 @@
       inputParts.input.focus();
     }
     return document.activeElement === inputParts.input;
+  }
+
+  function activateNewtabShortcutFocus() {
+    if (!tryFocusSearchInput(true)) {
+      return false;
+    }
+    try {
+      inputParts.input.select();
+    } catch (e) {
+      // Ignore selection failures.
+    }
+    return true;
   }
 
   function scheduleAutoFocusRecovery() {
@@ -8001,9 +8222,17 @@
   }
 
   scheduleAutoFocusRecovery();
+  refreshFallbackShortcut(true);
 
   function handleGlobalTypingFocus(event) {
     if (!event || event.defaultPrevented || event.isComposing) {
+      return;
+    }
+    refreshFallbackShortcut(false);
+    if (fallbackShortcutSpec && shortcutMatchesEvent(event, fallbackShortcutSpec)) {
+      event.preventDefault();
+      event.stopPropagation();
+      activateNewtabShortcutFocus();
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -8061,6 +8290,12 @@
   }
 
   window.addEventListener('keydown', handleGlobalTypingFocus, true);
+  window.addEventListener('focus', () => refreshFallbackShortcut(true), true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshFallbackShortcut(false);
+    }
+  }, true);
   window.addEventListener('pointerdown', function(event) {
     if (!event || event.defaultPrevented) {
       return;
