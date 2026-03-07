@@ -82,6 +82,6 @@
   "default_locale": "zh_CN",
    "name": "__MSG_ext_name__",
    "author": "Kubai087",
-   "permissions": [ "scripting", "tabs", "history", "topSites", "bookmarks", "storage" ],
-   "version": "0.9.3"
+   "permissions": [ "scripting", "tabs", "history", "topSites", "bookmarks", "storage", "search" ],
+   "version": "0.9.4"
 }
