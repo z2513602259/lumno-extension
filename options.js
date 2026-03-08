@@ -26,6 +26,7 @@
     : null;
   const autoPipToggle = document.getElementById('_x_extension_auto_pip_toggle_2024_unique_');
   const documentPipToggle = document.getElementById('_x_extension_document_pip_toggle_2026_unique_');
+  const pinnedTabRecoveryToggle = document.getElementById('_x_extension_pinned_tab_recovery_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
@@ -99,6 +100,7 @@
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
   const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
+  const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
@@ -116,6 +118,7 @@
     BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
+    PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
@@ -267,6 +270,10 @@
   }
 
   function normalizeDocumentPipEnabled(value) {
+    return value === true;
+  }
+
+  function normalizePinnedTabRecoveryEnabled(value) {
     return value === true;
   }
 
@@ -1911,6 +1918,7 @@
     BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
+    PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
@@ -2107,6 +2115,15 @@
         return;
       }
       storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: next });
+    });
+  }
+  if (pinnedTabRecoveryToggle) {
+    pinnedTabRecoveryToggle.addEventListener('change', () => {
+      const next = Boolean(pinnedTabRecoveryToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]: next });
     });
   }
 
@@ -2528,6 +2545,17 @@
       }
       if (rawValue !== stored) {
         storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY], (result) => {
+      const rawValue = result[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY];
+      const stored = normalizePinnedTabRecoveryEnabled(rawValue);
+      if (pinnedTabRecoveryToggle) {
+        pinnedTabRecoveryToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]: stored });
       }
       refreshCustomSelects();
     });
@@ -3326,6 +3354,7 @@
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COLUMNS_STORAGE_KEY] ||
         changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
+        changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
         changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
@@ -3390,6 +3419,15 @@
       documentPipToggle.checked = next;
       if (raw !== next && storageArea) {
         storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY] && pinnedTabRecoveryToggle) {
+      const raw = changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY].newValue;
+      const next = normalizePinnedTabRecoveryEnabled(raw);
+      pinnedTabRecoveryToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]: next });
       }
       refreshCustomSelects();
     }

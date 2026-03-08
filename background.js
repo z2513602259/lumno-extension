@@ -312,7 +312,9 @@ const storageAreaName = storageArea
 const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
 const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
 const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
+const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
 const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
+const PINNED_TAB_SNAPSHOT_STORAGE_KEY = '_x_extension_pinned_tab_snapshot_2026_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const HOTKEY_DUP_GUARD_MS = 180;
 const PAGE_HOTKEY_NEWTAB_RECOVER_MS = 1200;
@@ -321,11 +323,223 @@ const TAB_SWITCH_WINDOW_DAY_MS = 24 * 60 * 60 * 1000;
 const TAB_SWITCH_HIGH_FREQ_SHORT_THRESHOLD = 2;
 const TAB_SWITCH_HIGH_FREQ_DAY_THRESHOLD = 5;
 const TAB_SWITCH_EVENT_HISTORY_LIMIT = 60;
+const PINNED_TAB_SNAPSHOT_DEBOUNCE_MS = 600;
+const PINNED_TAB_RESTORE_MAX_TABS = 24;
 let restrictedActionCache = 'default';
 let documentPipEnabledCache = false;
+let pinnedTabRecoveryEnabledCache = false;
 const hotkeyInvokeAtByTabId = new Map();
 let lastPageHotkeyContext = null;
 const tabSwitchEventsByTabId = new Map();
+let pinnedTabSnapshotTimer = null;
+let pinnedTabRestoreAttempted = false;
+
+function queryTabsForPinnedSnapshot(queryInfo) {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.tabs || typeof chrome.tabs.query !== 'function') {
+      resolve([]);
+      return;
+    }
+    chrome.tabs.query(queryInfo || {}, (tabs) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve([]);
+        return;
+      }
+      resolve(Array.isArray(tabs) ? tabs : []);
+    });
+  });
+}
+
+function getPinnedSnapshotFromStorage() {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.storage || !chrome.storage.local) {
+      resolve(null);
+      return;
+    }
+    chrome.storage.local.get([PINNED_TAB_SNAPSHOT_STORAGE_KEY], (result) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(result ? result[PINNED_TAB_SNAPSHOT_STORAGE_KEY] : null);
+    });
+  });
+}
+
+function setPinnedSnapshotToStorage(snapshot) {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.storage || !chrome.storage.local) {
+      resolve(false);
+      return;
+    }
+    chrome.storage.local.set({ [PINNED_TAB_SNAPSHOT_STORAGE_KEY]: snapshot }, () => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve(false);
+        return;
+      }
+      resolve(true);
+    });
+  });
+}
+
+function createPinnedTabForRestore(url, windowId) {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.tabs || typeof chrome.tabs.create !== 'function') {
+      resolve(false);
+      return;
+    }
+    const createWithWindow = (typeof windowId === 'number')
+      ? { windowId, url, pinned: true, active: false }
+      : { url, pinned: true, active: false };
+    chrome.tabs.create(createWithWindow, () => {
+      if (!(chrome.runtime && chrome.runtime.lastError)) {
+        resolve(true);
+        return;
+      }
+      if (typeof windowId !== 'number') {
+        resolve(false);
+        return;
+      }
+      chrome.tabs.create({ url, pinned: true, active: false }, () => {
+        resolve(!(chrome.runtime && chrome.runtime.lastError));
+      });
+    });
+  });
+}
+
+function getLastFocusedWindowIdForRestore() {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.windows || typeof chrome.windows.getLastFocused !== 'function') {
+      resolve(null);
+      return;
+    }
+    chrome.windows.getLastFocused({}, (windowInfo) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      const canUse = windowInfo &&
+        typeof windowInfo.id === 'number' &&
+        windowInfo.incognito !== true &&
+        (!windowInfo.type || windowInfo.type === 'normal');
+      resolve(canUse ? windowInfo.id : null);
+    });
+  });
+}
+
+function normalizePinnedTabSnapshot(rawValue) {
+  const urls = [];
+  if (Array.isArray(rawValue)) {
+    rawValue.forEach((item) => {
+      const url = String(item || '').trim();
+      if (url && !isRestrictedUrl(url)) {
+        urls.push(url);
+      }
+    });
+    return urls.slice(0, PINNED_TAB_RESTORE_MAX_TABS);
+  }
+  if (!rawValue || typeof rawValue !== 'object' || !Array.isArray(rawValue.urls)) {
+    return [];
+  }
+  rawValue.urls.forEach((item) => {
+    const url = String(item || '').trim();
+    if (url && !isRestrictedUrl(url)) {
+      urls.push(url);
+    }
+  });
+  return urls.slice(0, PINNED_TAB_RESTORE_MAX_TABS);
+}
+
+function countUrls(urls) {
+  const map = new Map();
+  urls.forEach((url) => {
+    const current = map.get(url) || 0;
+    map.set(url, current + 1);
+  });
+  return map;
+}
+
+async function persistPinnedTabSnapshotNow() {
+  if (!pinnedTabRecoveryEnabledCache) {
+    return;
+  }
+  const tabs = await queryTabsForPinnedSnapshot({ pinned: true });
+  const urls = tabs
+    .filter((tab) => tab && tab.incognito !== true)
+    .sort((a, b) => {
+      const winA = typeof a.windowId === 'number' ? a.windowId : 0;
+      const winB = typeof b.windowId === 'number' ? b.windowId : 0;
+      if (winA !== winB) {
+        return winA - winB;
+      }
+      const indexA = typeof a.index === 'number' ? a.index : 0;
+      const indexB = typeof b.index === 'number' ? b.index : 0;
+      return indexA - indexB;
+    })
+    .map((tab) => getResolvedTabUrl(tab))
+    .filter((url) => Boolean(url) && !isRestrictedUrl(url))
+    .slice(0, PINNED_TAB_RESTORE_MAX_TABS);
+  await setPinnedSnapshotToStorage({
+    urls,
+    capturedAt: Date.now()
+  });
+}
+
+function schedulePersistPinnedTabSnapshot() {
+  if (!pinnedTabRecoveryEnabledCache) {
+    if (pinnedTabSnapshotTimer !== null) {
+      clearTimeout(pinnedTabSnapshotTimer);
+      pinnedTabSnapshotTimer = null;
+    }
+    return;
+  }
+  if (pinnedTabSnapshotTimer !== null) {
+    clearTimeout(pinnedTabSnapshotTimer);
+  }
+  pinnedTabSnapshotTimer = setTimeout(() => {
+    pinnedTabSnapshotTimer = null;
+    persistPinnedTabSnapshotNow().catch(() => {});
+  }, PINNED_TAB_SNAPSHOT_DEBOUNCE_MS);
+}
+
+async function restorePinnedTabsFromSnapshotOnStartup() {
+  if (!pinnedTabRecoveryEnabledCache) {
+    return;
+  }
+  if (pinnedTabRestoreAttempted) {
+    return;
+  }
+  pinnedTabRestoreAttempted = true;
+  const savedRaw = await getPinnedSnapshotFromStorage();
+  const savedUrls = normalizePinnedTabSnapshot(savedRaw);
+  if (!savedUrls.length) {
+    return;
+  }
+  const currentTabs = await queryTabsForPinnedSnapshot({});
+  const existingPinnedUrls = currentTabs
+    .filter((tab) => tab && tab.pinned && tab.incognito !== true)
+    .map((tab) => getResolvedTabUrl(tab))
+    .filter((url) => Boolean(url) && !isRestrictedUrl(url));
+  const required = countUrls(savedUrls);
+  const existing = countUrls(existingPinnedUrls);
+  const missingUrls = [];
+  required.forEach((needCount, url) => {
+    const existingCount = existing.get(url) || 0;
+    for (let i = existingCount; i < needCount; i += 1) {
+      missingUrls.push(url);
+    }
+  });
+  if (!missingUrls.length) {
+    return;
+  }
+  const targetWindowId = await getLastFocusedWindowIdForRestore();
+  for (let i = 0; i < missingUrls.length && i < PINNED_TAB_RESTORE_MAX_TABS; i += 1) {
+    await createPinnedTabForRestore(missingUrls[i], targetWindowId);
+  }
+  setTimeout(() => {
+    schedulePersistPinnedTabSnapshot();
+  }, 800);
+}
 
 function getTabSwitchStat(tabId, createIfMissing) {
   if (typeof tabId !== 'number') {
@@ -455,7 +669,7 @@ function sortTabsForOverlay(tabs) {
 }
 
 if (storageArea) {
-  storageArea.get([RESTRICTED_ACTION_STORAGE_KEY, DOCUMENT_PIP_ENABLED_STORAGE_KEY], (result) => {
+  storageArea.get([RESTRICTED_ACTION_STORAGE_KEY, DOCUMENT_PIP_ENABLED_STORAGE_KEY, PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY], (result) => {
     const stored = result[RESTRICTED_ACTION_STORAGE_KEY];
     const normalized = stored === 'none' ? 'none' : 'default';
     if (normalized !== stored) {
@@ -468,6 +682,15 @@ if (storageArea) {
       storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: normalizedDocumentPip });
     }
     documentPipEnabledCache = normalizedDocumentPip;
+    const pinnedTabRecoveryStored = result[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY];
+    const normalizedPinnedTabRecovery = pinnedTabRecoveryStored === true;
+    if (pinnedTabRecoveryStored !== normalizedPinnedTabRecovery) {
+      storageArea.set({ [PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]: normalizedPinnedTabRecovery });
+    }
+    pinnedTabRecoveryEnabledCache = normalizedPinnedTabRecovery;
+    if (pinnedTabRecoveryEnabledCache) {
+      schedulePersistPinnedTabSnapshot();
+    }
   });
 }
 
@@ -681,6 +904,68 @@ function triggerShowSearchForTab(tab, source) {
   });
 }
 
+function detectAnyActiveVideoPiP(callback) {
+  chrome.tabs.query({}, (tabs) => {
+    const tabList = Array.isArray(tabs) ? tabs : [];
+    const candidates = tabList.filter((tab) => {
+      if (!tab || typeof tab.id !== 'number') {
+        return false;
+      }
+      const tabUrl = getResolvedTabUrl(tab);
+      if (isRestrictedUrl(tabUrl)) {
+        return false;
+      }
+      return true;
+    });
+    if (!candidates.length) {
+      callback(false, { checked: 0, foundTabId: null });
+      return;
+    }
+    let pending = candidates.length;
+    let finished = false;
+    let checked = 0;
+    const done = (active, tabId) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      callback(Boolean(active), {
+        checked: checked,
+        foundTabId: typeof tabId === 'number' ? tabId : null
+      });
+    };
+    candidates.forEach((tab) => {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: 'MAIN',
+        func: () => {
+          const pipElement = document.pictureInPictureElement;
+          return {
+            hasPiP: Boolean(pipElement),
+            isVideoPiP: Boolean(pipElement && pipElement.tagName === 'VIDEO')
+          };
+        }
+      }, (results) => {
+        checked += 1;
+        pending -= 1;
+        if (finished) {
+          return;
+        }
+        if (!chrome.runtime.lastError) {
+          const payload = Array.isArray(results) && results[0] ? results[0].result : null;
+          if (payload && payload.hasPiP && payload.isVideoPiP) {
+            done(true, tab.id);
+            return;
+          }
+        }
+        if (pending <= 0) {
+          done(false, null);
+        }
+      });
+    });
+  });
+}
+
 function openDocumentPipPickerOnTab(activeTab, source) {
   if (!documentPipEnabledCache) {
     logHotkeyDebug('document-pip-disabled', { source: source || '' });
@@ -709,46 +994,71 @@ function openDocumentPipPickerOnTab(activeTab, source) {
     openExtensionOptionsPage();
     return;
   }
-  chrome.scripting.executeScript({
-    target: { tabId: activeTab.id },
-    files: ['document-pip-picker.js']
-  }, () => {
-    if (chrome.runtime.lastError) {
-      logHotkeyDebug('document-pip-inject-failed', {
-        step: 'document-pip-picker.js',
-        tabId: activeTab.id,
-        error: chrome.runtime.lastError.message || 'unknown',
-        source: source || ''
-      });
-      openExtensionOptionsPage();
-      return;
-    }
+  const injectAndInvoke = (invokeMode) => {
     chrome.scripting.executeScript({
       target: { tabId: activeTab.id },
-      func: () => {
-        const controller = window.__lumnoDocumentPiPPicker2026;
-        if (!controller || typeof controller.toggle !== 'function') {
-          return { ok: false, reason: 'picker-missing' };
-        }
-        return controller.toggle();
-      }
-    }, (results) => {
+      files: ['document-pip-picker.js']
+    }, () => {
       if (chrome.runtime.lastError) {
-        logHotkeyDebug('document-pip-toggle-failed', {
-          step: 'toggle',
+        logHotkeyDebug('document-pip-inject-failed', {
+          step: 'document-pip-picker.js',
           tabId: activeTab.id,
           error: chrome.runtime.lastError.message || 'unknown',
           source: source || ''
         });
+        openExtensionOptionsPage();
         return;
       }
-      const result = Array.isArray(results) && results[0] ? results[0].result : null;
-      logHotkeyDebug('document-pip-toggle', {
-        tabId: activeTab.id,
-        source: source || '',
-        result: result && typeof result === 'object' ? result : {}
+      chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: (mode) => {
+          const controller = window.__lumnoDocumentPiPPicker2026;
+          if (!controller || typeof controller.toggle !== 'function') {
+            return { ok: false, reason: 'picker-missing' };
+          }
+          if (mode === 'conflict-toast') {
+            if (typeof controller.notifyVideoPiPConflict === 'function') {
+              return controller.notifyVideoPiPConflict();
+            }
+            return { ok: false, reason: 'picker-conflict-handler-missing' };
+          }
+          return controller.toggle();
+        },
+        args: [invokeMode]
+      }, (results) => {
+        if (chrome.runtime.lastError) {
+          logHotkeyDebug('document-pip-toggle-failed', {
+            step: 'toggle',
+            tabId: activeTab.id,
+            error: chrome.runtime.lastError.message || 'unknown',
+            source: source || '',
+            mode: invokeMode || 'toggle'
+          });
+          return;
+        }
+        const result = Array.isArray(results) && results[0] ? results[0].result : null;
+        logHotkeyDebug('document-pip-toggle', {
+          tabId: activeTab.id,
+          source: source || '',
+          mode: invokeMode || 'toggle',
+          result: result && typeof result === 'object' ? result : {}
+        });
       });
     });
+  };
+
+  detectAnyActiveVideoPiP((hasActiveVideoPiP, detail) => {
+    if (hasActiveVideoPiP) {
+      logHotkeyDebug('document-pip-blocked-by-active-video-pip', {
+        tabId: activeTab.id,
+        source: source || '',
+        checkedTabs: detail && typeof detail.checked === 'number' ? detail.checked : 0,
+        pipTabId: detail && typeof detail.foundTabId === 'number' ? detail.foundTabId : null
+      });
+      injectAndInvoke('conflict-toast');
+      return;
+    }
+    injectAndInvoke('toggle');
   });
 }
 
@@ -807,26 +1117,39 @@ chrome.commands.onCommand.addListener(function(command) {
 chrome.tabs.onCreated.addListener((tab) => {
   const recentContext = getRecentPageHotkeyContext(tab && typeof tab.windowId === 'number' ? tab.windowId : null);
   if (!recentContext || !tab || typeof tab.id !== 'number') {
+    schedulePersistPinnedTabSnapshot();
     return;
   }
   setTimeout(() => {
     recoverFromPageHotkeyNewtab(tab.id, recentContext.windowId);
   }, 120);
+  schedulePersistPinnedTabSnapshot();
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (!details) {
+    schedulePersistPinnedTabSnapshot();
     return;
   }
   const reason = String(details.reason || '');
   if (reason === 'install') {
     openOnboardingPage();
+    schedulePersistPinnedTabSnapshot();
     return;
   }
   if (reason === 'update') {
     openReleasePage({ reason: 'update' });
   }
+  schedulePersistPinnedTabSnapshot();
 });
+
+if (chrome && chrome.runtime && chrome.runtime.onStartup) {
+  chrome.runtime.onStartup.addListener(() => {
+    restorePinnedTabsFromSnapshotOnStartup().catch(() => {});
+    schedulePersistPinnedTabSnapshot();
+  });
+}
+schedulePersistPinnedTabSnapshot();
 
 if (chrome.action && chrome.action.onClicked) {
   chrome.action.onClicked.addListener((tab) => {
@@ -846,16 +1169,28 @@ if (chrome && chrome.tabs && chrome.tabs.onActivated) {
 if (chrome && chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     clearTabSwitchStat(tabId);
+    schedulePersistPinnedTabSnapshot();
   });
 }
 
 if (chrome && chrome.tabs && chrome.tabs.onUpdated) {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (!changeInfo || typeof changeInfo.url !== 'string') {
+    if (!changeInfo) {
       return;
     }
-    // URL changed means the tab semantic target changed; reset historical switch stats.
-    clearTabSwitchStat(tabId);
+    if (typeof changeInfo.url === 'string') {
+      // URL changed means the tab semantic target changed; reset historical switch stats.
+      clearTabSwitchStat(tabId);
+    }
+    if (changeInfo.pinned !== undefined || typeof changeInfo.url === 'string' || changeInfo.status === 'complete') {
+      schedulePersistPinnedTabSnapshot();
+    }
+  });
+}
+
+if (chrome && chrome.tabs && chrome.tabs.onMoved) {
+  chrome.tabs.onMoved.addListener(() => {
+    schedulePersistPinnedTabSnapshot();
   });
 }
 
@@ -1823,6 +2158,7 @@ const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024
 const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
 migrateStorageIfNeeded([
   DOCUMENT_PIP_ENABLED_STORAGE_KEY,
+  PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
   DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
   OVERLAY_TAB_PRIORITY_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
@@ -3169,6 +3505,17 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     documentPipEnabledCache = normalized;
     if (typeof next !== 'undefined' && next !== normalized && storageArea) {
       storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: normalized });
+    }
+  }
+  if (changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]) {
+    const next = changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY].newValue;
+    const normalized = next === true;
+    pinnedTabRecoveryEnabledCache = normalized;
+    if (typeof next !== 'undefined' && next !== normalized && storageArea) {
+      storageArea.set({ [PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY]: normalized });
+    }
+    if (normalized) {
+      schedulePersistPinnedTabSnapshot();
     }
   }
   if (!changes[SITE_SEARCH_STORAGE_KEY] && !changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
@@ -5785,6 +6132,72 @@ async function getSearchSuggestions(query) {
       }
     }
 
+    function applyFaviconOpticalShift(img) {
+      if (!img) {
+        return;
+      }
+      const targetSize = 16;
+      const visualCenter = (targetSize - 1) / 2;
+      try {
+        if (!(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0)) {
+          img.style.setProperty('transform', 'none', 'important');
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          img.style.setProperty('transform', 'none', 'important');
+          return;
+        }
+        context.clearRect(0, 0, targetSize, targetSize);
+        context.drawImage(img, 0, 0, targetSize, targetSize);
+        const data = context.getImageData(0, 0, targetSize, targetSize).data;
+        let sumAlpha = 0;
+        let weightedX = 0;
+        let weightedY = 0;
+        for (let y = 0; y < targetSize; y += 1) {
+          for (let x = 0; x < targetSize; x += 1) {
+            const alpha = data[(y * targetSize + x) * 4 + 3];
+            if (alpha < 18) {
+              continue;
+            }
+            sumAlpha += alpha;
+            weightedX += x * alpha;
+            weightedY += y * alpha;
+          }
+        }
+        if (sumAlpha <= 0) {
+          img.style.setProperty('transform', 'none', 'important');
+          return;
+        }
+        const contentCenterX = weightedX / sumAlpha;
+        const contentCenterY = weightedY / sumAlpha;
+        const clamp = (value) => Math.max(-2, Math.min(2, value));
+        let offsetX = clamp(visualCenter - contentCenterX);
+        let offsetY = clamp(visualCenter - contentCenterY);
+        if (Math.abs(offsetX) < 0.4) {
+          offsetX = 0;
+        }
+        if (Math.abs(offsetY) < 0.4) {
+          offsetY = 0;
+        }
+        img.style.setProperty('transform', `translate(${offsetX}px, ${offsetY}px)`, 'important');
+      } catch (e) {
+        img.style.setProperty('transform', 'none', 'important');
+      }
+    }
+
+    function applyFaviconOpticalAlignment(img) {
+      if (!img) {
+        return;
+      }
+      img.style.setProperty('object-fit', 'contain', 'important');
+      img.style.setProperty('object-position', 'center center', 'important');
+      applyFaviconOpticalShift(img);
+    }
+
     function extractAverageColor(image) {
       const size = 16;
       const canvas = document.createElement('canvas');
@@ -6178,6 +6591,7 @@ async function getSearchSuggestions(query) {
         }
         img.setAttribute('data-favicon-current-src', nextSrc);
         img.setAttribute('data-favicon-has-appeared', 'true');
+        applyFaviconOpticalShift(img);
         if (!shouldAnimate) {
           img.style.setProperty('filter', 'none', 'important');
           img.style.setProperty('opacity', '1', 'important');
@@ -8090,6 +8504,7 @@ async function getSearchSuggestions(query) {
             vertical-align: baseline !important;
             display: block !important;
           `;
+          applyFaviconOpticalAlignment(favicon);
           attachResolvedFaviconWithFallbacks(
             favicon,
             tab && tab.url ? tab.url : '',
@@ -8109,6 +8524,8 @@ async function getSearchSuggestions(query) {
           all: unset !important;
           width: 24px !important;
           height: 24px !important;
+          flex: 0 0 24px !important;
+          flex-shrink: 0 !important;
           border-radius: 8px !important;
           display: flex !important;
           align-items: center !important;
@@ -9022,6 +9439,7 @@ async function getSearchSuggestions(query) {
                 display: block !important;
                 object-fit: contain !important;
               `;
+              applyFaviconOpticalAlignment(favicon);
               const replaceWithFallbackIcon = function() {
                 const fallbackDiv = createLinkIcon();
                 if (favicon.parentNode) {
@@ -9050,6 +9468,8 @@ async function getSearchSuggestions(query) {
               all: unset !important;
               width: 24px !important;
               height: 24px !important;
+              flex: 0 0 24px !important;
+              flex-shrink: 0 !important;
               border-radius: 8px !important;
               display: flex !important;
               align-items: center !important;

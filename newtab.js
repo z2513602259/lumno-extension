@@ -2034,6 +2034,72 @@
     }
   }
 
+  function applyFaviconOpticalShift(img) {
+    if (!img) {
+      return;
+    }
+    const targetSize = 16;
+    const visualCenter = (targetSize - 1) / 2;
+    try {
+      if (!(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0)) {
+        img.style.setProperty('transform', 'none', 'important');
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) {
+        img.style.setProperty('transform', 'none', 'important');
+        return;
+      }
+      context.clearRect(0, 0, targetSize, targetSize);
+      context.drawImage(img, 0, 0, targetSize, targetSize);
+      const data = context.getImageData(0, 0, targetSize, targetSize).data;
+      let sumAlpha = 0;
+      let weightedX = 0;
+      let weightedY = 0;
+      for (let y = 0; y < targetSize; y += 1) {
+        for (let x = 0; x < targetSize; x += 1) {
+          const alpha = data[(y * targetSize + x) * 4 + 3];
+          if (alpha < 18) {
+            continue;
+          }
+          sumAlpha += alpha;
+          weightedX += x * alpha;
+          weightedY += y * alpha;
+        }
+      }
+      if (sumAlpha <= 0) {
+        img.style.setProperty('transform', 'none', 'important');
+        return;
+      }
+      const contentCenterX = weightedX / sumAlpha;
+      const contentCenterY = weightedY / sumAlpha;
+      const clamp = (value) => Math.max(-2, Math.min(2, value));
+      let offsetX = clamp(visualCenter - contentCenterX);
+      let offsetY = clamp(visualCenter - contentCenterY);
+      if (Math.abs(offsetX) < 0.4) {
+        offsetX = 0;
+      }
+      if (Math.abs(offsetY) < 0.4) {
+        offsetY = 0;
+      }
+      img.style.setProperty('transform', `translate(${offsetX}px, ${offsetY}px)`, 'important');
+    } catch (e) {
+      img.style.setProperty('transform', 'none', 'important');
+    }
+  }
+
+  function applyFaviconOpticalAlignment(img) {
+    if (!img) {
+      return;
+    }
+    img.style.setProperty('object-fit', 'contain', 'important');
+    img.style.setProperty('object-position', 'center center', 'important');
+    applyFaviconOpticalShift(img);
+  }
+
   function normalizeHost(hostname) {
     if (!hostname) {
       return '';
@@ -2519,6 +2585,10 @@
     return false;
   }
 
+  function isChromeMonogramFaviconUrl(url) {
+    return /^chrome:\/\/favicon2\//i.test(String(url || '').trim());
+  }
+
   function reportMissingIcon(context, url, iconUrl) {
     const key = `${context || 'unknown'}::${url || ''}::${iconUrl || ''}`;
     if (missingIconCache.has(key)) {
@@ -2548,7 +2618,7 @@
       if (now - updatedAt > FAVICON_PERSIST_TTL_MS) {
         return;
       }
-      if (url.startsWith('data:') || isBlockedLocalFaviconUrl(url)) {
+      if (url.startsWith('data:') || isBlockedLocalFaviconUrl(url) || isChromeMonogramFaviconUrl(url)) {
         return;
       }
       valid.push({ key, url, updatedAt });
@@ -2748,7 +2818,7 @@
   function setPersistedFaviconUrl(cacheKey, url) {
     const key = String(cacheKey || '').trim();
     const nextUrl = String(url || '').trim();
-    if (!key || !nextUrl || nextUrl.startsWith('data:') || isBlockedLocalFaviconUrl(nextUrl)) {
+    if (!key || !nextUrl || nextUrl.startsWith('data:') || isBlockedLocalFaviconUrl(nextUrl) || isChromeMonogramFaviconUrl(nextUrl)) {
       return;
     }
     faviconPersistCache.set(key, { url: nextUrl, updatedAt: Date.now() });
@@ -3021,6 +3091,7 @@
       showResolvedFavicon(img);
       img.setAttribute('data-favicon-current-src', nextSrc);
       img.setAttribute('data-favicon-has-appeared', 'true');
+      applyFaviconOpticalShift(img);
       const persistKey = img.getAttribute('data-x-nt-favicon-cache-key') || '';
       if (shouldPersist && persistKey) {
         if (nextSrc.startsWith('data:')) {
@@ -4430,6 +4501,10 @@
     let persistedFavicon = persistedEntry && persistedEntry.url ? persistedEntry.url : '';
     const persistedDataEntry = shouldBypassPersistedForHost ? null : getPersistedFaviconDataEntry(faviconCacheKey);
     let persistedDataUrl = persistedDataEntry && persistedDataEntry.dataUrl ? persistedDataEntry.dataUrl : '';
+    if (isChromeMonogramFaviconUrl(persistedFavicon)) {
+      persistedFavicon = '';
+      persistedDataUrl = '';
+    }
     const now = Date.now();
     const persistedDataAge = persistedDataEntry && Number.isFinite(persistedDataEntry.updatedAt)
       ? (now - persistedDataEntry.updatedAt)
@@ -4487,7 +4562,6 @@
         return;
       }
     }
-    const chromeFavicon = getChromeFaviconUrl(url);
     const siteSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon.svg` : '';
     const siteDarkSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-dark.svg` : '';
     const siteLightSvgFavicon = faviconHostKey ? `https://${faviconHostKey}/favicon-light.svg` : '';
@@ -4508,7 +4582,6 @@
       ...preferredSeedCandidates,
       persistedFavicon,
       googleFavicon,
-      chromeFavicon,
       faviconIsFavicon
     ].filter(Boolean);
     const keepCurrentUntilReady = Boolean(previousWorkingSrc);
@@ -4627,7 +4700,8 @@
         url: url,
         host: hostKey,
         fallbackUrl: '',
-        preferredTheme: preferredTheme
+        preferredTheme: preferredTheme,
+        excludeChromeFallback: true
       },
       (response) => {
         if (!isSessionActive()) {
@@ -6752,6 +6826,10 @@
         vertical-align: baseline !important;
         display: block !important;
       `;
+      applyFaviconOpticalAlignment(favicon);
+      favicon.addEventListener('load', function() {
+        applyFaviconOpticalShift(favicon);
+      });
       if (useFallback) {
         applyFallbackIcon(favicon);
       } else {
@@ -6762,6 +6840,8 @@
         all: unset !important;
         width: 24px !important;
         height: 24px !important;
+        flex: 0 0 24px !important;
+        flex-shrink: 0 !important;
         border-radius: 8px !important;
         display: flex !important;
         align-items: center !important;
@@ -7349,6 +7429,7 @@
               display: block !important;
               object-fit: contain !important;
             `;
+            applyFaviconOpticalAlignment(favicon);
             attachFaviconWithFallbacks(favicon, faviconPageUrl, suggestionHost);
             iconNode = favicon;
           }
@@ -7372,6 +7453,8 @@
             all: unset !important;
             width: 24px !important;
             height: 24px !important;
+            flex: 0 0 24px !important;
+            flex-shrink: 0 !important;
             border-radius: 8px !important;
             display: flex !important;
             align-items: center !important;

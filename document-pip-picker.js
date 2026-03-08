@@ -51,9 +51,108 @@
   }
 
   function supportsDocumentPiP() {
-    return window.top === window.self &&
-      Boolean(window.documentPictureInPicture) &&
-      typeof window.documentPictureInPicture.requestWindow === 'function';
+    return getDocumentPiPSupportState().supported;
+  }
+
+  function isPictureInPictureAllowedByPolicy() {
+    const policy = document.permissionsPolicy || document.featurePolicy;
+    if (!policy || typeof policy.allowsFeature !== 'function') {
+      return true;
+    }
+    try {
+      return policy.allowsFeature('picture-in-picture') !== false;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function getDocumentPiPSupportState() {
+    if (window.top !== window.self) {
+      return { supported: false, reason: 'not-top-level' };
+    }
+    if (!window.isSecureContext) {
+      return { supported: false, reason: 'not-secure-context' };
+    }
+    if (!window.documentPictureInPicture || typeof window.documentPictureInPicture.requestWindow !== 'function') {
+      return { supported: false, reason: 'api-unavailable' };
+    }
+    if (!isPictureInPictureAllowedByPolicy()) {
+      return { supported: false, reason: 'blocked-by-policy' };
+    }
+    return { supported: true, reason: 'ok' };
+  }
+
+  function getSupportFailureMessage(reason) {
+    if (reason === 'blocked-by-policy') {
+      return getMessage(
+        'document_pip_picker_unsupported_policy',
+        'This website disables Picture-in-Picture via site policy.'
+      );
+    }
+    if (reason === 'not-top-level') {
+      return getMessage(
+        'document_pip_picker_unsupported_iframe',
+        'Document Picture-in-Picture only works in the top-level page.'
+      );
+    }
+    if (reason === 'not-secure-context') {
+      return getMessage(
+        'document_pip_picker_unsupported_insecure',
+        'Document Picture-in-Picture requires HTTPS.'
+      );
+    }
+    return getMessage(
+      'document_pip_picker_unsupported',
+      'This page does not support Document Picture-in-Picture.'
+    );
+  }
+
+  function getOpenFailureMessage(error) {
+    const name = String(error && error.name ? error.name : '');
+    if (name === 'NotAllowedError') {
+      return getMessage(
+        'document_pip_picker_open_failed_not_allowed',
+        'The website or browser blocked opening Document Picture-in-Picture.'
+      );
+    }
+    if (name === 'NotSupportedError') {
+      return getMessage(
+        'document_pip_picker_open_failed_not_supported',
+        'This selection cannot be opened in Document Picture-in-Picture on this page.'
+      );
+    }
+    if (name === 'InvalidStateError') {
+      return getMessage(
+        'document_pip_picker_open_failed_invalid_state',
+        'A floating window is already open or the page state changed. Try again.'
+      );
+    }
+    if (name === 'SecurityError') {
+      return getMessage(
+        'document_pip_picker_open_failed_security',
+        'The browser blocked this action for security reasons on this page.'
+      );
+    }
+    return getMessage(
+      'document_pip_picker_open_failed',
+      'Failed to open the floating content window. Try a different area'
+    );
+  }
+
+  function hasActiveVideoPiP() {
+    return Boolean(document.pictureInPictureElement);
+  }
+
+  function showVideoPiPConflictToast() {
+    ensurePickerUi();
+    applyPickerTheme(getPickerTheme(null));
+    showToast(
+      getMessage(
+        'document_pip_picker_conflict_video_pip',
+        'A video PiP is already active. Close it before starting content clipping.'
+      ),
+      'error'
+    );
   }
 
   function isOwnNode(node) {
@@ -1137,16 +1236,24 @@
       return { ok: false, reason: 'invalid-element' };
     }
 
-    if (document.pictureInPictureElement && typeof document.exitPictureInPicture === 'function') {
-      try {
-        await document.exitPictureInPicture();
-      } catch (error) {
-        // Ignore best-effort exit failures.
-      }
+    if (hasActiveVideoPiP()) {
+      showVideoPiPConflictToast();
+      return { ok: false, reason: 'video-pip-active' };
     }
 
     const visualTheme = getVisualTheme(element);
-    const scaffold = await createPiPScaffold(element, visualTheme, getSelectionSnapshot(element));
+    let scaffold = null;
+    try {
+      scaffold = await createPiPScaffold(element, visualTheme, getSelectionSnapshot(element));
+    } catch (error) {
+      showToast(getOpenFailureMessage(error), 'error');
+      return {
+        ok: false,
+        reason: 'request-window-failed',
+        errorName: error && error.name ? String(error.name) : '',
+        errorMessage: error && error.message ? String(error.message) : ''
+      };
+    }
     const { pipWindow, pipDocument, shell, content } = scaffold;
     const dock = createPiPDock({
       pipWindow,
@@ -1280,18 +1387,20 @@
   }
 
   function startSelection() {
-    if (!supportsDocumentPiP()) {
+    const support = getDocumentPiPSupportState();
+    if (!support.supported) {
       showToast(
-        getMessage(
-          'document_pip_picker_unsupported',
-          'This page does not support Document Picture-in-Picture.'
-        ),
+        getSupportFailureMessage(support.reason),
         'error'
       );
-      return { ok: false, state: 'unsupported' };
+      return { ok: false, state: 'unsupported', reason: support.reason };
     }
     if (state.active) {
       return { ok: true, state: 'already-active' };
+    }
+    if (hasActiveVideoPiP()) {
+      showVideoPiPConflictToast();
+      return { ok: false, state: 'blocked-by-video-pip' };
     }
     ensurePickerUi();
     applyPickerTheme(getPickerTheme(null));
@@ -1429,6 +1538,13 @@
 
   window.__lumnoDocumentPiPPicker2026 = {
     toggle: toggle,
-    restore: () => restoreSession({ closeWindow: true })
+    restore: () => restoreSession({ closeWindow: true }),
+    notifyVideoPiPConflict: () => {
+      if (state.active) {
+        stopSelection({});
+      }
+      showVideoPiPConflictToast();
+      return { ok: false, state: 'blocked-by-video-pip' };
+    }
   };
 })();
