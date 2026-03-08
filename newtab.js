@@ -1702,6 +1702,8 @@
   let tabs = [];
   let siteSearchProvidersCache = null;
   let pendingProviderReload = false;
+  let suggestionRequestSeq = 0;
+  let suggestionRequestWatchdogTimer = null;
   loadDefaultSearchEngineState();
   if (chrome && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -7733,15 +7735,38 @@
   function requestSuggestions(query, options) {
     latestQuery = query;
     const immediate = options && options.immediate;
+    const retryCount = options && Number(options.retryCount) > 0 ? Number(options.retryCount) : 0;
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
     debounceTimer = setTimeout(function() {
       const requestQuery = latestQuery;
+      const requestSeq = ++suggestionRequestSeq;
+      if (suggestionRequestWatchdogTimer) {
+        clearTimeout(suggestionRequestWatchdogTimer);
+        suggestionRequestWatchdogTimer = null;
+      }
+      suggestionRequestWatchdogTimer = setTimeout(function() {
+        if (requestSeq !== suggestionRequestSeq || requestQuery !== latestQuery) {
+          return;
+        }
+        if (retryCount < 1) {
+          requestSuggestions(requestQuery, { immediate: true, retryCount: retryCount + 1 });
+          return;
+        }
+        renderSuggestions([], requestQuery);
+      }, immediate ? 900 : 1300);
       chrome.runtime.sendMessage({
         action: 'getSearchSuggestions',
         query: requestQuery
       }, function(response) {
+        if (suggestionRequestWatchdogTimer) {
+          clearTimeout(suggestionRequestWatchdogTimer);
+          suggestionRequestWatchdogTimer = null;
+        }
+        if (requestSeq !== suggestionRequestSeq) {
+          return;
+        }
         if (requestQuery !== latestQuery) {
           return;
         }
@@ -7810,6 +7835,10 @@
         clearAutocomplete();
         if (debounceTimer) {
           clearTimeout(debounceTimer);
+        }
+        if (suggestionRequestWatchdogTimer) {
+          clearTimeout(suggestionRequestWatchdogTimer);
+          suggestionRequestWatchdogTimer = null;
         }
         clearSearchSuggestions();
         return;

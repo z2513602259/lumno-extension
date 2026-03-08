@@ -11,6 +11,7 @@
 - `options.html`
 - `options.js`
 - `input-ui.js`
+- `document-pip-picker.js`
 - `hotkey-listener.js`
 - `auto-pip-blacklist.js`
 - `site-auto-pip.js`
@@ -39,7 +40,7 @@ zip -r "$ZIP" \
   manifest.json background.js \
   newtab.html newtab.js \
   options.html options.js \
-  input-ui.js hotkey-listener.js auto-pip-blacklist.js \
+  input-ui.js document-pip-picker.js hotkey-listener.js auto-pip-blacklist.js \
   site-auto-pip.js youtube-auto-pip.js youtube-auto-pip-page.js \
   _locales assets \
   -x "*.DS_Store"

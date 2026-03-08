@@ -25,6 +25,7 @@
     ? bookmarkColumnsSelect.closest('._x_extension_select_wrap_2024_unique_')
     : null;
   const autoPipToggle = document.getElementById('_x_extension_auto_pip_toggle_2024_unique_');
+  const documentPipToggle = document.getElementById('_x_extension_document_pip_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
@@ -97,6 +98,7 @@
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
+  const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
@@ -113,6 +115,7 @@
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
+    DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
@@ -260,6 +263,10 @@
   }
 
   function normalizeAutoPipEnabled(value) {
+    return value === true;
+  }
+
+  function normalizeDocumentPipEnabled(value) {
     return value === true;
   }
 
@@ -1902,6 +1909,8 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
+    AUTO_PIP_ENABLED_STORAGE_KEY,
+    DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
@@ -2089,6 +2098,15 @@
         return;
       }
       storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: next });
+    });
+  }
+  if (documentPipToggle) {
+    documentPipToggle.addEventListener('change', () => {
+      const next = Boolean(documentPipToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: next });
     });
   }
 
@@ -2499,6 +2517,17 @@
       }
       if (rawValue !== stored) {
         storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([DOCUMENT_PIP_ENABLED_STORAGE_KEY], (result) => {
+      const rawValue = result[DOCUMENT_PIP_ENABLED_STORAGE_KEY];
+      const stored = normalizeDocumentPipEnabled(rawValue);
+      if (documentPipToggle) {
+        documentPipToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: stored });
       }
       refreshCustomSelects();
     });
@@ -3352,6 +3381,15 @@
       autoPipToggle.checked = next;
       if (raw !== next && storageArea) {
         storageArea.set({ [AUTO_PIP_ENABLED_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[DOCUMENT_PIP_ENABLED_STORAGE_KEY] && documentPipToggle) {
+      const raw = changes[DOCUMENT_PIP_ENABLED_STORAGE_KEY].newValue;
+      const next = normalizeDocumentPipEnabled(raw);
+      documentPipToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [DOCUMENT_PIP_ENABLED_STORAGE_KEY]: next });
       }
       refreshCustomSelects();
     }

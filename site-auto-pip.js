@@ -34,6 +34,7 @@
   const PAGE_BRIDGE_SCRIPT_ID = "__lumno_site_auto_pip_page_bridge_script_2026__";
   const PAGE_BRIDGE_REQUEST_EVENT = "__lumno_yt_force_exit_pip_req_2026__";
   const PAGE_BRIDGE_RESPONSE_EVENT = "__lumno_yt_force_exit_pip_res_2026__";
+  const DOCUMENT_PIP_ACTIVE_FLAG = "__lumno_document_pip_active_2026__";
   let pageBridgeRequestSeq = 0;
 
   const host = String(location.hostname || "").toLowerCase();
@@ -44,6 +45,9 @@
   }
   function setAutoPipEnabled(value) {
     autoPipEnabled = normalizeAutoPipEnabled(value);
+  }
+  function isDocumentPiPActive() {
+    return window[DOCUMENT_PIP_ACTIVE_FLAG] === true;
   }
   function syncAutoPipEnabledSetting() {
     if (!chrome || !chrome.storage) {
@@ -857,6 +861,9 @@
 
   async function maybeEnterPiP(reason) {
     if (!autoPipEnabled) {
+      return false;
+    }
+    if (isDocumentPiPActive()) {
       return false;
     }
     if (!canEnterPiP() || !canExitPiP() || state.enteringPiP || state.exitingPiP) {
