@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./lumno.png" alt="Lumno logo" width="96" height="96" />
+  <img src="./assets/images/lumno.png" alt="Lumno logo" width="96" height="96" />
 </p>
 
 <h1 align="center">Lumno</h1>
@@ -34,6 +34,7 @@ Lumno turns the browser into a faster command surface:
 - Use the same search workflow in the overridden new tab page.
 - Add site search shortcuts like `gh`, `yt`, `bb`, or your own custom providers.
 - Enable automatic Picture-in-Picture for supported video sites when switching tabs.
+- Arc-styed search experience.
 
 ## 🚀 Highlights
 
