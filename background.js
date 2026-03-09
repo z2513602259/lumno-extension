@@ -311,6 +311,7 @@ const storageAreaName = storageArea
   : null;
 const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
 const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
 const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
 const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
 const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
@@ -323,6 +324,7 @@ const TAB_SWITCH_WINDOW_DAY_MS = 24 * 60 * 60 * 1000;
 const TAB_SWITCH_HIGH_FREQ_SHORT_THRESHOLD = 2;
 const TAB_SWITCH_HIGH_FREQ_DAY_THRESHOLD = 5;
 const TAB_SWITCH_EVENT_HISTORY_LIMIT = 60;
+const TAB_SWITCH_STATS_STORAGE_KEY = '_x_extension_tab_switch_stats_2026_unique_';
 const PINNED_TAB_SNAPSHOT_DEBOUNCE_MS = 600;
 const PINNED_TAB_RESTORE_MAX_TABS = 24;
 let restrictedActionCache = 'default';
@@ -331,8 +333,140 @@ let pinnedTabRecoveryEnabledCache = false;
 const hotkeyInvokeAtByTabId = new Map();
 let lastPageHotkeyContext = null;
 const tabSwitchEventsByTabId = new Map();
+const tabLastAccessedByTabId = new Map();
+let tabSwitchEventDebugTotal = 0;
+let tabOverlayFetchSeq = 0;
+let tabSwitchStatsLoaded = false;
+let tabSwitchStatsLoadPromise = null;
 let pinnedTabSnapshotTimer = null;
 let pinnedTabRestoreAttempted = false;
+
+function getTabSwitchStorageArea() {
+  if (!chrome || !chrome.storage) {
+    return null;
+  }
+  if (chrome.storage.session) {
+    return chrome.storage.session;
+  }
+  if (chrome.storage.local) {
+    return chrome.storage.local;
+  }
+  return null;
+}
+
+function normalizeTabSwitchStatEntry(raw, now) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const minTs = now - TAB_SWITCH_WINDOW_DAY_MS;
+  const rawEvents = Array.isArray(raw.events) ? raw.events : [];
+  const events = rawEvents
+    .map((item) => Number(item) || 0)
+    .filter((item) => item >= minTs)
+    .sort((a, b) => a - b)
+    .slice(-TAB_SWITCH_EVENT_HISTORY_LIMIT);
+  const lastSwitchAtRaw = Number(raw.lastSwitchAt) || 0;
+  const lastSwitchAt = Math.max(lastSwitchAtRaw, events.length > 0 ? events[events.length - 1] : 0);
+  if (events.length <= 0 && lastSwitchAt <= 0) {
+    return null;
+  }
+  return {
+    events: events,
+    lastSwitchAt: lastSwitchAt
+  };
+}
+
+function mergeTabSwitchStat(target, incoming, now) {
+  const left = normalizeTabSwitchStatEntry(target, now) || { events: [], lastSwitchAt: 0 };
+  const right = normalizeTabSwitchStatEntry(incoming, now) || { events: [], lastSwitchAt: 0 };
+  const mergedEvents = left.events.concat(right.events)
+    .filter((item) => typeof item === 'number' && item > 0)
+    .sort((a, b) => a - b)
+    .slice(-TAB_SWITCH_EVENT_HISTORY_LIMIT);
+  const lastSwitchAt = Math.max(left.lastSwitchAt || 0, right.lastSwitchAt || 0, mergedEvents.length > 0 ? mergedEvents[mergedEvents.length - 1] : 0);
+  if (mergedEvents.length <= 0 && lastSwitchAt <= 0) {
+    return null;
+  }
+  return {
+    events: mergedEvents,
+    lastSwitchAt: lastSwitchAt
+  };
+}
+
+function applyPersistedTabSwitchStats(payload) {
+  const now = Date.now();
+  if (!payload || typeof payload !== 'object') {
+    return;
+  }
+  Object.keys(payload).forEach((tabIdKey) => {
+    const tabId = Number.parseInt(tabIdKey, 10);
+    if (!Number.isFinite(tabId)) {
+      return;
+    }
+    const incoming = normalizeTabSwitchStatEntry(payload[tabIdKey], now);
+    if (!incoming) {
+      return;
+    }
+    const existing = tabSwitchEventsByTabId.get(tabId) || null;
+    const merged = mergeTabSwitchStat(existing, incoming, now);
+    if (merged) {
+      tabSwitchEventsByTabId.set(tabId, merged);
+    }
+  });
+}
+
+function exportTabSwitchStatsSnapshot() {
+  const now = Date.now();
+  const out = {};
+  tabSwitchEventsByTabId.forEach((stat, tabId) => {
+    if (typeof tabId !== 'number') {
+      return;
+    }
+    const normalized = normalizeTabSwitchStatEntry(stat, now);
+    if (!normalized) {
+      return;
+    }
+    out[String(tabId)] = normalized;
+  });
+  return out;
+}
+
+function persistTabSwitchStatsNow() {
+  const area = getTabSwitchStorageArea();
+  if (!area) {
+    return Promise.resolve(false);
+  }
+  const snapshot = exportTabSwitchStatsSnapshot();
+  return new Promise((resolve) => {
+    area.set({ [TAB_SWITCH_STATS_STORAGE_KEY]: snapshot }, () => {
+      resolve(!(chrome.runtime && chrome.runtime.lastError));
+    });
+  });
+}
+
+function ensureTabSwitchStatsLoaded() {
+  if (tabSwitchStatsLoaded) {
+    return Promise.resolve();
+  }
+  if (tabSwitchStatsLoadPromise) {
+    return tabSwitchStatsLoadPromise;
+  }
+  const area = getTabSwitchStorageArea();
+  if (!area) {
+    tabSwitchStatsLoaded = true;
+    return Promise.resolve();
+  }
+  tabSwitchStatsLoadPromise = new Promise((resolve) => {
+    area.get([TAB_SWITCH_STATS_STORAGE_KEY], (result) => {
+      const payload = result ? result[TAB_SWITCH_STATS_STORAGE_KEY] : null;
+      applyPersistedTabSwitchStats(payload);
+      tabSwitchStatsLoaded = true;
+      tabSwitchStatsLoadPromise = null;
+      resolve();
+    });
+  });
+  return tabSwitchStatsLoadPromise;
+}
 
 function queryTabsForPinnedSnapshot(queryInfo) {
   return new Promise((resolve) => {
@@ -574,16 +708,69 @@ function recordTabSwitchEvent(tabId, at) {
     return;
   }
   const now = typeof at === 'number' ? at : Date.now();
+  const lastRecordedAt = Number(stat.lastSwitchAt) || 0;
+  if (lastRecordedAt > 0 && Math.abs(now - lastRecordedAt) < 450) {
+    return;
+  }
   stat.events.push(now);
   stat.lastSwitchAt = now;
+  tabSwitchEventDebugTotal += 1;
   pruneTabSwitchStat(stat, now);
+  persistTabSwitchStatsNow().catch(() => {});
 }
 
 function clearTabSwitchStat(tabId) {
   if (typeof tabId !== 'number') {
     return;
   }
-  tabSwitchEventsByTabId.delete(tabId);
+  tabLastAccessedByTabId.delete(tabId);
+  if (tabSwitchEventsByTabId.delete(tabId)) {
+    persistTabSwitchStatsNow().catch(() => {});
+  }
+}
+
+function syncTabSwitchStatsFromTabList(tabs) {
+  const list = Array.isArray(tabs) ? tabs : [];
+  const aliveIds = new Set();
+  let mostRecentTabId = null;
+  let mostRecentLastAccessed = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const tab = list[i];
+    if (!tab || typeof tab.id !== 'number') {
+      continue;
+    }
+    const tabId = tab.id;
+    aliveIds.add(tabId);
+    const lastAccessed = Number(tab.lastAccessed) || 0;
+    if (lastAccessed <= 0) {
+      continue;
+    }
+    if (lastAccessed > mostRecentLastAccessed) {
+      mostRecentLastAccessed = lastAccessed;
+      mostRecentTabId = tabId;
+    }
+    const previous = Number(tabLastAccessedByTabId.get(tabId)) || 0;
+    tabLastAccessedByTabId.set(tabId, lastAccessed);
+    if (previous > 0 && lastAccessed > previous + 250) {
+      recordTabSwitchEvent(tabId, lastAccessed);
+    }
+  }
+  const staleIds = [];
+  tabLastAccessedByTabId.forEach((_, tabId) => {
+    if (!aliveIds.has(tabId)) {
+      staleIds.push(tabId);
+    }
+  });
+  staleIds.forEach((tabId) => {
+    tabLastAccessedByTabId.delete(tabId);
+  });
+  if (typeof mostRecentTabId === 'number' && mostRecentLastAccessed > 0) {
+    const existing = getTabSwitchStat(mostRecentTabId, false);
+    const lastRecordedAt = Number(existing && existing.lastSwitchAt) || 0;
+    if (mostRecentLastAccessed > (lastRecordedAt + 250)) {
+      recordTabSwitchEvent(mostRecentTabId, mostRecentLastAccessed);
+    }
+  }
 }
 
 function getTabSwitchRank(tab, now) {
@@ -636,6 +823,7 @@ function getTabSwitchRank(tab, now) {
 function sortTabsForOverlay(tabs) {
   const list = Array.isArray(tabs) ? tabs.slice() : [];
   const now = Date.now();
+  const sortAt = now;
   return list
     .map((tab, index) => {
       const rank = getTabSwitchRank(tab, now);
@@ -648,6 +836,9 @@ function sortTabsForOverlay(tabs) {
           _xTabRankScore: rank.score,
           _xTabSwitchCount30m: rank.shortCount,
           _xTabSwitchCount24h: rank.dayCount,
+          _xTabDebugEventTotal: tabSwitchEventDebugTotal,
+          _xTabLastAccessedRaw: lastAccessed,
+          _xTabSortAt: sortAt,
           _xTabRankHighFreq: rank.highFreq,
           _xTabRankHint: rank.hint
         },
@@ -1150,6 +1341,7 @@ if (chrome && chrome.runtime && chrome.runtime.onStartup) {
   });
 }
 schedulePersistPinnedTabSnapshot();
+ensureTabSwitchStatsLoaded().catch(() => {});
 
 if (chrome.action && chrome.action.onClicked) {
   chrome.action.onClicked.addListener((tab) => {
@@ -1201,6 +1393,14 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       recordTabSwitchEvent(request.tabId);
     }
     chrome.tabs.update(request.tabId, {active: true});
+    sendResponse({ ok: true });
+    return;
+  } else if (request.action === 'reportTabVisible') {
+    const senderTab = sender && sender.tab ? sender.tab : null;
+    if (senderTab && typeof senderTab.id === 'number') {
+      const at = Number(request && request.at);
+      recordTabSwitchEvent(senderTab.id, Number.isFinite(at) ? at : Date.now());
+    }
     sendResponse({ ok: true });
     return;
   } else if (request.action === 'getShowSearchShortcut') {
@@ -1975,10 +2175,20 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     });
     return true; // Keep the message channel open for async response
   } else if (request.action === 'getTabsForOverlay') {
-    chrome.tabs.query({ currentWindow: true }, (tabs) => {
-      const sortedTabs = sortTabsForOverlay(tabs);
-      sendResponse({ tabs: sortedTabs });
-    });
+    ensureTabSwitchStatsLoaded()
+      .catch(() => {})
+      .finally(() => {
+        chrome.tabs.query({ currentWindow: true }, (tabs) => {
+          syncTabSwitchStatsFromTabList(tabs);
+          const sortedTabs = sortTabsForOverlay(tabs);
+          tabOverlayFetchSeq += 1;
+          const withSeq = sortedTabs.map((tab) => ({
+            ...tab,
+            _xTabFetchSeq: tabOverlayFetchSeq
+          }));
+          sendResponse({ tabs: withSeq });
+        });
+      });
     return true;
   } else if (request.action === 'getSiteSearchProviders') {
     loadSiteSearchProviders().then((items) => {
@@ -2161,6 +2371,7 @@ migrateStorageIfNeeded([
   PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
   DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
   OVERLAY_TAB_PRIORITY_STORAGE_KEY,
+  TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
   FALLBACK_SHORTCUT_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
@@ -4214,6 +4425,7 @@ async function getSearchSuggestions(query) {
   let overlayLanguageStorageListener = null;
   let overlaySearchEngineStorageListener = null;
   let overlayTabPriorityStorageListener = null;
+  let overlayTabScoreDebugStorageListener = null;
   let overlayThemeMediaListener = null;
   let overlayPageThemeObserver = null;
   let overlayPageThemeSyncRaf = null;
@@ -4228,6 +4440,7 @@ async function getSearchSuggestions(query) {
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+  const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
     : (chrome && chrome.storage ? chrome.storage.local : null);
@@ -4485,6 +4698,7 @@ async function getSearchSuggestions(query) {
   let modeBadge = null;
   let overlayLanguageMode = 'system';
   let overlayTabQuickSwitchEnabled = true;
+  let overlayTabScoreDebugEnabled = false;
   let currentMessages = null;
   let defaultPlaceholderText = '搜索或输入网址...';
   let lastSuggestionResponse = [];
@@ -4631,6 +4845,28 @@ async function getSearchSuggestions(query) {
       return false;
     }
     return true;
+  }
+
+  function normalizeTabRankScoreDebugMode(mode) {
+    return mode === true;
+  }
+
+  function formatTabRankDebugText(tab) {
+    const scoreRaw = Number(tab && tab._xTabRankScore);
+    const score = Number.isFinite(scoreRaw) ? scoreRaw.toFixed(2) : '0.00';
+    const count30mRaw = Number(tab && tab._xTabSwitchCount30m);
+    const count24hRaw = Number(tab && tab._xTabSwitchCount24h);
+    const debugTotalRaw = Number(tab && tab._xTabDebugEventTotal);
+    const lastAccessedRaw = Number(tab && tab._xTabLastAccessedRaw);
+    const sortAtRaw = Number(tab && tab._xTabSortAt);
+    const fetchSeqRaw = Number(tab && tab._xTabFetchSeq);
+    const count30m = Number.isFinite(count30mRaw) ? Math.max(0, Math.round(count30mRaw)) : 0;
+    const count24h = Number.isFinite(count24hRaw) ? Math.max(0, Math.round(count24hRaw)) : 0;
+    const debugTotal = Number.isFinite(debugTotalRaw) ? Math.max(0, Math.round(debugTotalRaw)) : 0;
+    const lastAccessedSec = Number.isFinite(lastAccessedRaw) && lastAccessedRaw > 0 ? Math.round(lastAccessedRaw / 1000) : 0;
+    const sortAtSec = Number.isFinite(sortAtRaw) && sortAtRaw > 0 ? Math.round(sortAtRaw / 1000) : 0;
+    const fetchSeq = Number.isFinite(fetchSeqRaw) ? Math.max(0, Math.round(fetchSeqRaw)) : 0;
+    return `score ${score} · 30m ${count30m} · 24h ${count24h} · ev ${debugTotal} · la ${lastAccessedSec} · s ${sortAtSec} · fs ${fetchSeq} · build 20260308-1`;
   }
 
   function getRiSvg(id, sizeClass, extraClass) {
@@ -4855,6 +5091,10 @@ async function getSearchSuggestions(query) {
     if (overlayTabPriorityStorageListener) {
       chrome.storage.onChanged.removeListener(overlayTabPriorityStorageListener);
       overlayTabPriorityStorageListener = null;
+    }
+    if (overlayTabScoreDebugStorageListener) {
+      chrome.storage.onChanged.removeListener(overlayTabScoreDebugStorageListener);
+      overlayTabScoreDebugStorageListener = null;
     }
     if (overlayThemeMediaListener) {
       overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
@@ -5188,8 +5428,8 @@ async function getSearchSuggestions(query) {
       }
       if (latestOverlayQuery) {
         updateSearchSuggestions(lastSuggestionResponse, latestOverlayQuery);
-      } else if (Array.isArray(tabs) && tabs.length > 0) {
-        renderTabSuggestions(tabs);
+      } else {
+        requestTabsAndRender();
       }
     }
 
@@ -5947,6 +6187,21 @@ async function getSearchSuggestions(query) {
       }
     };
     chrome.storage.onChanged.addListener(overlayTabPriorityStorageListener);
+    if (storageArea) {
+      storageArea.get([TAB_RANK_SCORE_DEBUG_STORAGE_KEY], (result) => {
+        overlayTabScoreDebugEnabled = normalizeTabRankScoreDebugMode(result[TAB_RANK_SCORE_DEBUG_STORAGE_KEY]);
+      });
+    }
+    overlayTabScoreDebugStorageListener = (changes, areaName) => {
+      if (!storageAreaName || areaName !== storageAreaName || !changes[TAB_RANK_SCORE_DEBUG_STORAGE_KEY]) {
+        return;
+      }
+      overlayTabScoreDebugEnabled = normalizeTabRankScoreDebugMode(changes[TAB_RANK_SCORE_DEBUG_STORAGE_KEY].newValue);
+      if (!latestOverlayQuery || !latestOverlayQuery.trim()) {
+        requestTabsAndRender();
+      }
+    };
+    chrome.storage.onChanged.addListener(overlayTabScoreDebugStorageListener);
 
     function isOverlayDarkMode() {
       return overlay && overlay.getAttribute('data-theme') === 'dark';
@@ -8672,6 +8927,29 @@ async function getSearchSuggestions(query) {
 
         leftSide.appendChild(iconSlot);
         leftSide.appendChild(title);
+        if (overlayTabScoreDebugEnabled) {
+          const rankDebug = document.createElement('span');
+          applyNoTranslate(rankDebug);
+          setProtectedPlainText(rankDebug, formatTabRankDebugText(tab));
+          rankDebug.style.cssText = `
+            all: unset !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            margin-left: 8px !important;
+            padding: 1px 6px !important;
+            border-radius: 999px !important;
+            color: var(--x-ov-subtext, #6B7280) !important;
+            background: color-mix(in srgb, var(--x-ov-bg, #FFFFFF) 70%, #94A3B8 30%) !important;
+            border: 1px solid color-mix(in srgb, var(--x-ov-border, rgba(0, 0, 0, 0.08)) 75%, #94A3B8 25%) !important;
+            font-size: 10px !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            line-height: 1.2 !important;
+            white-space: nowrap !important;
+            vertical-align: baseline !important;
+            flex-shrink: 0 !important;
+          `;
+          leftSide.appendChild(rankDebug);
+        }
         suggestionItem.appendChild(leftSide);
         suggestionItem.appendChild(switchButton);
         applyNoTranslateDeep(suggestionItem);
@@ -9992,10 +10270,6 @@ async function getSearchSuggestions(query) {
       inlineSearchState = null;
       siteSearchTriggerState = null;
       lastSuggestionResponse = [];
-      if (Array.isArray(tabs) && tabs.length > 0) {
-        renderTabSuggestions(tabs);
-      }
-
       requestTabsAndRender();
     }
     
@@ -10032,7 +10306,7 @@ async function getSearchSuggestions(query) {
       vertical-align: baseline !important;
     `;
 
-    renderTabSuggestions(tabs);
+    requestTabsAndRender();
     
     overlay.appendChild(inputContainer);
     overlay.appendChild(suggestionsContainer);

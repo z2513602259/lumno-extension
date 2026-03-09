@@ -30,6 +30,8 @@
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
+  const NEWTAB_OPEN_TAB_SUGGESTION_LIMIT = 8;
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
   const FAVICON_PERSIST_TTL_MS = 1000 * 60 * 60 * 24 * 14;
   const FAVICON_PERSIST_MAX_ENTRIES = 800;
@@ -61,6 +63,7 @@
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
   let currentBookmarkColumns = 4;
+  let tabRankScoreDebugEnabled = false;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
   let bookmarkCurrentPage = 0;
@@ -112,6 +115,28 @@
       return parsed;
     }
     return 4;
+  }
+
+  function normalizeTabRankScoreDebugMode(value) {
+    return value === true;
+  }
+
+  function formatTabRankDebugText(tab) {
+    const scoreRaw = Number(tab && tab._xTabRankScore);
+    const score = Number.isFinite(scoreRaw) ? scoreRaw.toFixed(2) : '0.00';
+    const count30mRaw = Number(tab && tab._xTabSwitchCount30m);
+    const count24hRaw = Number(tab && tab._xTabSwitchCount24h);
+    const debugTotalRaw = Number(tab && tab._xTabDebugEventTotal);
+    const lastAccessedRaw = Number(tab && tab._xTabLastAccessedRaw);
+    const sortAtRaw = Number(tab && tab._xTabSortAt);
+    const fetchSeqRaw = Number(tab && tab._xTabFetchSeq);
+    const count30m = Number.isFinite(count30mRaw) ? Math.max(0, Math.round(count30mRaw)) : 0;
+    const count24h = Number.isFinite(count24hRaw) ? Math.max(0, Math.round(count24hRaw)) : 0;
+    const debugTotal = Number.isFinite(debugTotalRaw) ? Math.max(0, Math.round(debugTotalRaw)) : 0;
+    const lastAccessedSec = Number.isFinite(lastAccessedRaw) && lastAccessedRaw > 0 ? Math.round(lastAccessedRaw / 1000) : 0;
+    const sortAtSec = Number.isFinite(sortAtRaw) && sortAtRaw > 0 ? Math.round(sortAtRaw / 1000) : 0;
+    const fetchSeq = Number.isFinite(fetchSeqRaw) ? Math.max(0, Math.round(fetchSeqRaw)) : 0;
+    return `score ${score} · 30m ${count30m} · 24h ${count24h} · ev ${debugTotal} · la ${lastAccessedSec} · s ${sortAtSec} · fs ${fetchSeq} · build 20260308-1`;
   }
 
   function getBookmarkGridColumnCount() {
@@ -1298,9 +1323,6 @@
     if (latestQuery && latestQuery.trim()) {
       renderSuggestions(lastSuggestionResponse, latestQuery);
     }
-    if ((!latestQuery || !latestQuery.trim()) && Array.isArray(tabs) && tabs.length > 0) {
-      renderTabSuggestions(tabs);
-    }
   }
 
 
@@ -1484,6 +1506,12 @@
       updateBookmarkGridHeightLock();
       updateBookmarkSectionPosition();
     }
+    if (changes[TAB_RANK_SCORE_DEBUG_STORAGE_KEY]) {
+      tabRankScoreDebugEnabled = normalizeTabRankScoreDebugMode(changes[TAB_RANK_SCORE_DEBUG_STORAGE_KEY].newValue);
+      if (!latestQuery || !latestQuery.trim()) {
+        requestTabsAndRender();
+      }
+    }
     if (changes[LANGUAGE_MESSAGES_STORAGE_KEY]) {
       const payload = changes[LANGUAGE_MESSAGES_STORAGE_KEY].newValue;
       const targetLocale = currentLanguageMode === 'system' ? getSystemLocale() : normalizeLocale(currentLanguageMode);
@@ -1565,6 +1593,14 @@
       applyBookmarkGridColumns();
       updateBookmarkGridHeightLock();
       updateBookmarkSectionPosition();
+    });
+    storageArea.get([TAB_RANK_SCORE_DEBUG_STORAGE_KEY], (result) => {
+      const raw = result[TAB_RANK_SCORE_DEBUG_STORAGE_KEY];
+      const next = normalizeTabRankScoreDebugMode(raw);
+      tabRankScoreDebugEnabled = next;
+      if (raw !== next) {
+        storageArea.set({ [TAB_RANK_SCORE_DEBUG_STORAGE_KEY]: next });
+      }
     });
   }
 
@@ -1729,6 +1765,7 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
+    TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -6729,7 +6766,9 @@
     suggestionItems.length = 0;
     currentSuggestions = [];
     lastRenderedQuery = '';
-    const list = Array.isArray(tabList) ? tabList : [];
+    const list = Array.isArray(tabList)
+      ? tabList.slice(0, Math.max(1, NEWTAB_OPEN_TAB_SUGGESTION_LIMIT))
+      : [];
     if (list.length === 0) {
       setSuggestionsVisible(false);
       return;
@@ -6963,6 +7002,28 @@
 
       leftSide.appendChild(iconSlot);
       leftSide.appendChild(title);
+      if (tabRankScoreDebugEnabled) {
+        const rankDebug = document.createElement('span');
+        rankDebug.textContent = formatTabRankDebugText(tab);
+        rankDebug.style.cssText = `
+          all: unset !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          margin-left: 8px !important;
+          padding: 1px 6px !important;
+          border-radius: 999px !important;
+          color: var(--x-nt-subtext, #6B7280) !important;
+          background: color-mix(in srgb, var(--x-nt-suggestions-bg, rgba(255, 255, 255, 0.96)) 70%, #94A3B8 30%) !important;
+          border: 1px solid color-mix(in srgb, var(--x-nt-border, rgba(0, 0, 0, 0.08)) 75%, #94A3B8 25%) !important;
+          font-size: 10px !important;
+          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+          line-height: 1.2 !important;
+          white-space: nowrap !important;
+          vertical-align: baseline !important;
+          flex-shrink: 0 !important;
+        `;
+        leftSide.appendChild(rankDebug);
+      }
       suggestionItem.appendChild(leftSide);
       suggestionItem.appendChild(switchButton);
       suggestionsContainer.appendChild(suggestionItem);
@@ -6988,15 +7049,14 @@
   }
 
   function requestTabsAndRender() {
-    chrome.runtime.sendMessage({ action: 'getTabsForOverlay' }, (response) => {
-      const freshTabs = response && Array.isArray(response.tabs) ? response.tabs : [];
-      if (freshTabs.length === 0) {
-        setSuggestionsVisible(false);
-        return;
-      }
-      tabs = freshTabs;
-      renderTabSuggestions(freshTabs);
-    });
+    tabs = [];
+    clearSearchSuggestions();
+  }
+
+  function refreshTabsIfIdle() {
+    if (!latestQuery || !latestQuery.trim()) {
+      clearSearchSuggestions();
+    }
   }
 
   function clearSearchSuggestions() {
@@ -8324,11 +8384,16 @@
 
     window.addEventListener('focus', () => {
       setTimeout(attemptFocusIfVisible, 0);
+      setTimeout(refreshTabsIfIdle, 0);
     }, true);
-    window.addEventListener('pageshow', attemptFocusIfVisible, true);
+    window.addEventListener('pageshow', () => {
+      attemptFocusIfVisible();
+      refreshTabsIfIdle();
+    }, true);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         setTimeout(attemptFocusIfVisible, 0);
+        setTimeout(refreshTabsIfIdle, 0);
       }
     }, true);
   }

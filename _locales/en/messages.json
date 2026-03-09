@@ -1,216 +1,644 @@
 {
-  "ext_name": { "message": "Lumno - The Ultimate Browser Command Bar" },
-  "ext_description": { "message": "A lightweight new-tab search and quick navigation overlay for Chromium browsers." },
-  "settings_tab_general": { "message": "General" },
-  "settings_tab_appearance": { "message": "Appearance" },
-  "settings_tab_shortcuts": { "message": "Site Search" },
-  "settings_tab_labs": { "message": "Labs" },
-  "settings_global_section_title": { "message": "Global Settings" },
-  "settings_language_title": { "message": "Language" },
-  "settings_language_desc": { "message": "Choose UI language" },
-  "language_zh_cn": { "message": "简体中文" },
-  "language_zh_tw": { "message": "Traditional Chinese" },
-  "language_zh_hk": { "message": "Traditional Chinese" },
-  "language_en": { "message": "English" },
-  "language_system": { "message": "Follow browser language" },
-  "settings_recent_title": { "message": "New Tab Bottom Content" },
-  "settings_newtab_section_title": { "message": "New Tab Settings" },
-  "settings_recent_desc": { "message": "Show Recent / Most Visited Sites" },
-  "settings_recent_sites_title": { "message": "Site Cards" },
-  "settings_bookmarks_title": { "message": "Show Bookmarks" },
-  "settings_document_pip_title": { "message": "Web Clip" },
-  "settings_document_pip_desc": { "message": "Clip part of a page into a floating view for reference and side-by-side comparison" },
-  "settings_auto_pip_title": { "message": "Auto Picture-in-Picture" },
-  "settings_auto_pip_desc": { "message": "Control automatic Picture-in-Picture on websites" },
-  "settings_pinned_tab_recovery_title": { "message": "Restore Pinned Tabs After Restart" },
-  "settings_pinned_tab_recovery_desc": { "message": "Save restorable pinned web tabs and restore missing ones after the browser restarts." },
-  "document_pip_picker_hint": { "message": "Move over the page to choose an element. Click to open PiP, scroll to switch parents, Esc to cancel." },
-  "document_pip_picker_idle": { "message": "Hover a visible area to start selecting." },
-  "document_pip_picker_started": { "message": "Click the content to float, scroll to change scope, or press Esc to cancel" },
-  "document_pip_picker_cancelled": { "message": "Content selection closed" },
-  "document_pip_picker_closed": { "message": "Floating content window closed" },
-  "document_pip_picker_guidance_default": { "message": "This selection should work well for content floating." },
-  "document_pip_picker_guidance_leaf": { "message": "This is a small leaf node. Scroll to move to its parent if you want a more stable floating view." },
-  "document_pip_picker_guidance_interactive": { "message": "This looks like a fragile interactive group. If clicks fail in PiP, scroll to select a larger painted container." },
-  "document_pip_picker_guidance_toolbar": { "message": "This looks like a navigation or toolbar area. Complex menus may not fully interact in PiP; scroll to choose a larger container if needed." },
-  "document_pip_picker_unsupported": { "message": "This page does not support Document Picture-in-Picture" },
-  "document_pip_picker_conflict_video_pip": { "message": "A video PiP is already active. Close it before starting content clipping." },
-  "document_pip_picker_invalid": { "message": "This area cannot be floated yet, try a larger content region" },
-  "document_pip_picker_open_failed": { "message": "Failed to open the floating content window, try a different area" },
-  "document_pip_picker_badge": { "message": "Opened in PiP" },
-  "document_pip_picker_button_reselect": { "message": "Reselect" },
-  "document_pip_picker_button_return": { "message": "Return" },
-  "document_pip_picker_button_close": { "message": "Close" },
-  "settings_newtab_scope_desc": { "message": "New Tab" },
-  "settings_overlay_tab_priority_title": { "message": "Quick Switch Opened Tabs" },
-  "settings_overlay_tab_priority_desc": { "message": "When input matches an opened tab, Enter follows the first suggestion's tab action" },
-  "overlay_tab_priority_switch_first": { "message": "Press Enter to switch to opened tab" },
-  "overlay_tab_priority_newtab_first": { "message": "Press Enter to open in new tab" },
-  "settings_shortcuts_title": { "message": "Open command bar" },
-  "settings_shortcuts_browser_desc_prefix": { "message": "In Chromium-based browsers such as Dia and Edge, change the shortcut in " },
-  "settings_shortcuts_browser_desc_path_extensions": { "message": "Extensions" },
-  "settings_shortcuts_browser_desc_path_shortcuts": { "message": "Keyboard shortcuts" },
-  "settings_shortcuts_browser_desc_suffix": { "message": "" },
-  "settings_shortcuts_dia_tag": { "message": "Use in Dia" },
-  "settings_shortcuts_dia_tooltip": { "message": "In Dia, due to browser limitations, Lumno's New Tab features are temporarily unavailable, but the command bar still works normally.\n\nIf the shortcut does not work in Dia, click the button on the lower right to open the browser shortcut settings page, then change \"Open command bar\" from In Dia to Global." },
-  "settings_shortcuts_section_title": { "message": "Shortcut Settings" },
-  "settings_shortcuts_desc": { "message": "Use to open the Lumno search box" },
-  "overlay_close_other_tabs_tooltip": { "message": "Close other tabs, keep pinned and grouped tabs" },
-  "settings_shortcuts_status": { "message": "Current: {shortcut}" },
-  "settings_shortcuts_unset": { "message": "Not set" },
-  "settings_shortcuts_action": { "message": "Open shortcut settings" },
-  "settings_shortcuts_browser_tooltip": { "message": "In Chromium browsers, you must open the extension shortcuts page to set or change the overlay shortcut." },
-  "settings_shortcuts_save": { "message": "Save shortcut" },
-  "settings_shortcuts_reset": { "message": "Reset default" },
-  "settings_shortcuts_record_placeholder": { "message": "Press shortcut" },
-  "settings_shortcuts_empty_state": { "message": "None" },
-  "settings_shortcuts_invalid": { "message": "Invalid shortcut. Use a key combo such as Ctrl+K." },
-  "settings_restricted_title": { "message": "Shortcut behavior on restricted pages" },
-  "settings_restricted_tooltip": { "message": "Restricted pages (for example, chrome://) cannot open the command bar. Pressing the shortcut follows the rule set here." },
-  "restricted_action_default": { "message": "Go to new tab" },
-  "restricted_action_none": { "message": "No action" },
-  "recent_count_4": { "message": "Show 1 row" },
-  "recent_count_8": { "message": "Show 2 rows" },
-  "recent_count_off": { "message": "Hide" },
-  "bookmark_count_off": { "message": "Hide" },
-  "bookmark_count_4": { "message": "Show 1 row" },
-  "bookmark_count_8": { "message": "Show 8" },
-  "bookmark_count_16": { "message": "Show 16" },
-  "bookmark_count_32": { "message": "Show 32" },
-  "settings_bookmark_columns_title": { "message": "Bookmarks per row" },
-  "bookmark_columns_4": { "message": "4 per row" },
-  "bookmark_columns_6": { "message": "6 per row" },
-  "recent_mode_latest": { "message": "Show Recent" },
-  "recent_mode_most": { "message": "Show Most Visited" },
-  "settings_toggle_on": { "message": "On" },
-  "settings_theme_title": { "message": "Theme mode" },
-  "settings_theme_desc": { "message": "Follow system or choose manually" },
-  "settings_theme_system": { "message": "System / Website" },
-  "settings_theme_light": { "message": "Light" },
-  "settings_theme_dark": { "message": "Dark" },
-  "settings_wallpaper_title": { "message": "New Tab wallpaper" },
-  "settings_wallpaper_desc": { "message": "Upload a local image as the new tab background" },
-  "settings_wallpaper_upload": { "message": "Upload image" },
-  "settings_wallpaper_remove": { "message": "Remove" },
-  "settings_wallpaper_fit_cover": { "message": "Fill" },
-  "settings_wallpaper_fit_contain": { "message": "Contain" },
-  "settings_wallpaper_status_none": { "message": "No wallpaper uploaded" },
-  "settings_wallpaper_status_ready": { "message": "Wallpaper uploaded" },
-  "settings_wallpaper_status_local_only": { "message": "Wallpaper uploaded (this device only)" },
-  "settings_wallpaper_status_missing": { "message": "Wallpaper file missing, please upload again" },
-  "settings_wallpaper_status_processing": { "message": "Processing..." },
-  "settings_wallpaper_upload_done": { "message": "Wallpaper updated" },
-  "settings_wallpaper_remove_done": { "message": "Wallpaper removed" },
-  "settings_wallpaper_error_type": { "message": "Please upload an image file (JPG / PNG / WEBP)." },
-  "settings_wallpaper_error_oversize": { "message": "Image is too large. Please upload a file under 8MB." },
-  "settings_wallpaper_error_oversize_after_compress": { "message": "Image is still too large after compression. Try a smaller image." },
-  "settings_wallpaper_error_save": { "message": "Failed to save wallpaper, please try again" },
-  "shortcuts_duplicate_tag": { "message": "Duplicate with built-in" },
-  "shortcuts_duplicate_action": { "message": "Locate built-in item" },
-  "shortcuts_template_help": { "message": "1. Open the site you want to add\n2. Run a search with any keyword\n3. Copy the results page URL and paste it here\n4. Replace the keyword with {query}" },
-  "shortcuts_title": { "message": "Site search" },
-  "shortcuts_desc": { "message": "Press Tab after a keyword to use site search" },
-  "shortcuts_group_custom": { "message": "Custom" },
-  "shortcuts_group_builtin": { "message": "Built-in" },
-  "shortcuts_badge_custom": { "message": "Custom" },
-  "shortcuts_badge_builtin": { "message": "Built-in" },
-  "shortcuts_label_key": { "message": "Keyword" },
-  "shortcuts_label_name": { "message": "Name" },
-  "shortcuts_label_template": { "message": "Search URL" },
-  "shortcuts_label_alias": { "message": "Aliases" },
-  "shortcuts_placeholder_required": { "message": "Required — use commas for multiple, e.g. jd,bili" },
-  "shortcuts_placeholder_optional_default": { "message": "Optional — defaults to keyword" },
-  "shortcuts_placeholder_template": { "message": "https://example.com/search?q={query}" },
-  "shortcuts_placeholder_alias": { "message": "Optional — e.g. Bilibili, YouTube" },
-  "shortcuts_add": { "message": "Add site search" },
-  "shortcuts_save": { "message": "Save changes" },
-  "shortcuts_cancel": { "message": "Cancel" },
-  "shortcuts_edit": { "message": "Edit" },
-  "shortcuts_remove": { "message": "Remove" },
-  "shortcuts_empty_custom": { "message": "No custom site searches yet" },
-  "shortcuts_empty_builtin": { "message": "No built-in site searches" },
-  "toast_saved": { "message": "Saved" },
-  "toast_removed": { "message": "Removed" },
-  "toast_error": { "message": "Action failed, try again" },
-  "toast_error_template": { "message": "Search template must include {query}." },
-  "toast_reset": { "message": "Reset" },
-  "shortcuts_reset_builtin": { "message": "Reset to default list" },
-  "shortcuts_clear_custom": { "message": "Clear custom" },
-  "toast_cleared": { "message": "Cleared" },
-  "confirm_clear_custom": { "message": "Clear all custom searches?" },
-  "confirm_reset_builtin": { "message": "Reset built-in list?" },
-  "confirm_ok": { "message": "Confirm" },
-  "confirm_cancel": { "message": "Cancel" },
-  "confirm_remove_item": { "message": "Remove this item?" },
-  "shortcuts_error_key": { "message": "Please enter a trigger." },
-  "shortcuts_error_key_space": { "message": "Trigger cannot contain spaces." },
-  "search_placeholder": { "message": "Search or type a URL..." },
-  "options_page_title": { "message": "Lumno Settings" },
-  "newtab_page_title": { "message": "New Tab" },
-  "recent_heading": { "message": "Recent" },
-  "recent_heading_latest": { "message": "Recent" },
-  "recent_heading_most": { "message": "Most Visited" },
-  "bookmarks_heading": { "message": "Bookmarks" },
-  "bookmarks_empty_folder": { "message": "No content" },
-  "bookmarks_page_prev": { "message": "Previous page" },
-  "bookmarks_page_next": { "message": "Next page" },
-  "bookmarks_open_manager": { "message": "Open bookmark manager" },
-  "search_tag_history": { "message": "History" },
-  "search_tag_top_site": { "message": "Frequent" },
-  "search_tag_bookmark": { "message": "Bookmark" },
-  "visit_label": { "message": "Visit" },
-  "open_prefix": { "message": "Open {title}" },
-  "open_url": { "message": "Open {url}" },
-  "mode_badge": { "message": "Mode: {mode}" },
-  "mode_badge_follow_system": { "message": "Mode: {mode} (System)" },
-  "mode_badge_follow_site": { "message": "Mode: {mode} (Site)" },
-  "theme_label_dark": { "message": "Dark" },
-  "theme_label_light": { "message": "Light" },
-  "theme_label_system": { "message": "System" },
-  "command_newtab": { "message": "New Tab" },
-  "command_settings": { "message": "Open {name} Settings" },
-  "command_show_search": { "message": "Open command bar" },
-  "mode_switch_title": { "message": "{name}: switch to {mode} mode" },
-  "switch_to_tab": { "message": "Switch to tab" },
-  "untitled": { "message": "Untitled" },
-  "site_search_default": { "message": "Site" },
-  "site_search_name_baidu": { "message": "Baidu" },
-  "site_search_name_zhihu": { "message": "Zhihu" },
-  "site_search_name_douban": { "message": "Douban" },
-  "site_search_name_juejin": { "message": "Juejin" },
-  "site_search_name_taobao": { "message": "Taobao" },
-  "site_search_name_tmall": { "message": "Tmall" },
-  "site_search_name_wechat": { "message": "WeChat" },
-  "site_search_name_wikipedia": { "message": "Wikipedia" },
-  "search_in_site": { "message": "Search in {site}" },
-  "search_in_site_query": { "message": "Search in {site} \"{query}\"" },
-  "search_query": { "message": "Search \"{query}\"" },
-  "search_in_site_ellipsis": { "message": "Search in {site}..." },
-  "search_in_site_prefix": { "message": "Search in {site} |" },
-  "action_search": { "message": "Search" },
-  "action_search_engine": { "message": "Search in {engine}" },
-  "action_search_google": { "message": "Search in Google" },
-  "action_switch": { "message": "Switch" },
-  "action_open": { "message": "Open" },
-  "site_icon_alt": { "message": "Site" },
-  "site_brand_wechat_official": { "message": "WeChat Official Accounts" },
-  "settings_sync_title": { "message": "{name} settings" },
-  "settings_sync_desc": { "message": "View sync status, manually sync, or import/export settings" },
-  "sync_status_unavailable": { "message": "Sync unavailable" },
-  "sync_status_unavailable_hint": { "message": "Sync unavailable: not signed in or browser doesn't support sync." },
-  "sync_status_ready": { "message": "Auto sync enabled" },
-  "sync_status_done": { "message": "Sync complete" },
-  "sync_status_failed": { "message": "Sync failed" },
-  "sync_status_failed_reason": { "message": "Sync failed: {reason}" },
-  "sync_action_now": { "message": "Sync now" },
-  "sync_action_export": { "message": "Export settings" },
-  "sync_action_import": { "message": "Import settings" },
-  "sync_tooltip_export": { "message": "Export settings" },
-  "sync_tooltip_import": { "message": "Import settings" },
-  "sync_tooltip_last_manual": { "message": "Last import/manual sync {time}" },
-  "sync_tooltip_default": { "message": "Manual sync" },
-  "sync_status_hint": { "message": "When signed in, settings sync with your browser account; cross-browser requires manual export/import." },
-  "sync_export_done": { "message": "Settings exported" },
-  "sync_import_done": { "message": "Import complete" },
-  "sync_import_invalid": { "message": "Invalid settings file" }
+  "ext_name": {
+    "message": "Lumno - The Ultimate Browser Command Bar"
+  },
+  "ext_description": {
+    "message": "A lightweight new-tab search and quick navigation overlay for Chromium browsers."
+  },
+  "settings_tab_general": {
+    "message": "General"
+  },
+  "settings_tab_appearance": {
+    "message": "Appearance"
+  },
+  "settings_tab_shortcuts": {
+    "message": "Site Search"
+  },
+  "settings_tab_labs": {
+    "message": "Labs"
+  },
+  "settings_global_section_title": {
+    "message": "Global Settings"
+  },
+  "settings_language_title": {
+    "message": "Language"
+  },
+  "settings_language_desc": {
+    "message": "Choose UI language"
+  },
+  "language_zh_cn": {
+    "message": "简体中文"
+  },
+  "language_zh_tw": {
+    "message": "Traditional Chinese"
+  },
+  "language_zh_hk": {
+    "message": "Traditional Chinese"
+  },
+  "language_en": {
+    "message": "English"
+  },
+  "language_system": {
+    "message": "Follow browser language"
+  },
+  "settings_recent_title": {
+    "message": "New Tab Bottom Content"
+  },
+  "settings_newtab_section_title": {
+    "message": "New Tab Settings"
+  },
+  "settings_recent_desc": {
+    "message": "Show Recent / Most Visited Sites"
+  },
+  "settings_recent_sites_title": {
+    "message": "Site Cards"
+  },
+  "settings_bookmarks_title": {
+    "message": "Show Bookmarks"
+  },
+  "settings_document_pip_title": {
+    "message": "Web Clip"
+  },
+  "settings_document_pip_desc": {
+    "message": "Clip part of a page into a floating view for reference and side-by-side comparison"
+  },
+  "settings_auto_pip_title": {
+    "message": "Auto Picture-in-Picture"
+  },
+  "settings_auto_pip_desc": {
+    "message": "Control automatic Picture-in-Picture on websites"
+  },
+  "settings_pinned_tab_recovery_title": {
+    "message": "Restore Pinned Tabs After Restart"
+  },
+  "settings_pinned_tab_recovery_desc": {
+    "message": "Save restorable pinned web tabs and restore missing ones after the browser restarts."
+  },
+  "document_pip_picker_hint": {
+    "message": "Move over the page to choose an element. Click to open PiP, scroll to switch parents, Esc to cancel."
+  },
+  "document_pip_picker_idle": {
+    "message": "Hover a visible area to start selecting."
+  },
+  "document_pip_picker_started": {
+    "message": "Click the content to float, scroll to change scope, or press Esc to cancel"
+  },
+  "document_pip_picker_cancelled": {
+    "message": "Content selection closed"
+  },
+  "document_pip_picker_closed": {
+    "message": "Floating content window closed"
+  },
+  "document_pip_picker_guidance_default": {
+    "message": "This selection should work well for content floating."
+  },
+  "document_pip_picker_guidance_leaf": {
+    "message": "This is a small leaf node. Scroll to move to its parent if you want a more stable floating view."
+  },
+  "document_pip_picker_guidance_interactive": {
+    "message": "This looks like a fragile interactive group. If clicks fail in PiP, scroll to select a larger painted container."
+  },
+  "document_pip_picker_guidance_toolbar": {
+    "message": "This looks like a navigation or toolbar area. Complex menus may not fully interact in PiP; scroll to choose a larger container if needed."
+  },
+  "document_pip_picker_unsupported": {
+    "message": "This page does not support Document Picture-in-Picture"
+  },
+  "document_pip_picker_conflict_video_pip": {
+    "message": "A video PiP is already active. Close it before starting content clipping."
+  },
+  "document_pip_picker_invalid": {
+    "message": "This area cannot be floated yet, try a larger content region"
+  },
+  "document_pip_picker_open_failed": {
+    "message": "Failed to open the floating content window, try a different area"
+  },
+  "document_pip_picker_badge": {
+    "message": "Opened in PiP"
+  },
+  "document_pip_picker_button_reselect": {
+    "message": "Reselect"
+  },
+  "document_pip_picker_button_return": {
+    "message": "Return"
+  },
+  "document_pip_picker_button_close": {
+    "message": "Close"
+  },
+  "settings_newtab_scope_desc": {
+    "message": "New Tab"
+  },
+  "settings_overlay_tab_priority_title": {
+    "message": "Quick Switch Opened Tabs"
+  },
+  "settings_overlay_tab_priority_desc": {
+    "message": "When input matches an opened tab, Enter follows the first suggestion's tab action"
+  },
+  "overlay_tab_priority_switch_first": {
+    "message": "Press Enter to switch to opened tab"
+  },
+  "overlay_tab_priority_newtab_first": {
+    "message": "Press Enter to open in new tab"
+  },
+  "settings_shortcuts_title": {
+    "message": "Open command bar"
+  },
+  "settings_shortcuts_browser_desc_prefix": {
+    "message": "In Chromium-based browsers such as Dia and Edge, change the shortcut in "
+  },
+  "settings_shortcuts_browser_desc_path_extensions": {
+    "message": "Extensions"
+  },
+  "settings_shortcuts_browser_desc_path_shortcuts": {
+    "message": "Keyboard shortcuts"
+  },
+  "settings_shortcuts_browser_desc_suffix": {
+    "message": ""
+  },
+  "settings_shortcuts_dia_tag": {
+    "message": "Use in Dia"
+  },
+  "settings_shortcuts_dia_tooltip": {
+    "message": "In Dia, due to browser limitations, Lumno's New Tab features are temporarily unavailable, but the command bar still works normally.\n\nIf the shortcut does not work in Dia, click the button on the lower right to open the browser shortcut settings page, then change \"Open command bar\" from In Dia to Global."
+  },
+  "settings_shortcuts_section_title": {
+    "message": "Shortcut Settings"
+  },
+  "settings_shortcuts_desc": {
+    "message": "Use to open the Lumno search box"
+  },
+  "overlay_close_other_tabs_tooltip": {
+    "message": "Close other tabs, keep pinned and grouped tabs"
+  },
+  "settings_shortcuts_status": {
+    "message": "Current: {shortcut}"
+  },
+  "settings_shortcuts_unset": {
+    "message": "Not set"
+  },
+  "settings_shortcuts_action": {
+    "message": "Open shortcut settings"
+  },
+  "settings_shortcuts_browser_tooltip": {
+    "message": "In Chromium browsers, you must open the extension shortcuts page to set or change the overlay shortcut."
+  },
+  "settings_shortcuts_save": {
+    "message": "Save shortcut"
+  },
+  "settings_shortcuts_reset": {
+    "message": "Reset default"
+  },
+  "settings_shortcuts_record_placeholder": {
+    "message": "Press shortcut"
+  },
+  "settings_shortcuts_empty_state": {
+    "message": "None"
+  },
+  "settings_shortcuts_invalid": {
+    "message": "Invalid shortcut. Use a key combo such as Ctrl+K."
+  },
+  "settings_restricted_title": {
+    "message": "Shortcut behavior on restricted pages"
+  },
+  "settings_restricted_tooltip": {
+    "message": "Restricted pages (for example, chrome://) cannot open the command bar. Pressing the shortcut follows the rule set here."
+  },
+  "restricted_action_default": {
+    "message": "Go to new tab"
+  },
+  "restricted_action_none": {
+    "message": "No action"
+  },
+  "recent_count_4": {
+    "message": "Show 1 row"
+  },
+  "recent_count_8": {
+    "message": "Show 2 rows"
+  },
+  "recent_count_off": {
+    "message": "Hide"
+  },
+  "bookmark_count_off": {
+    "message": "Hide"
+  },
+  "bookmark_count_4": {
+    "message": "Show 1 row"
+  },
+  "bookmark_count_8": {
+    "message": "Show 8"
+  },
+  "bookmark_count_16": {
+    "message": "Show 16"
+  },
+  "bookmark_count_32": {
+    "message": "Show 32"
+  },
+  "settings_bookmark_columns_title": {
+    "message": "Bookmarks per row"
+  },
+  "bookmark_columns_4": {
+    "message": "4 per row"
+  },
+  "bookmark_columns_6": {
+    "message": "6 per row"
+  },
+  "recent_mode_latest": {
+    "message": "Show Recent"
+  },
+  "recent_mode_most": {
+    "message": "Show Most Visited"
+  },
+  "settings_toggle_on": {
+    "message": "On"
+  },
+  "settings_theme_title": {
+    "message": "Theme mode"
+  },
+  "settings_theme_desc": {
+    "message": "Follow system or choose manually"
+  },
+  "settings_theme_system": {
+    "message": "System / Website"
+  },
+  "settings_theme_light": {
+    "message": "Light"
+  },
+  "settings_theme_dark": {
+    "message": "Dark"
+  },
+  "settings_wallpaper_title": {
+    "message": "New Tab wallpaper"
+  },
+  "settings_wallpaper_desc": {
+    "message": "Upload a local image as the new tab background"
+  },
+  "settings_wallpaper_upload": {
+    "message": "Upload image"
+  },
+  "settings_wallpaper_remove": {
+    "message": "Remove"
+  },
+  "settings_wallpaper_fit_cover": {
+    "message": "Fill"
+  },
+  "settings_wallpaper_fit_contain": {
+    "message": "Contain"
+  },
+  "settings_wallpaper_status_none": {
+    "message": "No wallpaper uploaded"
+  },
+  "settings_wallpaper_status_ready": {
+    "message": "Wallpaper uploaded"
+  },
+  "settings_wallpaper_status_local_only": {
+    "message": "Wallpaper uploaded (this device only)"
+  },
+  "settings_wallpaper_status_missing": {
+    "message": "Wallpaper file missing, please upload again"
+  },
+  "settings_wallpaper_status_processing": {
+    "message": "Processing..."
+  },
+  "settings_wallpaper_upload_done": {
+    "message": "Wallpaper updated"
+  },
+  "settings_wallpaper_remove_done": {
+    "message": "Wallpaper removed"
+  },
+  "settings_wallpaper_error_type": {
+    "message": "Please upload an image file (JPG / PNG / WEBP)."
+  },
+  "settings_wallpaper_error_oversize": {
+    "message": "Image is too large. Please upload a file under 8MB."
+  },
+  "settings_wallpaper_error_oversize_after_compress": {
+    "message": "Image is still too large after compression. Try a smaller image."
+  },
+  "settings_wallpaper_error_save": {
+    "message": "Failed to save wallpaper, please try again"
+  },
+  "shortcuts_duplicate_tag": {
+    "message": "Duplicate with built-in"
+  },
+  "shortcuts_duplicate_action": {
+    "message": "Locate built-in item"
+  },
+  "shortcuts_template_help": {
+    "message": "1. Open the site you want to add\n2. Run a search with any keyword\n3. Copy the results page URL and paste it here\n4. Replace the keyword with {query}"
+  },
+  "shortcuts_title": {
+    "message": "Site search"
+  },
+  "shortcuts_desc": {
+    "message": "Press Tab after a keyword to use site search"
+  },
+  "shortcuts_group_custom": {
+    "message": "Custom"
+  },
+  "shortcuts_group_builtin": {
+    "message": "Built-in"
+  },
+  "shortcuts_badge_custom": {
+    "message": "Custom"
+  },
+  "shortcuts_badge_builtin": {
+    "message": "Built-in"
+  },
+  "shortcuts_label_key": {
+    "message": "Keyword"
+  },
+  "shortcuts_label_name": {
+    "message": "Name"
+  },
+  "shortcuts_label_template": {
+    "message": "Search URL"
+  },
+  "shortcuts_label_alias": {
+    "message": "Aliases"
+  },
+  "shortcuts_placeholder_required": {
+    "message": "Required — use commas for multiple, e.g. jd,bili"
+  },
+  "shortcuts_placeholder_optional_default": {
+    "message": "Optional — defaults to keyword"
+  },
+  "shortcuts_placeholder_template": {
+    "message": "https://example.com/search?q={query}"
+  },
+  "shortcuts_placeholder_alias": {
+    "message": "Optional — e.g. Bilibili, YouTube"
+  },
+  "shortcuts_add": {
+    "message": "Add site search"
+  },
+  "shortcuts_save": {
+    "message": "Save changes"
+  },
+  "shortcuts_cancel": {
+    "message": "Cancel"
+  },
+  "shortcuts_edit": {
+    "message": "Edit"
+  },
+  "shortcuts_remove": {
+    "message": "Remove"
+  },
+  "shortcuts_empty_custom": {
+    "message": "No custom site searches yet"
+  },
+  "shortcuts_empty_builtin": {
+    "message": "No built-in site searches"
+  },
+  "toast_saved": {
+    "message": "Saved"
+  },
+  "toast_removed": {
+    "message": "Removed"
+  },
+  "toast_error": {
+    "message": "Action failed, try again"
+  },
+  "toast_error_template": {
+    "message": "Search template must include {query}."
+  },
+  "toast_reset": {
+    "message": "Reset"
+  },
+  "shortcuts_reset_builtin": {
+    "message": "Reset to default list"
+  },
+  "shortcuts_clear_custom": {
+    "message": "Clear custom"
+  },
+  "toast_cleared": {
+    "message": "Cleared"
+  },
+  "confirm_clear_custom": {
+    "message": "Clear all custom searches?"
+  },
+  "confirm_reset_builtin": {
+    "message": "Reset built-in list?"
+  },
+  "confirm_ok": {
+    "message": "Confirm"
+  },
+  "confirm_cancel": {
+    "message": "Cancel"
+  },
+  "confirm_remove_item": {
+    "message": "Remove this item?"
+  },
+  "shortcuts_error_key": {
+    "message": "Please enter a trigger."
+  },
+  "shortcuts_error_key_space": {
+    "message": "Trigger cannot contain spaces."
+  },
+  "search_placeholder": {
+    "message": "Search or type a URL..."
+  },
+  "options_page_title": {
+    "message": "Lumno Settings"
+  },
+  "newtab_page_title": {
+    "message": "New Tab"
+  },
+  "recent_heading": {
+    "message": "Recent"
+  },
+  "recent_heading_latest": {
+    "message": "Recent"
+  },
+  "recent_heading_most": {
+    "message": "Most Visited"
+  },
+  "bookmarks_heading": {
+    "message": "Bookmarks"
+  },
+  "bookmarks_empty_folder": {
+    "message": "No content"
+  },
+  "bookmarks_page_prev": {
+    "message": "Previous page"
+  },
+  "bookmarks_page_next": {
+    "message": "Next page"
+  },
+  "bookmarks_open_manager": {
+    "message": "Open bookmark manager"
+  },
+  "search_tag_history": {
+    "message": "History"
+  },
+  "search_tag_top_site": {
+    "message": "Frequent"
+  },
+  "search_tag_bookmark": {
+    "message": "Bookmark"
+  },
+  "visit_label": {
+    "message": "Visit"
+  },
+  "open_prefix": {
+    "message": "Open {title}"
+  },
+  "open_url": {
+    "message": "Open {url}"
+  },
+  "mode_badge": {
+    "message": "Mode: {mode}"
+  },
+  "mode_badge_follow_system": {
+    "message": "Mode: {mode} (System)"
+  },
+  "mode_badge_follow_site": {
+    "message": "Mode: {mode} (Site)"
+  },
+  "theme_label_dark": {
+    "message": "Dark"
+  },
+  "theme_label_light": {
+    "message": "Light"
+  },
+  "theme_label_system": {
+    "message": "System"
+  },
+  "command_newtab": {
+    "message": "New Tab"
+  },
+  "command_settings": {
+    "message": "Open {name} Settings"
+  },
+  "command_show_search": {
+    "message": "Open command bar"
+  },
+  "mode_switch_title": {
+    "message": "{name}: switch to {mode} mode"
+  },
+  "switch_to_tab": {
+    "message": "Switch to tab"
+  },
+  "untitled": {
+    "message": "Untitled"
+  },
+  "site_search_default": {
+    "message": "Site"
+  },
+  "site_search_name_baidu": {
+    "message": "Baidu"
+  },
+  "site_search_name_zhihu": {
+    "message": "Zhihu"
+  },
+  "site_search_name_douban": {
+    "message": "Douban"
+  },
+  "site_search_name_juejin": {
+    "message": "Juejin"
+  },
+  "site_search_name_taobao": {
+    "message": "Taobao"
+  },
+  "site_search_name_tmall": {
+    "message": "Tmall"
+  },
+  "site_search_name_wechat": {
+    "message": "WeChat"
+  },
+  "site_search_name_wikipedia": {
+    "message": "Wikipedia"
+  },
+  "search_in_site": {
+    "message": "Search in {site}"
+  },
+  "search_in_site_query": {
+    "message": "Search in {site} \"{query}\""
+  },
+  "search_query": {
+    "message": "Search \"{query}\""
+  },
+  "search_in_site_ellipsis": {
+    "message": "Search in {site}..."
+  },
+  "search_in_site_prefix": {
+    "message": "Search in {site} |"
+  },
+  "action_search": {
+    "message": "Search"
+  },
+  "action_search_engine": {
+    "message": "Search in {engine}"
+  },
+  "action_search_google": {
+    "message": "Search in Google"
+  },
+  "action_switch": {
+    "message": "Switch"
+  },
+  "action_open": {
+    "message": "Open"
+  },
+  "site_icon_alt": {
+    "message": "Site"
+  },
+  "site_brand_wechat_official": {
+    "message": "WeChat Official Accounts"
+  },
+  "settings_sync_title": {
+    "message": "{name} settings"
+  },
+  "settings_sync_desc": {
+    "message": "View sync status, manually sync, or import/export settings"
+  },
+  "sync_status_unavailable": {
+    "message": "Sync unavailable"
+  },
+  "sync_status_unavailable_hint": {
+    "message": "Sync unavailable: not signed in or browser doesn't support sync."
+  },
+  "sync_status_ready": {
+    "message": "Auto sync enabled"
+  },
+  "sync_status_done": {
+    "message": "Sync complete"
+  },
+  "sync_status_failed": {
+    "message": "Sync failed"
+  },
+  "sync_status_failed_reason": {
+    "message": "Sync failed: {reason}"
+  },
+  "sync_action_now": {
+    "message": "Sync now"
+  },
+  "sync_action_export": {
+    "message": "Export settings"
+  },
+  "sync_action_import": {
+    "message": "Import settings"
+  },
+  "sync_tooltip_export": {
+    "message": "Export settings"
+  },
+  "sync_tooltip_import": {
+    "message": "Import settings"
+  },
+  "sync_tooltip_last_manual": {
+    "message": "Last import/manual sync {time}"
+  },
+  "sync_tooltip_default": {
+    "message": "Manual sync"
+  },
+  "sync_status_hint": {
+    "message": "When signed in, settings sync with your browser account; cross-browser requires manual export/import."
+  },
+  "sync_export_done": {
+    "message": "Settings exported"
+  },
+  "sync_import_done": {
+    "message": "Import complete"
+  },
+  "sync_import_invalid": {
+    "message": "Invalid settings file"
+  }
 }

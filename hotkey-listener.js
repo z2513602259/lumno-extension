@@ -5,9 +5,11 @@
   window._x_extension_hotkey_listener_2024_unique_ = true;
 
   const REFRESH_SHORTCUT_MS = 15000;
+  const TAB_VISIBLE_REPORT_MIN_INTERVAL_MS = 800;
   let shortcutRaw = '';
   let shortcutSpec = null;
   let lastRefreshAt = 0;
+  let lastVisibleReportAt = 0;
 
   function logHotkeyListenerDebug(stage, payload) {
     try {
@@ -30,6 +32,26 @@
       logHotkeyListenerDebug('trigger-overlay-failed', {
         error: e && e.message ? e.message : String(e || '')
       });
+    }
+  }
+
+  function reportTabVisible(reason) {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    const now = Date.now();
+    if ((now - lastVisibleReportAt) < TAB_VISIBLE_REPORT_MIN_INTERVAL_MS) {
+      return;
+    }
+    lastVisibleReportAt = now;
+    try {
+      chrome.runtime.sendMessage({
+        action: 'reportTabVisible',
+        at: now,
+        reason: String(reason || '')
+      });
+    } catch (e) {
+      // Ignore runtime bridge failures.
     }
   }
 
@@ -222,10 +244,15 @@
     href: location && location.href ? location.href : ''
   });
   window.addEventListener('focus', () => refreshShortcut(true), true);
+  window.addEventListener('focus', () => reportTabVisible('focus'), true);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshShortcut(false);
+      reportTabVisible('visibility');
     }
+  }, true);
+  window.addEventListener('pageshow', () => {
+    reportTabVisible('pageshow');
   }, true);
 
   document.addEventListener('keydown', (event) => {
