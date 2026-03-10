@@ -913,8 +913,9 @@
         border-radius: 8px;
         font-size: var(--tooltip-font-size);
         white-space: pre-line;
-        max-width: 260px;
+        max-width: min(360px, calc(100vw - 24px));
         line-height: 1.4;
+        overflow-wrap: anywhere;
         opacity: 0;
         pointer-events: none;
         transform: translateY(4px);
@@ -929,7 +930,7 @@
       }
       ._x_extension_tooltip_2024_unique_ {
         position: fixed;
-        max-width: 260px;
+        max-width: min(360px, calc(100vw - 24px));
         padding: 10px 12px;
         border-radius: 8px;
         background: #0f172a;
@@ -937,6 +938,7 @@
         font-size: var(--tooltip-font-size);
         line-height: 1.4;
         white-space: pre-line;
+        overflow-wrap: anywhere;
         box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
         z-index: 9999;
         pointer-events: none;

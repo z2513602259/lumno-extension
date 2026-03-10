@@ -488,8 +488,17 @@
   "search_tag_bookmark": {
     "message": "Bookmark"
   },
+  "search_tag_open_tab": {
+    "message": "Opened"
+  },
   "visit_label": {
     "message": "Visit"
+  },
+  "action_open_new_tab": {
+    "message": "New Tab"
+  },
+  "action_go_current_tab": {
+    "message": "Go"
   },
   "open_prefix": {
     "message": "Open {title}"
@@ -575,6 +584,12 @@
   "search_in_site_prefix": {
     "message": "Search in {site} |"
   },
+  "search_open_tabs_only_prefix": {
+    "message": "Search open tabs only |"
+  },
+  "search_open_tabs_only_entry": {
+    "message": "Search open tabs"
+  },
   "action_search": {
     "message": "Search"
   },
@@ -589,6 +604,12 @@
   },
   "action_open": {
     "message": "Open"
+  },
+  "overlay_empty_result": {
+    "message": "No matching results"
+  },
+  "overlay_empty_open_tabs": {
+    "message": "No tabs"
   },
   "site_icon_alt": {
     "message": "Site"

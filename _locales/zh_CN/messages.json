@@ -488,8 +488,17 @@
   "search_tag_bookmark": {
     "message": "书签"
   },
+  "search_tag_open_tab": {
+    "message": "已打开"
+  },
   "visit_label": {
     "message": "访问"
+  },
+  "action_open_new_tab": {
+    "message": "新开"
+  },
+  "action_go_current_tab": {
+    "message": "前往"
   },
   "open_prefix": {
     "message": "打开 {title}"
@@ -575,6 +584,12 @@
   "search_in_site_prefix": {
     "message": "在 {site} 中搜索｜"
   },
+  "search_open_tabs_only_prefix": {
+    "message": "仅搜索已打开标签页｜"
+  },
+  "search_open_tabs_only_entry": {
+    "message": "搜索已打开标签页"
+  },
   "action_search": {
     "message": "搜索"
   },
@@ -589,6 +604,12 @@
   },
   "action_open": {
     "message": "打开"
+  },
+  "overlay_empty_result": {
+    "message": "无匹配结果"
+  },
+  "overlay_empty_open_tabs": {
+    "message": "暂无标签"
   },
   "site_icon_alt": {
     "message": "站点"

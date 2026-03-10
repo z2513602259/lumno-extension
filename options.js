@@ -216,8 +216,11 @@
   }
 
   function getMessage(key, fallback) {
-    if (currentMessages && currentMessages[key] && currentMessages[key].message) {
-      return currentMessages[key].message;
+    if (currentMessages && Object.prototype.hasOwnProperty.call(currentMessages, key)) {
+      const entry = currentMessages[key];
+      if (entry && typeof entry.message === 'string') {
+        return entry.message;
+      }
     }
     if (currentLanguageMode !== 'system') {
       return fallback || '';
@@ -495,11 +498,9 @@
       const fallback = node.textContent || '';
       const rawMessage = getMessage(key, fallback);
       const message = formatTemplate(rawMessage, { name: 'Lumno' });
-      if (message) {
-        node.textContent = message;
-        if (node.tagName === 'OPTION') {
-          node.label = message;
-        }
+      node.textContent = message;
+      if (node.tagName === 'OPTION') {
+        node.label = message;
       }
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
@@ -509,9 +510,7 @@
       }
       const fallback = node.getAttribute('placeholder') || '';
       const message = getMessage(key, fallback);
-      if (message) {
-        node.setAttribute('placeholder', message);
-      }
+      node.setAttribute('placeholder', message);
     });
     document.querySelectorAll('[data-i18n-tooltip]').forEach((node) => {
       const key = node.getAttribute('data-i18n-tooltip');
@@ -520,14 +519,12 @@
       }
       const fallback = node.getAttribute('data-tooltip') || '';
       const message = getMessage(key, fallback);
-      if (message) {
-        node.setAttribute('data-tooltip', message);
-        if (node.getAttribute('title')) {
-          node.setAttribute('title', message);
-        }
-        if (node.getAttribute('aria-label')) {
-          node.setAttribute('aria-label', message);
-        }
+      node.setAttribute('data-tooltip', message);
+      if (node.getAttribute('title')) {
+        node.setAttribute('title', message);
+      }
+      if (node.getAttribute('aria-label')) {
+        node.setAttribute('aria-label', message);
       }
     });
     document.querySelectorAll('[data-i18n-aria-label]').forEach((node) => {
@@ -537,9 +534,7 @@
       }
       const fallback = node.getAttribute('aria-label') || '';
       const message = getMessage(key, fallback);
-      if (message) {
-        node.setAttribute('aria-label', message);
-      }
+      node.setAttribute('aria-label', message);
     });
     if (fallbackShortcutInput && fallbackShortcutTokens) {
       fallbackShortcutTokens.setAttribute('data-placeholder', fallbackShortcutInput.getAttribute('placeholder') || '');

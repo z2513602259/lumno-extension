@@ -1410,7 +1410,7 @@
       if (!card || !card._xActionText || !card._xTitleText) {
         return;
       }
-      card._xActionText.textContent = t('visit_label', '访问');
+      card._xActionText.textContent = t('action_go_current_tab', '前往');
       card.setAttribute('aria-label', formatMessage('open_prefix', '打开 {title}', {
         title: card._xTitleText
       }));
@@ -5828,7 +5828,7 @@
     const actionLine = document.createElement('div');
     actionLine.className = 'x-nt-recent-action';
     const actionText = document.createElement('span');
-    actionText.textContent = t('visit_label', '访问');
+    actionText.textContent = t('action_go_current_tab', '前往');
     actionLine.appendChild(actionText);
     const actionIcon = document.createElement('span');
     actionIcon.innerHTML = getRiSvg('ri-arrow-right-line', 'ri-size-12');
@@ -6205,11 +6205,63 @@
     return null;
   }
 
+  function getAutocompleteCandidateFromSuggestion(suggestion, rawQuery) {
+    if (!suggestion || !rawQuery || suggestion.type === 'newtab') {
+      return null;
+    }
+    const rawLower = rawQuery.toLowerCase();
+    if (suggestion.commandText) {
+      const commandText = String(suggestion.commandText).toLowerCase();
+      if (commandText.startsWith(rawLower)) {
+        return {
+          completion: suggestion.commandText,
+          url: '',
+          title: suggestion.title || '',
+          type: 'command'
+        };
+      }
+      const aliases = Array.isArray(suggestion.commandAliases) ? suggestion.commandAliases : [];
+      for (let aliasIndex = 0; aliasIndex < aliases.length; aliasIndex += 1) {
+        const alias = String(aliases[aliasIndex] || '');
+        if (alias.toLowerCase().startsWith(rawLower)) {
+          return {
+            completion: alias,
+            url: '',
+            title: suggestion.title || '',
+            type: 'command'
+          };
+        }
+      }
+    }
+    const urlText = getUrlDisplay(suggestion.url);
+    if (urlText) {
+      const host = urlText.split('/')[0] || '';
+      if (host.toLowerCase().startsWith(rawLower) || urlText.toLowerCase().startsWith(rawLower)) {
+        return {
+          completion: urlText,
+          url: suggestion.url || '',
+          title: suggestion.title || '',
+          type: 'url'
+        };
+      }
+    }
+    const titleText = suggestion.title || '';
+    if (titleText && titleText.toLowerCase().startsWith(rawLower)) {
+      return {
+        completion: titleText,
+        url: suggestion.url || '',
+        title: suggestion.title || '',
+        type: 'title'
+      };
+    }
+    return null;
+  }
+
   function clearAutocomplete() {
     autocompleteState = null;
   }
 
-  function applyAutocomplete(allSuggestions) {
+  function applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason) {
     const rawQuery = latestRawQuery;
     const trimmedQuery = rawQuery.trim();
     if (Date.now() - lastDeletionAt < 250) {
@@ -6232,8 +6284,24 @@
         inputParts.input.selectionEnd !== inputParts.input.value.length) {
       return;
     }
-    const candidate = getDomainPrefixCandidate(allSuggestions, rawQuery) ||
-      getAutocompleteCandidate(allSuggestions, rawQuery);
+    const shouldForcePrimaryAlignment = Boolean(
+      primarySuggestion &&
+      primaryHighlightReason &&
+      primaryHighlightReason !== 'autocomplete' &&
+      primaryHighlightReason !== 'default'
+    );
+    let candidate = null;
+    if (primarySuggestion) {
+      candidate = getAutocompleteCandidateFromSuggestion(primarySuggestion, rawQuery);
+    }
+    if (!candidate && shouldForcePrimaryAlignment) {
+      clearAutocomplete();
+      return;
+    }
+    if (!candidate) {
+      candidate = getDomainPrefixCandidate(allSuggestions, rawQuery) ||
+        getAutocompleteCandidate(allSuggestions, rawQuery);
+    }
     if (!candidate || !candidate.completion) {
       clearAutocomplete();
       return;
@@ -7585,7 +7653,7 @@
           primarySuggestion = allSuggestions[primaryHighlightIndex] || null;
           mergedProvider = findProviderForSuggestionMatch(primarySuggestion, providersForTags);
         }
-        applyAutocomplete(allSuggestions);
+        applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason);
         const inlineAutoHighlight = Boolean(inlineSuggestion && primaryHighlightIndex === 0);
         inlineSearchState = inlineSuggestion
           ? { url: inlineSuggestion.url, rawInput: rawTagInput, isAuto: inlineAutoHighlight }
@@ -7607,9 +7675,9 @@
         primaryHighlightIndex = 0;
         primaryHighlightReason = 'command';
       }
-      if (hasCommand) {
-        applyAutocomplete(allSuggestions);
-      }
+    if (hasCommand) {
+      applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason);
+    }
 
       const canAppend = query === lastRenderedQuery &&
         isSuggestionPrefix(currentSuggestions, allSuggestions);
@@ -8138,7 +8206,7 @@
           ((siteSearchTrigger && (primaryHighlightReason === 'siteSearchPrompt' || isTopSiteMatch)) ||
             isMergedHighlight);
         if (shouldShowEnterTag) {
-          actionTags.appendChild(createActionTag(t('visit_label', '访问'), 'Enter'));
+          actionTags.appendChild(createActionTag(t('action_go_current_tab', '前往'), 'Enter'));
         }
         if (shouldShowSiteSearchTag) {
           actionTags.appendChild(createActionTag(t('action_search', '搜索'), 'Tab'));

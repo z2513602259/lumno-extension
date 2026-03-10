@@ -488,7 +488,16 @@
   "search_tag_bookmark": {
     "message": "書籤"
   },
+  "search_tag_open_tab": {
+    "message": "已開啟"
+  },
   "visit_label": {
+    "message": "前往"
+  },
+  "action_open_new_tab": {
+    "message": "新開"
+  },
+  "action_go_current_tab": {
     "message": "前往"
   },
   "open_prefix": {
@@ -575,6 +584,12 @@
   "search_in_site_prefix": {
     "message": "在 {site} 中搜尋｜"
   },
+  "search_open_tabs_only_prefix": {
+    "message": "僅搜尋已開啟分頁｜"
+  },
+  "search_open_tabs_only_entry": {
+    "message": "搜尋已開啟分頁"
+  },
   "action_search": {
     "message": "搜尋"
   },
@@ -589,6 +604,12 @@
   },
   "action_open": {
     "message": "開啟"
+  },
+  "overlay_empty_result": {
+    "message": "無符合結果"
+  },
+  "overlay_empty_open_tabs": {
+    "message": "暫無分頁"
   },
   "site_icon_alt": {
     "message": "網站"
