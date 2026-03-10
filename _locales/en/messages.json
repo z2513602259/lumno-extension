@@ -53,6 +53,9 @@
   "settings_recent_sites_title": {
     "message": "Site Cards"
   },
+  "settings_newtab_width_title": {
+    "message": "New Tab Page Content Width"
+  },
   "settings_bookmarks_title": {
     "message": "Show Bookmarks"
   },
@@ -241,6 +244,15 @@
   },
   "bookmark_columns_6": {
     "message": "6 per row"
+  },
+  "bookmark_columns_8": {
+    "message": "8 per row"
+  },
+  "newtab_width_standard": {
+    "message": "Standard"
+  },
+  "newtab_width_wide": {
+    "message": "Wide (Recommended)"
   },
   "recent_mode_latest": {
     "message": "Show Recent"

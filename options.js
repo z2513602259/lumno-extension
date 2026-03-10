@@ -19,6 +19,7 @@
     ? recentModeTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
     : null;
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
+  const newtabWidthSelect = document.getElementById('_x_extension_newtab_width_select_2026_unique_');
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
   const bookmarkColumnsSelect = document.getElementById('_x_extension_bookmark_columns_select_2024_unique_');
   const bookmarkColumnsSelectWrap = bookmarkColumnsSelect
@@ -28,6 +29,13 @@
   const documentPipToggle = document.getElementById('_x_extension_document_pip_toggle_2026_unique_');
   const pinnedTabRecoveryToggle = document.getElementById('_x_extension_pinned_tab_recovery_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
+  const aiSearchToggle = document.getElementById('_x_extension_ai_search_toggle_2026_unique_');
+  const aiProviderInput = document.getElementById('_x_extension_ai_provider_input_2026_unique_');
+  const aiApiKeyInput = document.getElementById('_x_extension_ai_api_key_input_2026_unique_');
+  const aiApiKeySaveButton = document.getElementById('_x_extension_ai_api_key_save_2026_unique_');
+  const aiApiKeyStatus = document.getElementById('_x_extension_ai_api_key_status_2026_unique_');
+  const aiEntitlementStatus = document.getElementById('_x_extension_ai_entitlement_status_2026_unique_');
+  const aiEntitlementRefreshButton = document.getElementById('_x_extension_ai_entitlement_refresh_2026_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
   const syncStatusText = document.getElementById('_x_extension_sync_status_text_2024_unique_');
@@ -96,12 +104,17 @@
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
+  const NEWTAB_WIDTH_MODE_STORAGE_KEY = '_x_extension_newtab_width_mode_2026_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
   const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
   const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+  const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
+  const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
+  const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
+  const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
@@ -114,12 +127,16 @@
     LANGUAGE_MESSAGES_STORAGE_KEY,
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
+    NEWTAB_WIDTH_MODE_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
+    AI_SEARCH_MODE_STORAGE_KEY,
+    AI_PROVIDER_STORAGE_KEY,
+    AI_ENTITLEMENT_CACHE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
@@ -231,12 +248,24 @@
     return 8;
   }
 
-  function normalizeBookmarkColumns(value) {
+  function normalizeRecentCount(value) {
     const parsed = Number.parseInt(value, 10);
-    if (parsed === 4 || parsed === 6) {
+    if (parsed === 0 || parsed === 4 || parsed === 8) {
       return parsed;
     }
     return 4;
+  }
+
+  function normalizeBookmarkColumns(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 4 || parsed === 6 || parsed === 8) {
+      return parsed;
+    }
+    return 4;
+  }
+
+  function normalizeNewtabWidthMode(value) {
+    return value === 'standard' ? 'standard' : 'wide';
   }
 
   function updateBookmarkColumnsSelectVisibility(countValue) {
@@ -275,6 +304,56 @@
 
   function normalizePinnedTabRecoveryEnabled(value) {
     return value === true;
+  }
+
+  function normalizeAiSearchEnabled(value) {
+    return value === true;
+  }
+
+  function normalizeAiProvider(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) {
+      return 'openai';
+    }
+    return raw.slice(0, 32);
+  }
+
+  function updateAiApiKeyStatus(hasKey) {
+    if (!aiApiKeyStatus) {
+      return;
+    }
+    aiApiKeyStatus.textContent = hasKey ? '已设置' : '未设置';
+  }
+
+  function updateAiEntitlementStatusText(payload) {
+    if (!aiEntitlementStatus) {
+      return;
+    }
+    const plan = payload && payload.plan ? String(payload.plan) : 'free';
+    const status = payload && payload.status ? String(payload.status) : 'inactive';
+    aiEntitlementStatus.textContent = `plan: ${plan} · ${status}`;
+  }
+
+  function requestAiEntitlementStatus() {
+    if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'getAiEntitlementStatus' }, (response) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        updateAiEntitlementStatusText({ plan: 'free', status: 'error' });
+        return;
+      }
+      updateAiEntitlementStatusText(response || { plan: 'free', status: 'inactive' });
+      if (!storageArea || !response || response.ok !== true) {
+        return;
+      }
+      const cachePayload = {
+        plan: String(response.plan || 'free'),
+        status: String(response.status || 'inactive'),
+        updatedAt: Date.now()
+      };
+      storageArea.set({ [AI_ENTITLEMENT_CACHE_KEY]: cachePayload });
+    });
   }
 
   function updateInlineTabsIndicator(wrapper, indicator, activeSelector) {
@@ -1916,6 +1995,7 @@
     RECENT_COUNT_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
+    NEWTAB_WIDTH_MODE_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
@@ -2030,15 +2110,23 @@
 
   if (recentCountSelect) {
     recentCountSelect.addEventListener('change', () => {
-      const raw = recentCountSelect.value;
-      const parsed = Number.parseInt(raw, 10);
-      const nextCount = Number.isFinite(parsed) ? parsed : 4;
+      const nextCount = normalizeRecentCount(recentCountSelect.value);
       updateRecentModeTabsVisibility(nextCount);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [RECENT_COUNT_STORAGE_KEY]: nextCount });
       notifyNewtabSectionsRefresh('recent');
+    });
+  }
+  if (newtabWidthSelect) {
+    newtabWidthSelect.addEventListener('change', () => {
+      const nextMode = normalizeNewtabWidthMode(newtabWidthSelect.value);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: nextMode });
+      notifyNewtabSectionsRefresh('all');
     });
   }
   if (recentModeSelect) {
@@ -2097,6 +2185,48 @@
         return;
       }
       storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
+    });
+  }
+  if (aiSearchToggle) {
+    aiSearchToggle.addEventListener('change', () => {
+      const next = normalizeAiSearchEnabled(aiSearchToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: next });
+    });
+  }
+  if (aiProviderInput) {
+    aiProviderInput.addEventListener('change', () => {
+      const nextProvider = normalizeAiProvider(aiProviderInput.value);
+      aiProviderInput.value = nextProvider;
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: nextProvider });
+    });
+  }
+  if (aiApiKeySaveButton) {
+    aiApiKeySaveButton.addEventListener('click', () => {
+      if (!localStorageArea) {
+        return;
+      }
+      const nextKey = String(aiApiKeyInput ? aiApiKeyInput.value : '').trim();
+      localStorageArea.set({ [AI_API_KEY_STORAGE_KEY]: nextKey }, () => {
+        const hasError = chrome.runtime && chrome.runtime.lastError;
+        if (hasError) {
+          showToast('API Key 保存失败', true);
+          return;
+        }
+        updateAiApiKeyStatus(Boolean(nextKey));
+        requestAiEntitlementStatus();
+        showToast(nextKey ? 'API Key 已保存' : 'API Key 已清空', false);
+      });
+    });
+  }
+  if (aiEntitlementRefreshButton) {
+    aiEntitlementRefreshButton.addEventListener('click', () => {
+      requestAiEntitlementStatus();
     });
   }
   if (autoPipToggle) {
@@ -2468,14 +2598,24 @@
 
     storageArea.get([RECENT_COUNT_STORAGE_KEY], (result) => {
       const stored = result[RECENT_COUNT_STORAGE_KEY];
-      const hasStored = Number.isFinite(stored);
-      const count = hasStored ? stored : 4;
+      const count = normalizeRecentCount(stored);
       if (recentCountSelect) {
         recentCountSelect.value = String(count);
       }
       updateRecentModeTabsVisibility(count);
-      if (!hasStored) {
+      if (stored !== count) {
         storageArea.set({ [RECENT_COUNT_STORAGE_KEY]: count });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([NEWTAB_WIDTH_MODE_STORAGE_KEY], (result) => {
+      const stored = result[NEWTAB_WIDTH_MODE_STORAGE_KEY];
+      const mode = normalizeNewtabWidthMode(stored);
+      if (newtabWidthSelect) {
+        newtabWidthSelect.value = mode;
+      }
+      if (stored !== mode) {
+        storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: mode });
       }
       refreshCustomSelects();
     });
@@ -2526,6 +2666,35 @@
       }
       refreshCustomSelects();
     });
+    storageArea.get([AI_SEARCH_MODE_STORAGE_KEY], (result) => {
+      const rawValue = result[AI_SEARCH_MODE_STORAGE_KEY];
+      const stored = normalizeAiSearchEnabled(rawValue);
+      if (aiSearchToggle) {
+        aiSearchToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([AI_PROVIDER_STORAGE_KEY], (result) => {
+      const rawValue = result[AI_PROVIDER_STORAGE_KEY];
+      const stored = normalizeAiProvider(rawValue);
+      if (aiProviderInput) {
+        aiProviderInput.value = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([AI_ENTITLEMENT_CACHE_KEY], (result) => {
+      const payload = result[AI_ENTITLEMENT_CACHE_KEY];
+      if (payload && typeof payload === 'object') {
+        updateAiEntitlementStatusText(payload);
+      }
+      refreshCustomSelects();
+    });
     storageArea.get([AUTO_PIP_ENABLED_STORAGE_KEY], (result) => {
       const rawValue = result[AUTO_PIP_ENABLED_STORAGE_KEY];
       const stored = normalizeAutoPipEnabled(rawValue);
@@ -2559,6 +2728,14 @@
       }
       refreshCustomSelects();
     });
+
+    if (localStorageArea) {
+      localStorageArea.get([AI_API_KEY_STORAGE_KEY], (result) => {
+        const apiKey = String(result[AI_API_KEY_STORAGE_KEY] || '').trim();
+        updateAiApiKeyStatus(Boolean(apiKey));
+      });
+    }
+    requestAiEntitlementStatus();
 
     storageArea.get([RESTRICTED_ACTION_STORAGE_KEY], (result) => {
       const stored = result[RESTRICTED_ACTION_STORAGE_KEY];
@@ -3351,11 +3528,15 @@
         changes[LANGUAGE_STORAGE_KEY] ||
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
+        changes[NEWTAB_WIDTH_MODE_STORAGE_KEY] ||
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COLUMNS_STORAGE_KEY] ||
         changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
         changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
+        changes[AI_SEARCH_MODE_STORAGE_KEY] ||
+        changes[AI_PROVIDER_STORAGE_KEY] ||
+        changes[AI_ENTITLEMENT_CACHE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
         changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
@@ -3372,10 +3553,14 @@
       applyLanguageMode(changes[LANGUAGE_STORAGE_KEY].newValue || 'system');
     }
     if (changes[RECENT_COUNT_STORAGE_KEY] && recentCountSelect) {
-      const stored = Number.parseInt(changes[RECENT_COUNT_STORAGE_KEY].newValue, 10);
-      const count = Number.isFinite(stored) ? stored : 4;
+      const count = normalizeRecentCount(changes[RECENT_COUNT_STORAGE_KEY].newValue);
       recentCountSelect.value = String(count);
       updateRecentModeTabsVisibility(count);
+      refreshCustomSelects();
+    }
+    if (changes[NEWTAB_WIDTH_MODE_STORAGE_KEY] && newtabWidthSelect) {
+      const mode = normalizeNewtabWidthMode(changes[NEWTAB_WIDTH_MODE_STORAGE_KEY].newValue);
+      newtabWidthSelect.value = mode;
       refreshCustomSelects();
     }
     if (changes[RECENT_MODE_STORAGE_KEY] && recentModeSelect) {
@@ -3402,6 +3587,28 @@
       if (changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY].newValue !== next && storageArea) {
         storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
       }
+      refreshCustomSelects();
+    }
+    if (changes[AI_SEARCH_MODE_STORAGE_KEY] && aiSearchToggle) {
+      const raw = changes[AI_SEARCH_MODE_STORAGE_KEY].newValue;
+      const next = normalizeAiSearchEnabled(raw);
+      aiSearchToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[AI_PROVIDER_STORAGE_KEY] && aiProviderInput) {
+      const raw = changes[AI_PROVIDER_STORAGE_KEY].newValue;
+      const next = normalizeAiProvider(raw);
+      aiProviderInput.value = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[AI_ENTITLEMENT_CACHE_KEY]) {
+      updateAiEntitlementStatusText(changes[AI_ENTITLEMENT_CACHE_KEY].newValue || { plan: 'free', status: 'inactive' });
       refreshCustomSelects();
     }
     if (changes[AUTO_PIP_ENABLED_STORAGE_KEY] && autoPipToggle) {

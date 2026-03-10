@@ -306,6 +306,9 @@ function logHotkeyDebug(stage, payload) {
 const storageArea = (chrome && chrome.storage && chrome.storage.sync)
   ? chrome.storage.sync
   : (chrome && chrome.storage ? chrome.storage.local : null);
+const localStorageArea = (chrome && chrome.storage && chrome.storage.local)
+  ? chrome.storage.local
+  : storageArea;
 const storageAreaName = storageArea
   ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
   : null;
@@ -315,6 +318,10 @@ const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026
 const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
 const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
 const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
+const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
+const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
+const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
+const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
 const PINNED_TAB_SNAPSHOT_STORAGE_KEY = '_x_extension_pinned_tab_snapshot_2026_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const HOTKEY_DUP_GUARD_MS = 180;
@@ -340,6 +347,59 @@ let tabSwitchStatsLoaded = false;
 let tabSwitchStatsLoadPromise = null;
 let pinnedTabSnapshotTimer = null;
 let pinnedTabRestoreAttempted = false;
+
+function getAiEntitlementStatus() {
+  const syncReadPromise = new Promise((resolve) => {
+    if (!storageArea) {
+      resolve({});
+      return;
+    }
+    storageArea.get([
+      AI_SEARCH_MODE_STORAGE_KEY,
+      AI_PROVIDER_STORAGE_KEY,
+      AI_ENTITLEMENT_CACHE_KEY
+    ], (result) => {
+      resolve(result || {});
+    });
+  });
+  const localReadPromise = new Promise((resolve) => {
+    if (!localStorageArea) {
+      resolve({});
+      return;
+    }
+    localStorageArea.get([AI_API_KEY_STORAGE_KEY], (result) => {
+      resolve(result || {});
+    });
+  });
+  return Promise.all([syncReadPromise, localReadPromise]).then(([syncResult, localResult]) => {
+    const aiEnabled = Boolean(syncResult[AI_SEARCH_MODE_STORAGE_KEY]);
+    const providerRaw = String(syncResult[AI_PROVIDER_STORAGE_KEY] || 'openai').trim();
+    const provider = providerRaw || 'openai';
+    const apiKeyRaw = String(localResult[AI_API_KEY_STORAGE_KEY] || '').trim();
+    const entitlementRaw = syncResult[AI_ENTITLEMENT_CACHE_KEY];
+    const entitlement = entitlementRaw && typeof entitlementRaw === 'object' ? entitlementRaw : null;
+    const defaultPlan = apiKeyRaw ? 'byok' : 'free';
+    return {
+      ok: true,
+      aiEnabled: aiEnabled,
+      provider: provider,
+      hasApiKey: Boolean(apiKeyRaw),
+      plan: entitlement && entitlement.plan ? String(entitlement.plan) : defaultPlan,
+      status: entitlement && entitlement.status ? String(entitlement.status) : 'inactive',
+      updatedAt: entitlement && Number.isFinite(Number(entitlement.updatedAt))
+        ? Number(entitlement.updatedAt)
+        : 0
+    };
+  }).catch(() => ({
+    ok: false,
+    aiEnabled: false,
+    provider: 'openai',
+    hasApiKey: false,
+    plan: 'free',
+    status: 'error',
+    updatedAt: 0
+  }));
+}
 
 function getTabSwitchStorageArea() {
   if (!chrome || !chrome.storage) {
@@ -2168,7 +2228,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     return true;
   } else if (request.action === 'getSearchSuggestions') {
     const query = request.query;
-    getSearchSuggestions(query).then(suggestions => {
+    const mode = request && typeof request.mode === 'string' ? request.mode : 'classic';
+    getSearchSuggestions(query, { mode: mode }).then(suggestions => {
       sendResponse({ suggestions: suggestions });
     }).catch(() => {
       sendResponse({ suggestions: [] });
@@ -2178,9 +2239,21 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     ensureTabSwitchStatsLoaded()
       .catch(() => {})
       .finally(() => {
-        chrome.tabs.query({ currentWindow: true }, (tabs) => {
-          syncTabSwitchStatsFromTabList(tabs);
-          const sortedTabs = sortTabsForOverlay(tabs);
+        chrome.tabs.query({}, (tabs) => {
+          const normalizedTabs = (Array.isArray(tabs) ? tabs : [])
+            .map((tab) => {
+              const resolvedUrl = getResolvedTabUrl(tab);
+              return {
+                ...tab,
+                url: resolvedUrl || ''
+              };
+            })
+            .filter((tab) => (
+              tab &&
+              tab.incognito !== true
+            ));
+          syncTabSwitchStatsFromTabList(normalizedTabs);
+          const sortedTabs = sortTabsForOverlay(normalizedTabs);
           tabOverlayFetchSeq += 1;
           const withSeq = sortedTabs.map((tab) => ({
             ...tab,
@@ -2198,6 +2271,21 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === 'getShortcutRules') {
     loadShortcutRules().then((items) => {
       sendResponse({ items: items });
+    });
+    return true;
+  } else if (request.action === 'getAiEntitlementStatus') {
+    getAiEntitlementStatus().then((payload) => {
+      sendResponse(payload);
+    }).catch(() => {
+      sendResponse({
+        ok: false,
+        aiEnabled: false,
+        provider: 'openai',
+        hasApiKey: false,
+        plan: 'free',
+        status: 'error',
+        updatedAt: 0
+      });
     });
     return true;
   } else if (request.action === 'trackSearchTab') {
@@ -2374,6 +2462,9 @@ migrateStorageIfNeeded([
   TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
   FALLBACK_SHORTCUT_STORAGE_KEY,
+  AI_SEARCH_MODE_STORAGE_KEY,
+  AI_PROVIDER_STORAGE_KEY,
+  AI_ENTITLEMENT_CACHE_KEY,
   SITE_SEARCH_STORAGE_KEY,
   SITE_SEARCH_DISABLED_STORAGE_KEY
 ]);
@@ -3933,9 +4024,203 @@ function getFallbackHistoryItemsCached() {
   }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => []);
 }
 
+const AI_QUERY_STOP_WORDS = new Set([
+  '我',
+  '想',
+  '找',
+  '搜索',
+  '搜',
+  '查看',
+  '看',
+  '看过',
+  '访问',
+  '访问过',
+  '打开',
+  '打开过',
+  '网页',
+  '网站',
+  '页面',
+  '的',
+  '了',
+  '和',
+  '与',
+  '及',
+  '在',
+  '最近',
+  'last',
+  'recent',
+  'visited',
+  'visit',
+  'site',
+  'sites',
+  'website',
+  'websites'
+]);
+
+const AI_TOPIC_HINTS = [
+  { topic: 'portfolio', keywords: ['作品集', 'portfolio', 'case study', 'behance', 'dribbble'] },
+  { topic: 'docs', keywords: ['文档', 'docs', 'documentation', 'api', 'reference', 'guide'] },
+  { topic: 'video', keywords: ['视频', 'video', 'watch', '播放'] },
+  { topic: 'devtool', keywords: ['开发', 'github', 'gitlab', 'console', 'dashboard', 'deploy'] },
+  { topic: 'design', keywords: ['设计', 'inspiration', '灵感', 'showcase'] },
+  { topic: 'ecommerce', keywords: ['电商', '商品', 'shop', 'store', 'taobao', 'jd', 'amazon'] },
+  { topic: 'community', keywords: ['社区', 'forum', 'reddit', '掘金', '知乎', 'discussion'] }
+];
+
+function getStartOfDayTime(timestamp) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function getNaturalLanguageTimeRange(rawQuery) {
+  const text = String(rawQuery || '').toLowerCase();
+  if (!text) {
+    return null;
+  }
+  const now = Date.now();
+  const todayStart = getStartOfDayTime(now);
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  if (text.includes('今天') || text.includes('今日') || text.includes('today')) {
+    return { label: 'today', start: todayStart, end: now };
+  }
+  if (text.includes('昨天') || text.includes('yesterday')) {
+    return { label: 'yesterday', start: todayStart - oneDayMs, end: todayStart - 1 };
+  }
+  if (text.includes('前天')) {
+    return { label: 'day_before_yesterday', start: todayStart - (2 * oneDayMs), end: todayStart - oneDayMs - 1 };
+  }
+  const recentDaysMatch = text.match(/(?:最近|last|recent)\s*(\d{1,2})\s*(?:天|day|days)/i);
+  if (recentDaysMatch && recentDaysMatch[1]) {
+    const days = Math.max(1, Math.min(30, Number.parseInt(recentDaysMatch[1], 10) || 0));
+    return {
+      label: `recent_${days}_days`,
+      start: todayStart - ((days - 1) * oneDayMs),
+      end: now
+    };
+  }
+  if (text.includes('上周') || text.includes('last week')) {
+    const date = new Date(todayStart);
+    const dayOfWeek = date.getDay();
+    const mondayOffset = (dayOfWeek + 6) % 7;
+    const thisWeekStart = todayStart - (mondayOffset * oneDayMs);
+    return {
+      label: 'last_week',
+      start: thisWeekStart - (7 * oneDayMs),
+      end: thisWeekStart - 1
+    };
+  }
+  if (text.includes('这周') || text.includes('本周') || text.includes('this week')) {
+    const date = new Date(todayStart);
+    const dayOfWeek = date.getDay();
+    const mondayOffset = (dayOfWeek + 6) % 7;
+    return {
+      label: 'this_week',
+      start: todayStart - (mondayOffset * oneDayMs),
+      end: now
+    };
+  }
+  if (text.includes('上个月') || text.includes('last month')) {
+    const date = new Date(todayStart);
+    date.setDate(1);
+    const thisMonthStart = date.getTime();
+    const lastMonthEnd = thisMonthStart - 1;
+    date.setMonth(date.getMonth() - 1);
+    const lastMonthStart = date.getTime();
+    return {
+      label: 'last_month',
+      start: lastMonthStart,
+      end: lastMonthEnd
+    };
+  }
+  if (text.includes('本月') || text.includes('这个月') || text.includes('this month')) {
+    const date = new Date(todayStart);
+    date.setDate(1);
+    return {
+      label: 'this_month',
+      start: date.getTime(),
+      end: now
+    };
+  }
+  return null;
+}
+
+function getAiTopicHints(rawQuery) {
+  const text = String(rawQuery || '').toLowerCase();
+  if (!text) {
+    return [];
+  }
+  const matched = [];
+  AI_TOPIC_HINTS.forEach((hint) => {
+    const hasMatch = hint.keywords.some((word) => text.includes(String(word).toLowerCase()));
+    if (hasMatch) {
+      matched.push(hint);
+    }
+  });
+  return matched;
+}
+
+function tokenizeAiKeywords(rawQuery) {
+  const text = String(rawQuery || '').toLowerCase();
+  if (!text) {
+    return [];
+  }
+  const normalized = text
+    .replace(/[\u3002\uff0c,.;!?()[\]{}"'`~@#$%^&*_+=<>|\\/:-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) {
+    return [];
+  }
+  return normalized
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token && token.length > 1 && !AI_QUERY_STOP_WORDS.has(token));
+}
+
+function buildAiSearchContext(query) {
+  const raw = String(query || '').trim();
+  if (!raw) {
+    return {
+      normalizedQuery: '',
+      keywordQuery: '',
+      keywords: [],
+      timeRange: null,
+      topicHints: []
+    };
+  }
+  const timeRange = getNaturalLanguageTimeRange(raw);
+  const topicHints = getAiTopicHints(raw);
+  const keywords = tokenizeAiKeywords(raw);
+  topicHints.forEach((hint) => {
+    (hint.keywords || []).forEach((word) => {
+      const normalized = String(word || '').toLowerCase().trim();
+      if (normalized && !keywords.includes(normalized)) {
+        keywords.push(normalized);
+      }
+    });
+  });
+  const keywordQuery = keywords.slice(0, 8).join(' ');
+  return {
+    normalizedQuery: raw,
+    keywordQuery: keywordQuery || raw,
+    keywords: keywords,
+    timeRange: timeRange,
+    topicHints: topicHints
+  };
+}
+
 // Function to get search suggestions from history and top sites
-async function getSearchSuggestions(query) {
+async function getSearchSuggestions(query, options) {
   const suggestions = [];
+  const mode = options && String(options.mode || '').toLowerCase() === 'ai' ? 'ai' : 'classic';
+  const aiContext = mode === 'ai' ? buildAiSearchContext(query) : null;
+  const lookupQuery = aiContext ? (aiContext.keywordQuery || String(query || '')) : String(query || '');
+  const lookupStartTime = aiContext && aiContext.timeRange
+    ? aiContext.timeRange.start
+    : Date.now() - (30 * 24 * 60 * 60 * 1000);
+  const lookupEndTime = aiContext && aiContext.timeRange ? aiContext.timeRange.end : Date.now();
+  const lookupMaxResults = mode === 'ai' ? 90 : 50;
 
   try {
     const [
@@ -3953,20 +4238,29 @@ async function getSearchSuggestions(query) {
       ),
       callChromeApiWithTimeout((done) => {
         chrome.history.search({
-          text: query,
-          maxResults: 50,
-          startTime: Date.now() - (30 * 24 * 60 * 60 * 1000)
+          text: lookupQuery,
+          maxResults: lookupMaxResults,
+          startTime: lookupStartTime,
+          endTime: lookupEndTime
         }, done);
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS),
       getTopSitesCached(),
       callChromeApiWithTimeout((done) => {
-        chrome.bookmarks.search({ query: query }, done);
+        chrome.bookmarks.search({ query: lookupQuery }, done);
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS)
     ]);
     let historyItems = Array.isArray(historyItemsRaw) ? historyItemsRaw : [];
-    if (historyItems.length === 0 && query && query.trim().length > 0) {
+    if (aiContext && aiContext.timeRange) {
+      const rangeStart = Number(aiContext.timeRange.start) || 0;
+      const rangeEnd = Number(aiContext.timeRange.end) || Date.now();
+      historyItems = historyItems.filter((item) => {
+        const lastVisit = Number(item && item.lastVisitTime) || 0;
+        return lastVisit >= rangeStart && lastVisit <= rangeEnd;
+      });
+    }
+    if (historyItems.length === 0 && lookupQuery && lookupQuery.trim().length > 0) {
       const fallbackHistoryItems = await getFallbackHistoryItemsCached();
-      const queryLower = query.toLowerCase();
+      const queryLower = lookupQuery.toLowerCase();
       historyItems = Array.isArray(fallbackHistoryItems)
         ? fallbackHistoryItems.filter((item) => {
           if (!item || !item.url) {
@@ -3978,9 +4272,30 @@ async function getSearchSuggestions(query) {
         })
         : [];
     }
+    if (mode === 'ai' && historyItems.length === 0) {
+      const broadHistoryItems = await callChromeApiWithTimeout((done) => {
+        chrome.history.search({
+          text: '',
+          maxResults: 160,
+          startTime: aiContext && aiContext.timeRange ? aiContext.timeRange.start : 0,
+          endTime: aiContext && aiContext.timeRange ? aiContext.timeRange.end : Date.now()
+        }, done);
+      }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => []);
+      const rawQueryLower = String(query || '').toLowerCase();
+      historyItems = Array.isArray(broadHistoryItems)
+        ? broadHistoryItems.filter((item) => {
+          if (!item || !item.url) {
+            return false;
+          }
+          const titleLower = item.title ? item.title.toLowerCase() : '';
+          const urlLower = item.url.toLowerCase();
+          return titleLower.includes(rawQueryLower) || urlLower.includes(rawQueryLower);
+        })
+        : [];
+    }
 
     engineSuggestions.forEach((suggestion) => {
-      if (suggestion && suggestion !== query) {
+      if (suggestion && suggestion !== lookupQuery) {
         suggestions.push({
           type: 'googleSuggest',
           title: suggestion,
@@ -3988,7 +4303,8 @@ async function getSearchSuggestions(query) {
           favicon: getDefaultSearchEngineFaviconUrl(),
           score: 200,
           searchQuery: suggestion,
-          forceSearch: true
+          forceSearch: true,
+          reasons: ['来源：搜索建议']
         });
       }
     });
@@ -3997,8 +4313,10 @@ async function getSearchSuggestions(query) {
       ? await getBookmarkNodeMapCached()
       : new Map();
     
-    const queryLower = String(query || '').toLowerCase();
-    const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
+    const queryLower = String(lookupQuery || '').toLowerCase();
+    const queryWords = aiContext && Array.isArray(aiContext.keywords) && aiContext.keywords.length > 0
+      ? aiContext.keywords
+      : queryLower.split(/\s+/).filter((word) => word.length > 0);
     const rootFolderTitles = new Set([
       'Bookmarks bar',
       'Other bookmarks',
@@ -4112,10 +4430,61 @@ async function getSearchSuggestions(query) {
         else if (hoursSinceVisit < 24) score += 18;
         else if (hoursSinceVisit < 72) score += 10;
       }
+      if (aiContext && Array.isArray(aiContext.topicHints) && aiContext.topicHints.length > 0) {
+        const aiText = `${titleLower} ${urlLower}`;
+        aiContext.topicHints.forEach((hint) => {
+          const hitCount = (hint.keywords || []).reduce((count, word) => {
+            const normalized = String(word || '').toLowerCase();
+            if (!normalized) {
+              return count;
+            }
+            return aiText.includes(normalized) ? count + 1 : count;
+          }, 0);
+          if (hitCount > 0) {
+            score += Math.min(24, 8 * hitCount);
+          }
+        });
+      }
       
       return score;
     }
-    
+
+    function buildSuggestionReasons(item, sourceType) {
+      const reasons = [];
+      if (sourceType === 'bookmark') {
+        reasons.push('来源：书签');
+      } else if (sourceType === 'topSite') {
+        reasons.push('来源：常用站点');
+      } else if (sourceType === 'history') {
+        reasons.push('来源：浏览历史');
+      }
+      if (item && item.lastVisitTime) {
+        const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
+        if (hoursSinceVisit < 24) {
+          reasons.push('最近 24 小时访问');
+        } else if (hoursSinceVisit < 72) {
+          reasons.push('最近 3 天访问');
+        }
+      }
+      const visitCount = Number(item && item.visitCount) || 0;
+      if (visitCount > 1) {
+        reasons.push(`访问 ${visitCount} 次`);
+      }
+      if (aiContext && aiContext.timeRange && aiContext.timeRange.label) {
+        reasons.push(`时间命中：${aiContext.timeRange.label}`);
+      }
+      if (aiContext && Array.isArray(aiContext.topicHints) && aiContext.topicHints.length > 0) {
+        const haystack = `${String(item && item.title || '').toLowerCase()} ${String(item && item.url || '').toLowerCase()}`;
+        const matchedTopics = aiContext.topicHints
+          .filter((hint) => (hint.keywords || []).some((word) => haystack.includes(String(word || '').toLowerCase())))
+          .map((hint) => hint.topic);
+        if (matchedTopics.length > 0) {
+          reasons.push(`语义命中：${matchedTopics.slice(0, 2).join('/')}`);
+        }
+      }
+      return reasons.slice(0, 3);
+    }
+
     // Process history items with scoring
     const processedUrls = new Set();
     const suggestionByUrl = new Map();
@@ -4150,7 +4519,8 @@ async function getSearchSuggestions(query) {
             score: score,
             lastVisitTime: item.lastVisitTime || 0,
             visitCount: Number(item.visitCount) || 0,
-            typedCount: Number(item.typedCount) || 0
+            typedCount: Number(item.typedCount) || 0,
+            reasons: buildSuggestionReasons(item, 'history')
           };
           suggestions.push(suggestion);
           processedUrls.add(item.url);
@@ -4209,7 +4579,8 @@ async function getSearchSuggestions(query) {
           title: site.title || site.url,
           url: site.url,
           favicon: faviconUrl,
-          score: adjustedScore
+          score: adjustedScore,
+          reasons: buildSuggestionReasons(site, 'topSite')
         };
         suggestions.push(suggestion);
         processedUrls.add(site.url);
@@ -4272,7 +4643,8 @@ async function getSearchSuggestions(query) {
             url: bookmark.url,
             favicon: faviconUrl,
             path: bookmarkPath,
-            score: adjustedScore
+            score: adjustedScore,
+            reasons: buildSuggestionReasons(bookmark, 'bookmark')
           };
           const existingIndex = suggestionIndexByUrl.get(bookmark.url);
           if (shouldReplaceExisting && typeof existingIndex === 'number') {
@@ -4405,7 +4777,8 @@ async function getSearchSuggestions(query) {
           title: site.title || site.url,
           url: site.url,
           favicon: faviconUrl,
-          score: 1 - index
+          score: 1 - index,
+          reasons: ['来源：常用站点']
         };
       });
       finalSuggestions = fallbackResults;
@@ -5268,11 +5641,103 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
     if (searchInput) {
-      searchInput.style.setProperty('padding-right', '100px', 'important');
+      searchInput.style.setProperty('padding-right', '144px', 'important');
     }
     if (rightIcon) {
       rightIcon.style.setProperty('right', '50px', 'important');
     }
+    let overlayAiSearchModeEnabled = false;
+    const aiModeButton = document.createElement('button');
+    applyNoTranslate(aiModeButton);
+    aiModeButton.id = '_x_extension_search_ai_mode_button_2026_unique_';
+    aiModeButton.type = 'button';
+    aiModeButton.textContent = 'AI';
+    aiModeButton.setAttribute('aria-label', 'AI 搜索');
+    aiModeButton.style.cssText = `
+      all: unset !important;
+      position: absolute !important;
+      right: 86px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      min-width: 34px !important;
+      height: 24px !important;
+      padding: 0 8px !important;
+      border-radius: 999px !important;
+      border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08)) !important;
+      background: transparent !important;
+      color: var(--x-ov-subtext, #6B7280) !important;
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      line-height: 1 !important;
+      text-decoration: none !important;
+      list-style: none !important;
+      outline: none !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 10px !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      font-weight: 700 !important;
+      cursor: pointer !important;
+      transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 160ms ease !important;
+      z-index: 2 !important;
+    `;
+    const updateOverlayAiModeButton = () => {
+      if (overlayAiSearchModeEnabled) {
+        aiModeButton.style.setProperty('background', 'var(--x-ov-link, #2563EB)', 'important');
+        aiModeButton.style.setProperty('color', '#FFFFFF', 'important');
+        aiModeButton.style.setProperty('border-color', 'var(--x-ov-link, #2563EB)', 'important');
+        aiModeButton.setAttribute('title', 'AI 搜索：开启');
+      } else {
+        aiModeButton.style.setProperty('background', 'transparent', 'important');
+        aiModeButton.style.setProperty('color', 'var(--x-ov-subtext, #6B7280)', 'important');
+        aiModeButton.style.setProperty('border-color', 'var(--x-ov-border, rgba(0, 0, 0, 0.08))', 'important');
+        aiModeButton.setAttribute('title', 'AI 搜索：关闭');
+      }
+    };
+    const setOverlayAiSearchModeEnabled = (enabled, options) => {
+      overlayAiSearchModeEnabled = Boolean(enabled);
+      updateOverlayAiModeButton();
+      const silent = options && options.silent;
+      if (silent) {
+        return;
+      }
+      if (searchInput) {
+        try {
+          searchInput.focus({ preventScroll: true });
+        } catch (e) {
+          searchInput.focus();
+        }
+      }
+      const liveQuery = searchInput ? String(searchInput.value || '').trim() : '';
+      if (!liveQuery) {
+        return;
+      }
+      chrome.runtime.sendMessage({
+        action: 'getSearchSuggestions',
+        query: liveQuery,
+        mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
+        context: 'overlay'
+      }, function(response) {
+        if (response && response.suggestions) {
+          updateSearchSuggestions(response.suggestions, liveQuery);
+        }
+      });
+    };
+    aiModeButton.addEventListener('mouseenter', () => {
+      aiModeButton.style.setProperty('transform', 'translateY(-50%) scale(1.04)', 'important');
+    });
+    aiModeButton.addEventListener('mouseleave', () => {
+      aiModeButton.style.setProperty('transform', 'translateY(-50%)', 'important');
+      updateOverlayAiModeButton();
+    });
+    aiModeButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setOverlayAiSearchModeEnabled(!overlayAiSearchModeEnabled);
+    });
+    updateOverlayAiModeButton();
+    inputContainer.appendChild(aiModeButton);
     const topActionTooltip = document.createElement('div');
     applyNoTranslate(topActionTooltip);
     topActionTooltip.id = '_x_extension_top_action_tooltip_2026_unique_';
@@ -5378,7 +5843,7 @@ async function getSearchSuggestions(query) {
     modeBadge.style.cssText = `
       all: unset !important;
       position: absolute !important;
-      right: 88px !important;
+      right: 126px !important;
       top: 50% !important;
       transform: translateY(-50%) !important;
       display: none !important;
@@ -5418,6 +5883,10 @@ async function getSearchSuggestions(query) {
       }
       if (closeOtherTabsButton) {
         closeOtherTabsButton.setAttribute('aria-label', closeOtherTooltipText);
+      }
+      if (aiModeButton) {
+        aiModeButton.setAttribute('aria-label', t('ai_search_toggle', 'AI 搜索'));
+        updateOverlayAiModeButton();
       }
       if (modeBadge) {
         updateModeBadge(searchInput ? searchInput.value : '');
@@ -5641,7 +6110,9 @@ async function getSearchSuggestions(query) {
           if (latestOverlayQuery) {
             chrome.runtime.sendMessage({
               action: 'getSearchSuggestions',
-              query: latestOverlayQuery
+              query: latestOverlayQuery,
+              mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
+              context: 'overlay'
             }, (refreshResponse) => {
               const suggestions = refreshResponse && Array.isArray(refreshResponse.suggestions)
                 ? refreshResponse.suggestions
@@ -7695,7 +8166,9 @@ async function getSearchSuggestions(query) {
         if (latestOverlayQuery) {
           chrome.runtime.sendMessage({
             action: 'getSearchSuggestions',
-            query: latestOverlayQuery
+            query: latestOverlayQuery,
+            mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
+            context: 'overlay'
           }, function(response) {
             if (response && response.suggestions) {
               updateSearchSuggestions(response.suggestions, latestOverlayQuery);
@@ -8091,7 +8564,9 @@ async function getSearchSuggestions(query) {
         }
         chrome.runtime.sendMessage({
           action: 'getSearchSuggestions',
-          query: query
+          query: query,
+          mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
+          context: 'overlay'
         }, function(response) {
           if (response && response.suggestions) {
             updateSearchSuggestions(response.suggestions, query);
@@ -8142,7 +8617,9 @@ async function getSearchSuggestions(query) {
         // Get search suggestions
         chrome.runtime.sendMessage({
           action: 'getSearchSuggestions',
-          query: query
+          query: query,
+          mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
+          context: 'overlay'
         }, function(response) {
           if (response && response.suggestions) {
             updateSearchSuggestions(response.suggestions, query);
@@ -9846,6 +10323,27 @@ async function getSearchSuggestions(query) {
           suggestionItem._xTitle = title;
           
           textWrapper.appendChild(title);
+          const reasonText = Array.isArray(suggestion.reasons)
+            ? suggestion.reasons.map((item) => String(item || '').trim()).filter(Boolean).join(' · ')
+            : '';
+          if (overlayTabScoreDebugEnabled && reasonText) {
+            const reasonLine = document.createElement('span');
+            setProtectedPlainText(reasonLine, reasonText);
+            reasonLine.style.cssText = `
+              all: unset !important;
+              color: var(--x-ov-subtext, #6B7280) !important;
+              font-size: 11px !important;
+              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+              line-height: 1.2 !important;
+              white-space: nowrap !important;
+              overflow: hidden !important;
+              text-overflow: ellipsis !important;
+              max-width: 100% !important;
+              display: inline-block !important;
+              vertical-align: middle !important;
+            `;
+            textWrapper.appendChild(reasonLine);
+          }
           
           // Add history tag if type is history
           if (suggestion.type === 'history' && !suggestion.isTopSite) {

@@ -53,6 +53,9 @@
   "settings_recent_sites_title": {
     "message": "站点卡片"
   },
+  "settings_newtab_width_title": {
+    "message": "新标签页内容宽度"
+  },
   "settings_bookmarks_title": {
     "message": "书签"
   },
@@ -241,6 +244,15 @@
   },
   "bookmark_columns_6": {
     "message": "每行 6 个"
+  },
+  "bookmark_columns_8": {
+    "message": "每行 8 个"
+  },
+  "newtab_width_standard": {
+    "message": "标准"
+  },
+  "newtab_width_wide": {
+    "message": "宽屏（推荐）"
   },
   "recent_mode_latest": {
     "message": "最近访问"

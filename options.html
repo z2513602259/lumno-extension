@@ -2088,6 +2088,7 @@
                 <select id="_x_extension_bookmark_columns_select_2024_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
                   <option value="4" data-i18n="bookmark_columns_4" selected>每行 4 个</option>
                   <option value="6" data-i18n="bookmark_columns_6">每行 6 个</option>
+                  <option value="8" data-i18n="bookmark_columns_8">每行 8 个</option>
                 </select>
                 <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
                   <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
@@ -2134,6 +2135,23 @@
                   <option value="0" data-i18n="recent_count_off">不显示</option>
                   <option value="4" data-i18n="recent_count_4">显示 1 行</option>
                   <option value="8" data-i18n="recent_count_8">显示 2 行</option>
+                </select>
+                <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+                <div class="_x_extension_select_menu_2024_unique_" role="listbox"></div>
+              </div>
+            </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_newtab_width_title">新标签页内容宽度</p>
+            </div>
+            <div class="_x_extension_recent_select_group_2024_unique_">
+              <div class="_x_extension_select_wrap_2024_unique_ _x_extension_custom_select_2024_unique_ _x_extension_select_wrap_auto_2024_unique_ _x_extension_select_align_right_2024_unique_" data-select="_x_extension_newtab_width_select_2026_unique_">
+                <select id="_x_extension_newtab_width_select_2026_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true">
+                  <option value="standard" data-i18n="newtab_width_standard">标准</option>
+                  <option value="wide" data-i18n="newtab_width_wide" selected>宽屏（推荐）</option>
                 </select>
                 <button class="_x_extension_select_trigger_2024_unique_" type="button" aria-haspopup="listbox" aria-expanded="false">
                   <i class="_x_extension_select_icon_2024_unique_ ri-icon ri-size-16 ri-arrow-down-s-line" aria-hidden="true"></i>
@@ -2327,6 +2345,52 @@
           </div>
         </div>
         <div class="_x_extension_settings_content_2024_unique_" data-content="labs" data-active="false">
+          <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">
+                <span class="_x_extension_setting_title_with_icon_2024_unique_">
+                  <span>AI 自然语言搜索</span>
+                  <span class="_x_extension_shortcut_badge_2024_unique_ _x_extension_lab_beta_badge_2026_unique_">Beta</span>
+                </span>
+              </p>
+              <p class="_x_extension_setting_desc_2024_unique_">启用后可在浮层/新标签页使用 AI 模式搜索历史网页。</p>
+            </div>
+            <label class="_x_extension_switch_2024_unique_" for="_x_extension_ai_search_toggle_2026_unique_">
+              <input id="_x_extension_ai_search_toggle_2026_unique_" type="checkbox">
+              <span class="_x_extension_switch_slider_2024_unique_" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">AI Provider</p>
+              <p class="_x_extension_setting_desc_2024_unique_">开发阶段可自定义 Provider 标识（如 openai / anthropic / gemini）。</p>
+            </div>
+            <input id="_x_extension_ai_provider_input_2026_unique_" class="_x_extension_shortcut_input_2024_unique_" type="text" placeholder="openai" style="width: 200px;" />
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">API Key（BYOK）</p>
+              <p class="_x_extension_setting_desc_2024_unique_">仅保存在本机，不参与同步。</p>
+            </div>
+            <div class="_x_extension_sync_actions_2024_unique_ _x_extension_shortcuts_actions_2024_unique_">
+              <input id="_x_extension_ai_api_key_input_2026_unique_" class="_x_extension_shortcut_input_2024_unique_" type="password" placeholder="sk-..." style="width: 240px;" />
+              <button id="_x_extension_ai_api_key_save_2026_unique_" class="_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_" type="button">保存</button>
+              <span id="_x_extension_ai_api_key_status_2026_unique_" class="_x_extension_shortcuts_status_chip_2026_unique_">未设置</span>
+            </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">权益状态（预留）</p>
+              <p class="_x_extension_setting_desc_2024_unique_">用于后续付费能力校验与购买同步。</p>
+            </div>
+            <div class="_x_extension_sync_actions_2024_unique_ _x_extension_shortcuts_actions_2024_unique_">
+              <span id="_x_extension_ai_entitlement_status_2026_unique_" class="_x_extension_shortcuts_status_chip_2026_unique_">plan: free</span>
+              <button id="_x_extension_ai_entitlement_refresh_2026_unique_" class="_x_extension_sync_button_2024_unique_ _x_extension_shortcut_secondary_2024_unique_" type="button">检查</button>
+            </div>
+          </div>
+          <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
+            <div class="_x_extension_setting_divider_2024_unique_"></div>
+          </div>
           <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
             <div>
               <p class="_x_extension_setting_title_2024_unique_">

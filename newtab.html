@@ -178,7 +178,7 @@
       }
       #_x_extension_newtab_root_2024_unique_ {
         width: 90vw;
-        max-width: 720px;
+        max-width: var(--x-nt-search-max-width, 720px);
         display: flex;
         flex-direction: column;
         background: var(--x-nt-panel-bg);
@@ -202,7 +202,7 @@
         visibility: visible;
       }
       #_x_extension_newtab_recent_sites_2024_unique_ {
-        width: min(96vw, 1040px);
+        width: min(96vw, var(--x-nt-content-max-width, 1040px));
         position: relative;
         margin: 52px auto 0;
         display: flex;
@@ -213,7 +213,7 @@
         z-index: 1;
       }
       #_x_extension_newtab_bookmarks_2024_unique_ {
-        width: min(96vw, 1040px);
+        width: min(96vw, var(--x-nt-content-max-width, 1040px));
         position: relative;
         margin: 28px auto 0;
         display: flex;
@@ -389,7 +389,7 @@
       .x-nt-bookmark-card--folder {
         --x-nt-bookmark-card-hover-color: var(--x-nt-bookmark-folder-hover-bg, rgba(83, 147, 255, 0.05));
       }
-      .x-nt-bookmark-card:hover {
+      .x-nt-bookmark-card.x-nt-bookmark-card--hover {
         transform: translateY(-2.5px);
         border-color: var(--x-nt-bookmark-card-border-color, var(--x-nt-bookmark-card-border, rgba(0, 0, 0, 0.08)));
         backdrop-filter: blur(var(--x-nt-bookmark-card-blur-hover, 9px));
@@ -400,17 +400,17 @@
           0 9px 9px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0.075),
           0 2px 5px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0.085);
       }
-      .x-nt-bookmark-card:hover::before {
+      .x-nt-bookmark-card.x-nt-bookmark-card--hover::before {
         opacity: 1;
       }
-      body[data-theme="dark"] .x-nt-bookmark-card:hover {
+      body[data-theme="dark"] .x-nt-bookmark-card.x-nt-bookmark-card--hover {
         box-shadow: 0 55px 15px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0),
           0 35px 14px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0.065),
           0 20px 12px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0.16),
           0 9px 9px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0.24),
           0 2px 5px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0.3);
       }
-      .x-nt-bookmark-card--folder:hover {
+      .x-nt-bookmark-card--folder.x-nt-bookmark-card--hover {
         border-color: rgba(59, 130, 246, 0.22);
         box-shadow: 0 55px 15px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0),
           0 35px 14px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0.004),
@@ -418,7 +418,7 @@
           0 9px 9px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0.0375),
           0 2px 5px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 199, 199, 199), 0.0425);
       }
-      body[data-theme="dark"] .x-nt-bookmark-card--folder:hover {
+      body[data-theme="dark"] .x-nt-bookmark-card--folder.x-nt-bookmark-card--hover {
         border-color: rgba(96, 165, 250, 0.34);
         box-shadow: 0 55px 15px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0),
           0 35px 14px 0 rgba(var(--x-nt-bookmark-shadow-rgb, 60, 74, 97), 0.0325),
@@ -516,7 +516,8 @@
       body[data-theme="dark"] .x-nt-folder-preview-favicon--fallback {
         color: #9fb7de;
       }
-      .x-nt-bookmark-card--folder:is(:hover, :focus-visible) .x-nt-folder-preview {
+      .x-nt-bookmark-card--folder.x-nt-bookmark-card--hover .x-nt-folder-preview,
+      .x-nt-bookmark-card--folder:focus-visible .x-nt-folder-preview {
         max-width: 156px;
         padding: 2px 3px;
         opacity: 1;
@@ -526,7 +527,7 @@
       #_x_extension_newtab_recent_sites_grid_2024_unique_ {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--x-nt-recent-columns, 4), minmax(0, 1fr));
         column-gap: 12px;
         row-gap: 16px;
         box-sizing: border-box;

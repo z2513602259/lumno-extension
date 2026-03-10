@@ -9,7 +9,7 @@
   }
   root.style.setProperty('padding', '4px', 'important');
   root.style.setProperty('width', '90vw', 'important');
-  root.style.setProperty('max-width', '720px', 'important');
+  root.style.setProperty('max-width', '920px', 'important');
   root.style.setProperty('box-sizing', 'border-box', 'important');
 
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
@@ -27,9 +27,11 @@
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
+  const NEWTAB_WIDTH_MODE_STORAGE_KEY = '_x_extension_newtab_width_mode_2026_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const NEWTAB_OPEN_TAB_SUGGESTION_LIMIT = 8;
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
@@ -90,6 +92,40 @@
   const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
   const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
+  const BOOKMARK_HOVER_INTENT_DELAY_MS = 80;
+  const SECTION_VERTICAL_GAP_PX = 32;
+  const SECTION_SAFE_CORRIDOR_PX = 16;
+  const NEWTAB_WIDTH_MODE_CONFIGS = {
+    standard: {
+      searchMaxWidth: 720,
+      contentMaxWidth: 1040,
+      recentMaxColumns: 4
+    },
+    wide: {
+      searchMaxWidth: 920,
+      contentMaxWidth: 1360,
+      recentMaxColumns: 6
+    }
+  };
+  const BOOKMARK_CARD_TARGET_WIDTH_PX = 154;
+  const BOOKMARK_GRID_GAP_PX = 12;
+  const RECENT_CARD_TARGET_WIDTH_PX = 248;
+  const RECENT_GRID_GAP_PX = 12;
+  let currentNewtabWidthMode = 'wide';
+  let currentRecentGridColumns = 4;
+
+  function normalizeRecentCount(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (parsed === 0 || parsed === 4 || parsed === 8) {
+      return parsed;
+    }
+    return 4;
+  }
+
+  function normalizeNewtabWidthMode(value) {
+    return value === 'standard' ? 'standard' : 'wide';
+  }
+
   function normalizeBookmarkCount(value) {
     const parsed = Number.parseInt(value, 10);
     if (parsed === 0 || parsed === 4 || parsed === 8 || parsed === 16 || parsed === 32) {
@@ -111,7 +147,7 @@
 
   function normalizeBookmarkColumns(value) {
     const parsed = Number.parseInt(value, 10);
-    if (parsed === 4 || parsed === 6) {
+    if (parsed === 4 || parsed === 6 || parsed === 8) {
       return parsed;
     }
     return 4;
@@ -143,15 +179,82 @@
     if (window.innerWidth <= 860) {
       return 2;
     }
-    return normalizeBookmarkColumns(currentBookmarkColumns);
+    const config = getNewtabWidthModeConfig();
+    const maxColumns = Math.max(2, normalizeBookmarkColumns(currentBookmarkColumns));
+    const contentMaxWidth = Number(config.contentMaxWidth || 1040);
+    const containerWidth = Math.max(0, Math.min(Math.floor(window.innerWidth * 0.96), contentMaxWidth));
+    const idealColumns = Math.floor((containerWidth + BOOKMARK_GRID_GAP_PX) / (BOOKMARK_CARD_TARGET_WIDTH_PX + BOOKMARK_GRID_GAP_PX));
+    return Math.max(2, Math.min(maxColumns, idealColumns || 2));
+  }
+
+  function getNewtabWidthModeConfig() {
+    return NEWTAB_WIDTH_MODE_CONFIGS[normalizeNewtabWidthMode(currentNewtabWidthMode)] || NEWTAB_WIDTH_MODE_CONFIGS.wide;
+  }
+
+  function getRecentGridColumnCount() {
+    if (window.innerWidth <= 860) {
+      return 2;
+    }
+    const config = getNewtabWidthModeConfig();
+    const maxColumns = Math.max(4, Number(config.recentMaxColumns || 4));
+    if (maxColumns <= 4) {
+      return 4;
+    }
+    const contentMaxWidth = Number(config.contentMaxWidth || 1040);
+    const containerWidth = Math.max(0, Math.min(Math.floor(window.innerWidth * 0.96), contentMaxWidth));
+    const idealColumns = Math.floor((containerWidth + RECENT_GRID_GAP_PX) / (RECENT_CARD_TARGET_WIDTH_PX + RECENT_GRID_GAP_PX));
+    return Math.max(4, Math.min(maxColumns, idealColumns || 4));
+  }
+
+  function getRecentLimit() {
+    const normalized = normalizeRecentCount(currentRecentCount);
+    if (normalized <= 0) {
+      return 0;
+    }
+    const rows = Math.max(1, Math.round(normalized / 4));
+    return rows * Math.max(1, getRecentGridColumnCount());
   }
 
   function applyBookmarkGridColumns() {
     if (!bookmarkGrid) {
-      return;
+      return false;
     }
-    const columns = normalizeBookmarkColumns(currentBookmarkColumns);
+    const previousColumns = Number.parseInt(bookmarkGrid.style.getPropertyValue('--x-nt-bookmark-columns'), 10);
+    const columns = Math.max(1, getBookmarkGridColumnCount());
     bookmarkGrid.style.setProperty('--x-nt-bookmark-columns', String(columns));
+    return previousColumns !== columns;
+  }
+
+  function keepBookmarkPageAnchorAfterLimitChange(previousLimit) {
+    const prev = Math.max(1, Number.parseInt(previousLimit, 10) || 1);
+    const next = Math.max(1, getBookmarkLimit());
+    const firstVisibleIndex = Math.max(0, bookmarkCurrentPage * prev);
+    bookmarkCurrentPage = Math.floor(firstVisibleIndex / next);
+  }
+
+  function applyRecentGridColumns() {
+    if (!recentGrid) {
+      return false;
+    }
+    const columns = getRecentGridColumnCount();
+    const changed = currentRecentGridColumns !== columns;
+    currentRecentGridColumns = columns;
+    recentGrid.style.setProperty('--x-nt-recent-columns', String(columns));
+    return changed;
+  }
+
+  function applyNewtabWidthMode() {
+    const config = getNewtabWidthModeConfig();
+    const searchMax = Math.max(720, Number(config.searchMaxWidth || 720));
+    const contentMax = Math.max(1040, Number(config.contentMaxWidth || 1040));
+    root.style.setProperty('max-width', `${searchMax}px`, 'important');
+    if (document && document.documentElement) {
+      document.documentElement.style.setProperty('--x-nt-search-max-width', `${searchMax}px`);
+      document.documentElement.style.setProperty('--x-nt-content-max-width', `${contentMax}px`);
+    }
+    if (bottomDock) {
+      bottomDock.style.setProperty('width', `min(96vw, ${contentMax}px)`, 'important');
+    }
   }
 
   // 使用本地打包字体，避免外链字体依赖。
@@ -1463,10 +1566,32 @@
       applyLanguageMode(changes[LANGUAGE_STORAGE_KEY].newValue || 'system');
     }
     if (changes[RECENT_COUNT_STORAGE_KEY]) {
-      const nextCount = Number.parseInt(changes[RECENT_COUNT_STORAGE_KEY].newValue, 10);
-      currentRecentCount = Number.isFinite(nextCount) ? nextCount : 4;
+      const nextCount = normalizeRecentCount(changes[RECENT_COUNT_STORAGE_KEY].newValue);
+      currentRecentCount = nextCount;
       markRecentDataDirty();
       loadRecentSites({ force: true });
+    }
+    if (changes[NEWTAB_WIDTH_MODE_STORAGE_KEY]) {
+      const previousBookmarkLimit = getBookmarkLimit();
+      const rawMode = changes[NEWTAB_WIDTH_MODE_STORAGE_KEY].newValue;
+      const nextMode = normalizeNewtabWidthMode(rawMode);
+      currentNewtabWidthMode = nextMode;
+      if (storageArea && rawMode !== nextMode) {
+        storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: nextMode });
+      }
+      applyNewtabWidthMode();
+      const recentColumnsChanged = applyRecentGridColumns();
+      const bookmarkColumnsChanged = applyBookmarkGridColumns();
+      if (recentColumnsChanged) {
+        markRecentDataDirty();
+        loadRecentSites({ force: true });
+      }
+      if (bookmarkColumnsChanged) {
+        keepBookmarkPageAnchorAfterLimitChange(previousBookmarkLimit);
+        renderCurrentBookmarkPage();
+      }
+      updateBookmarkGridHeightLock();
+      updateBookmarkSectionPosition();
     }
     if (changes[RECENT_MODE_STORAGE_KEY]) {
       const nextMode = changes[RECENT_MODE_STORAGE_KEY].newValue;
@@ -1494,13 +1619,7 @@
       if (storageArea && raw !== nextColumns) {
         storageArea.set({ [BOOKMARK_COLUMNS_STORAGE_KEY]: nextColumns });
       }
-      const nextLimit = getBookmarkLimit();
-      if (previousLimit > 0 && nextLimit > 0) {
-        const firstVisibleIndex = Math.max(0, bookmarkCurrentPage * previousLimit);
-        bookmarkCurrentPage = Math.floor(firstVisibleIndex / nextLimit);
-      } else {
-        bookmarkCurrentPage = 0;
-      }
+      keepBookmarkPageAnchorAfterLimitChange(previousLimit);
       applyBookmarkGridColumns();
       renderCurrentBookmarkPage();
       updateBookmarkGridHeightLock();
@@ -1547,13 +1666,39 @@
 
     storageArea.get([RECENT_COUNT_STORAGE_KEY], (result) => {
       const stored = result[RECENT_COUNT_STORAGE_KEY];
-      const count = Number.isFinite(stored) ? stored : 4;
+      const count = normalizeRecentCount(stored);
       const changed = currentRecentCount !== count;
       currentRecentCount = count;
+      if (stored !== count) {
+        storageArea.set({ [RECENT_COUNT_STORAGE_KEY]: count });
+      }
       if (changed || !recentLoadedOnce) {
         markRecentDataDirty();
         loadRecentSites();
       }
+    });
+    storageArea.get([NEWTAB_WIDTH_MODE_STORAGE_KEY], (result) => {
+      const previousBookmarkLimit = getBookmarkLimit();
+      const stored = result[NEWTAB_WIDTH_MODE_STORAGE_KEY];
+      const mode = normalizeNewtabWidthMode(stored);
+      const changed = currentNewtabWidthMode !== mode;
+      currentNewtabWidthMode = mode;
+      if (stored !== mode) {
+        storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: mode });
+      }
+      applyNewtabWidthMode();
+      const recentColumnsChanged = applyRecentGridColumns();
+      const bookmarkColumnsChanged = applyBookmarkGridColumns();
+      if (changed || recentColumnsChanged) {
+        markRecentDataDirty();
+        loadRecentSites({ force: true });
+      }
+      if (bookmarkColumnsChanged && bookmarkLoadedOnce) {
+        keepBookmarkPageAnchorAfterLimitChange(previousBookmarkLimit);
+        renderCurrentBookmarkPage();
+      }
+      updateBookmarkGridHeightLock();
+      updateBookmarkSectionPosition();
     });
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
@@ -1740,18 +1885,27 @@
   let pendingProviderReload = false;
   let suggestionRequestSeq = 0;
   let suggestionRequestWatchdogTimer = null;
+  let aiSearchModeEnabled = false;
+  let aiModeButton = null;
+  let searchInputRef = null;
   loadDefaultSearchEngineState();
   if (chrome && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (!storageAreaName || areaName !== storageAreaName || !changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY]) {
+      if (!storageAreaName || areaName !== storageAreaName) {
         return;
       }
-      const nextValue = changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY].newValue;
-      if (nextValue && nextValue.id) {
-        defaultSearchEngineState = nextValue;
+      if (changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY]) {
+        const nextValue = changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY].newValue;
+        if (nextValue && nextValue.id) {
+          defaultSearchEngineState = nextValue;
+        }
       }
-      if (latestQuery && latestQuery.trim()) {
-        renderSuggestions(lastSuggestionResponse, latestQuery);
+      if (changes[AI_SEARCH_MODE_STORAGE_KEY]) {
+        aiSearchModeEnabled = Boolean(changes[AI_SEARCH_MODE_STORAGE_KEY].newValue);
+        updateAiModeButtonVisualState();
+      }
+      if (latestQuery && latestQuery.trim() && (changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY] || changes[AI_SEARCH_MODE_STORAGE_KEY])) {
+        requestSuggestions(latestQuery, { immediate: true });
       }
     });
   }
@@ -1763,10 +1917,12 @@
     LANGUAGE_MESSAGES_STORAGE_KEY,
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
+    NEWTAB_WIDTH_MODE_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
+    AI_SEARCH_MODE_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
   ]);
@@ -3647,6 +3803,7 @@
   updateRecentHeading();
   const recentGrid = document.createElement('div');
   recentGrid.id = '_x_extension_newtab_recent_sites_grid_2024_unique_';
+  applyRecentGridColumns();
   recentSection.appendChild(recentHeading);
   recentSection.appendChild(recentGrid);
   let recentRenderSignature = '';
@@ -3661,7 +3818,7 @@
     left: 50% !important;
     bottom: 0 !important;
     transform: translateX(-50%) !important;
-    width: min(96vw, 1040px) !important;
+    width: min(96vw, var(--x-nt-content-max-width, 1040px)) !important;
     max-height: calc(100vh - 240px) !important;
     display: none !important;
     flex-direction: column !important;
@@ -3683,12 +3840,26 @@
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 32px !important;
+    gap: ${SECTION_VERTICAL_GAP_PX}px !important;
     pointer-events: auto !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     overscroll-behavior: contain !important;
   `;
+  const sectionSafeCorridor = document.createElement('div');
+  sectionSafeCorridor.id = '_x_extension_newtab_section_safe_corridor_2026_unique_';
+  sectionSafeCorridor.style.cssText = `
+    all: unset !important;
+    width: 100% !important;
+    height: ${SECTION_SAFE_CORRIDOR_PX}px !important;
+    min-height: ${SECTION_SAFE_CORRIDOR_PX}px !important;
+    flex: 0 0 ${SECTION_SAFE_CORRIDOR_PX}px !important;
+    display: none !important;
+    pointer-events: auto !important;
+    box-sizing: border-box !important;
+    user-select: none !important;
+  `;
+  applyNewtabWidthMode();
 
   bookmarkPagerPrevButton.addEventListener('click', () => {
     if (bookmarkCurrentPage <= 0) {
@@ -3974,7 +4145,7 @@
   }
 
   function updateBookmarkSectionPosition() {
-    if (!document.body || !bookmarkSection || !recentSection || !bottomDock) {
+    if (!document.body || !bookmarkSection || !recentSection || !bottomDock || !sectionSafeCorridor) {
       return;
     }
     const bottomDockMaxHeight = Math.max(0, window.innerHeight - 240);
@@ -3983,6 +4154,7 @@
     document.body.classList.remove('x-nt-stack-layout');
     document.body.classList.add('x-nt-bottom-layout');
     document.body.classList.toggle('x-nt-no-bookmarks', !bookmarkVisible);
+    sectionSafeCorridor.style.setProperty('display', (bookmarkVisible && recentVisible) ? 'block' : 'none', 'important');
     bottomDock.style.setProperty('max-height', `${bottomDockMaxHeight}px`, 'important');
     bottomDock.style.setProperty('display', (bookmarkVisible || recentVisible) ? 'flex' : 'none', 'important');
     updateSuggestionsFloatingLayout();
@@ -4155,10 +4327,11 @@
       if (!Array.isArray(items) || items.length === 0) {
         return;
       }
-      if (!currentRecentCount || currentRecentCount <= 0) {
+      const recentLimit = getRecentLimit();
+      if (!recentLimit || recentLimit <= 0) {
         return;
       }
-      const cachedItems = items.slice(0, Math.max(0, currentRecentCount));
+      const cachedItems = items.slice(0, Math.max(0, recentLimit));
       renderRecentSites(cachedItems);
       recentLoadedOnce = true;
     });
@@ -4269,7 +4442,8 @@
       return;
     }
     const requestToken = ++recentLoadToken;
-    if (!currentRecentCount || currentRecentCount <= 0) {
+    const recentLimit = getRecentLimit();
+    if (!recentLimit || recentLimit <= 0) {
       recentRenderSignature = '';
       recentCards.length = 0;
       recentGrid.innerHTML = '';
@@ -4279,13 +4453,13 @@
       updateBookmarkSectionPosition();
       return;
     }
-    getRecentSites(currentRecentCount, currentRecentMode).then((items) => {
+    getRecentSites(recentLimit, currentRecentMode).then((items) => {
       if (requestToken !== recentLoadToken) {
         return;
       }
       const normalizedItems = Array.isArray(items) ? items : [];
       renderRecentSites(normalizedItems);
-      writeSectionCache(NEWTAB_RECENT_CACHE_STORAGE_KEY, normalizedItems.slice(0, Math.max(0, currentRecentCount)));
+      writeSectionCache(NEWTAB_RECENT_CACHE_STORAGE_KEY, normalizedItems.slice(0, Math.max(0, recentLimit)));
       recentDataDirty = false;
       recentLoadedOnce = true;
     });
@@ -4375,6 +4549,10 @@
     if (!url) {
       return '';
     }
+    const ownExtensionDisplay = getOwnExtensionPageDisplay(url);
+    if (ownExtensionDisplay) {
+      return ownExtensionDisplay.urlText;
+    }
     try {
       const parsed = new URL(url);
       const host = parsed.hostname.replace(/^www\./i, '');
@@ -4390,6 +4568,56 @@
     return normalized === 'chrome-extension:' ||
       normalized === 'moz-extension:' ||
       normalized === 'ms-browser-extension:';
+  }
+
+  function isOwnExtensionUrl(url) {
+    if (!url || !chrome || !chrome.runtime || !chrome.runtime.id) {
+      return false;
+    }
+    try {
+      const parsed = new URL(url);
+      return isBrowserExtensionProtocol(parsed.protocol) &&
+        String(parsed.hostname || '') === String(chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getOwnExtensionPageLabel(url) {
+    if (!isOwnExtensionUrl(url)) {
+      return '';
+    }
+    try {
+      const parsed = new URL(url);
+      const path = String(parsed.pathname || '').toLowerCase();
+      if (path.endsWith('/newtab.html') || path === '/newtab.html') {
+        return t('newtab_page_label', '新标签页');
+      }
+      if (path.endsWith('/options.html') || path === '/options.html') {
+        return t('settings_title', '设置');
+      }
+      return t('extension_page_label', '扩展页面');
+    } catch (e) {
+      return t('extension_page_label', '扩展页面');
+    }
+  }
+
+  function getOwnExtensionPageDisplay(url, title) {
+    if (!isOwnExtensionUrl(url)) {
+      return null;
+    }
+    const pageLabel = getOwnExtensionPageLabel(url);
+    const rawTitle = String(title || '').trim();
+    const runtimeId = String(chrome && chrome.runtime && chrome.runtime.id ? chrome.runtime.id : '').toLowerCase();
+    const titleLooksLikeId = rawTitle && runtimeId && rawTitle.toLowerCase().includes(runtimeId);
+    const titleText = rawTitle && !titleLooksLikeId
+      ? rawTitle
+      : `Lumno ${pageLabel}`.trim();
+    return {
+      siteName: 'Lumno',
+      titleText: titleText,
+      urlText: `Lumno · ${pageLabel}`.trim()
+    };
   }
 
   function isRestrictedUrl(url) {
@@ -4517,6 +4745,11 @@
 
   function attachFaviconWithFallbacks(img, url, host, options) {
     if (!img || !url) {
+      return;
+    }
+    if (isOwnExtensionUrl(url) && chrome && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+      const ownIconUrl = chrome.runtime.getURL('assets/images/lumno.png');
+      setFaviconSrcWithAnimation(img, ownIconUrl, { persist: false });
       return;
     }
     const forceRevalidate = Boolean(options && options.forceRevalidate);
@@ -4795,6 +5028,59 @@
 
   function getRecentSites(limit, mode) {
     return new Promise((resolve) => {
+      function appendOpenTabs(results, seenHosts) {
+        if (!Array.isArray(results)) {
+          resolve([]);
+          return;
+        }
+        if (results.length >= limit || !chrome.tabs || !chrome.tabs.query) {
+          resolve(results.slice(0, limit));
+          return;
+        }
+        chrome.tabs.query({}, (tabs) => {
+          if (chrome.runtime.lastError || !Array.isArray(tabs)) {
+            resolve(results.slice(0, limit));
+            return;
+          }
+          const candidates = tabs
+            .filter((tab) => tab && tab.incognito !== true)
+            .map((tab) => {
+              const tabUrl = tab && tab.url ? String(tab.url) : '';
+              if (!tabUrl) {
+                return null;
+              }
+              try {
+                const host = normalizeHost(new URL(tabUrl).hostname);
+                if (!host || seenHosts.has(host)) {
+                  return null;
+                }
+                return {
+                  title: tab.title || host,
+                  url: tabUrl,
+                  host: host,
+                  lastVisitTime: Number(tab.lastAccessed) || 0
+                };
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(Boolean)
+            .sort((a, b) => (Number(b.lastVisitTime) || 0) - (Number(a.lastVisitTime) || 0));
+          for (let i = 0; i < candidates.length; i += 1) {
+            const item = candidates[i];
+            if (!item || !item.host || seenHosts.has(item.host)) {
+              continue;
+            }
+            seenHosts.add(item.host);
+            results.push(item);
+            if (results.length >= limit) {
+              break;
+            }
+          }
+          resolve(results.slice(0, limit));
+        });
+      }
+
       function loadLatestRecentSites() {
         if (!chrome.history || !chrome.history.search) {
           resolve([]);
@@ -4814,7 +5100,7 @@
           for (let i = 0; i < items.length; i += 1) {
             const item = items[i];
             const url = item && item.url ? String(item.url) : '';
-            if (!url || isRestrictedUrl(url)) {
+            if (!url) {
               continue;
             }
             let host = '';
@@ -4838,18 +5124,18 @@
             }
           }
           if (results.length >= limit || !chrome.topSites || !chrome.topSites.get) {
-            resolve(results);
+            appendOpenTabs(results, seenHosts);
             return;
           }
           chrome.topSites.get((topSites) => {
             if (!Array.isArray(topSites)) {
-              resolve(results);
+              appendOpenTabs(results, seenHosts);
               return;
             }
             for (let i = 0; i < topSites.length; i += 1) {
               const item = topSites[i];
               const url = item && item.url ? String(item.url) : '';
-              if (!url || isRestrictedUrl(url)) {
+              if (!url) {
                 continue;
               }
               let host = '';
@@ -4872,7 +5158,7 @@
                 break;
               }
             }
-            resolve(results);
+            appendOpenTabs(results, seenHosts);
           });
         });
       }
@@ -4893,7 +5179,7 @@
           for (let i = 0; i < topSites.length; i += 1) {
             const item = topSites[i];
             const url = item && item.url ? String(item.url) : '';
-            if (!url || isRestrictedUrl(url)) {
+            if (!url) {
               continue;
             }
             let host = '';
@@ -4921,7 +5207,7 @@
             loadLatestRecentSites();
             return;
           }
-          resolve(results);
+          appendOpenTabs(results, seenHosts);
         });
         return;
       }
@@ -5483,9 +5769,12 @@
     if (!item || !item.url) {
       return null;
     }
-    const host = item.host || getHostFromUrl(item.url) || '';
-    const siteName = getSiteDisplayName(host, item.title);
-    const titleText = item.title || siteName || item.url;
+    const ownExtensionDisplay = getOwnExtensionPageDisplay(item.url, item.title);
+    const host = ownExtensionDisplay ? 'lumno.kubai.design' : (item.host || getHostFromUrl(item.url) || '');
+    const siteName = ownExtensionDisplay ? ownExtensionDisplay.siteName : getSiteDisplayName(host, item.title);
+    const titleText = ownExtensionDisplay
+      ? ownExtensionDisplay.titleText
+      : (item.title || siteName || item.url);
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'x-nt-recent-card';
@@ -5533,7 +5822,7 @@
 
     const urlLine = document.createElement('div');
     urlLine.className = 'x-nt-recent-url';
-    urlLine.textContent = getUrlDisplay(item.url);
+    urlLine.textContent = ownExtensionDisplay ? ownExtensionDisplay.urlText : getUrlDisplay(item.url);
     urlLine.title = item.url;
 
     const actionLine = document.createElement('div');
@@ -5698,24 +5987,13 @@
     }
 
     let icon = null;
+    let folderIcon = null;
     if (isFolder) {
-      const folderIcon = document.createElement('span');
+      folderIcon = document.createElement('span');
       folderIcon.className = 'x-nt-bookmark-icon x-nt-bookmark-icon--figma';
       folderIcon.innerHTML = getFigmaFolderSvg(`${item.id || 'folder'}-${index}`);
       folderIcon.setAttribute('aria-hidden', 'true');
       initFolderPathMorph(folderIcon);
-      card.addEventListener('mouseenter', () => {
-        playFolderPathMorph(folderIcon, true);
-      });
-      card.addEventListener('mouseleave', () => {
-        playFolderPathMorph(folderIcon, false);
-      });
-      card.addEventListener('focus', () => {
-        playFolderPathMorph(folderIcon, true);
-      });
-      card.addEventListener('blur', () => {
-        playFolderPathMorph(folderIcon, false);
-      });
       icon = folderIcon;
     } else {
       const favicon = document.createElement('img');
@@ -5764,6 +6042,60 @@
       }
       card.appendChild(previewWrap);
     }
+    let hoverIntentTimer = null;
+    let isHoverVisualActive = false;
+    const clearHoverIntentTimer = () => {
+      if (hoverIntentTimer !== null) {
+        window.clearTimeout(hoverIntentTimer);
+        hoverIntentTimer = null;
+      }
+    };
+    const setHoverVisualActive = (active) => {
+      if (isHoverVisualActive === active) {
+        return;
+      }
+      isHoverVisualActive = active;
+      card.classList.toggle('x-nt-bookmark-card--hover', active);
+      if (folderIcon) {
+        playFolderPathMorph(folderIcon, active);
+      }
+    };
+    const scheduleHoverVisualActive = () => {
+      clearHoverIntentTimer();
+      hoverIntentTimer = window.setTimeout(() => {
+        hoverIntentTimer = null;
+        setHoverVisualActive(true);
+      }, BOOKMARK_HOVER_INTENT_DELAY_MS);
+    };
+    card.addEventListener('pointerenter', (event) => {
+      const pointerType = event && typeof event.pointerType === 'string' ? event.pointerType : '';
+      if (pointerType && pointerType !== 'mouse') {
+        clearHoverIntentTimer();
+        setHoverVisualActive(true);
+        return;
+      }
+      scheduleHoverVisualActive();
+    });
+    card.addEventListener('pointerleave', () => {
+      clearHoverIntentTimer();
+      setHoverVisualActive(false);
+    });
+    card.addEventListener('pointercancel', () => {
+      clearHoverIntentTimer();
+      setHoverVisualActive(false);
+    });
+    card.addEventListener('focus', () => {
+      clearHoverIntentTimer();
+      setHoverVisualActive(true);
+    });
+    card.addEventListener('blur', () => {
+      clearHoverIntentTimer();
+      setHoverVisualActive(false);
+    });
+    card.addEventListener('pointerdown', () => {
+      clearHoverIntentTimer();
+      setHoverVisualActive(true);
+    });
     card.addEventListener('click', () => {
       if (isFolder) {
         openBookmarkFolder(item.id);
@@ -7610,6 +7942,27 @@
         suggestionItem._xTitle = title;
 
         textWrapper.appendChild(title);
+        const reasonText = Array.isArray(suggestion.reasons)
+          ? suggestion.reasons.map((item) => String(item || '').trim()).filter(Boolean).join(' · ')
+          : '';
+        if (tabRankScoreDebugEnabled && reasonText) {
+          const reasonLine = document.createElement('span');
+          reasonLine.textContent = reasonText;
+          reasonLine.style.cssText = `
+            all: unset !important;
+            color: var(--x-nt-subtext, #6B7280) !important;
+            font-size: 11px !important;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+            line-height: 1.2 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            max-width: 100% !important;
+            display: inline-block !important;
+            vertical-align: middle !important;
+          `;
+          textWrapper.appendChild(reasonLine);
+        }
 
         if (suggestion.type === 'history' && !suggestion.isTopSite) {
           const urlLine = buildUrlLine(suggestion.url || '');
@@ -7875,6 +8228,40 @@
     });
   }
 
+  function updateAiModeButtonVisualState() {
+    if (!aiModeButton) {
+      return;
+    }
+    if (aiSearchModeEnabled) {
+      aiModeButton.style.setProperty('background', 'var(--x-nt-link, #2563EB)', 'important');
+      aiModeButton.style.setProperty('border-color', 'var(--x-nt-link, #2563EB)', 'important');
+      aiModeButton.style.setProperty('color', '#FFFFFF', 'important');
+      aiModeButton.setAttribute('title', t('ai_search_mode_on', 'AI 搜索：开启'));
+      return;
+    }
+    aiModeButton.style.setProperty('background', 'transparent', 'important');
+    aiModeButton.style.setProperty('border-color', 'var(--x-nt-input-border, rgba(0, 0, 0, 0.06))', 'important');
+    aiModeButton.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+    aiModeButton.setAttribute('title', t('ai_search_mode_off', 'AI 搜索：关闭'));
+  }
+
+  function setAiSearchModeEnabled(enabled, options) {
+    const nextValue = Boolean(enabled);
+    const nextOptions = options || {};
+    aiSearchModeEnabled = nextValue;
+    updateAiModeButtonVisualState();
+    if (storageArea && !nextOptions.skipPersist) {
+      storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: nextValue });
+    }
+    if (nextOptions.silent) {
+      return;
+    }
+    const liveQuery = searchInputRef ? String(searchInputRef.value || '').trim() : '';
+    if (liveQuery) {
+      requestSuggestions(liveQuery, { immediate: true });
+    }
+  }
+
   function requestSuggestions(query, options) {
     latestQuery = query;
     const immediate = options && options.immediate;
@@ -7901,7 +8288,9 @@
       }, immediate ? 900 : 1300);
       chrome.runtime.sendMessage({
         action: 'getSearchSuggestions',
-        query: requestQuery
+        query: requestQuery,
+        mode: aiSearchModeEnabled ? 'ai' : 'classic',
+        context: 'newtab'
       }, function(response) {
         if (suggestionRequestWatchdogTimer) {
           clearTimeout(suggestionRequestWatchdogTimer);
@@ -7946,7 +8335,7 @@
       'border-bottom': 'none',
       'color': 'var(--x-nt-text, #111827)',
       'caret-color': 'var(--x-nt-link, #2563EB)',
-      'padding': '8px 52px 8px 44px',
+      'padding': '8px 96px 8px 44px',
       'min-height': '44px',
       'height': '44px',
       'line-height': '24px'
@@ -8460,6 +8849,9 @@
     if (rightIcon && (target === rightIcon || rightIcon.contains(target))) {
       return false;
     }
+    if (aiModeButton && (target === aiModeButton || aiModeButton.contains(target))) {
+      return false;
+    }
     if (suggestionsContainer && suggestionsContainer.contains(target)) {
       return false;
     }
@@ -8511,6 +8903,7 @@
   `;
   inputParts.container.appendChild(modeBadge);
   const searchInput = inputParts.input;
+  searchInputRef = searchInput;
   const inputContainer = inputParts.container;
   const rightIcon = inputParts.rightIcon;
   searchLayer = document.createElement('div');
@@ -8534,6 +8927,7 @@
   `;
 
   if (rightIcon) {
+    rightIcon.style.setProperty('right', '14px', 'important');
     rightIcon.addEventListener('click', function(event) {
       event.preventDefault();
       event.stopPropagation();
@@ -8542,6 +8936,69 @@
         return;
       }
       window.open(chrome.runtime.getURL('options.html'), '_blank');
+    });
+  }
+  aiModeButton = document.createElement('button');
+  aiModeButton.type = 'button';
+  aiModeButton.id = '_x_extension_newtab_ai_mode_button_2026_unique_';
+  aiModeButton.textContent = 'AI';
+  aiModeButton.setAttribute('aria-label', t('ai_search_toggle', 'AI 搜索'));
+  aiModeButton.style.cssText = `
+    all: unset !important;
+    position: absolute !important;
+    right: 50px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    min-width: 34px !important;
+    height: 24px !important;
+    padding: 0 8px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06)) !important;
+    color: var(--x-nt-subtext, #6B7280) !important;
+    background: transparent !important;
+    z-index: 2 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    list-style: none !important;
+    outline: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 10px !important;
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 160ms ease !important;
+  `;
+  aiModeButton.addEventListener('mouseenter', () => {
+    aiModeButton.style.setProperty('transform', 'translateY(-50%) scale(1.04)', 'important');
+  });
+  aiModeButton.addEventListener('mouseleave', () => {
+    aiModeButton.style.setProperty('transform', 'translateY(-50%)', 'important');
+    updateAiModeButtonVisualState();
+  });
+  aiModeButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAiSearchModeEnabled(!aiSearchModeEnabled);
+    if (inputParts && inputParts.input) {
+      try {
+        inputParts.input.focus({ preventScroll: true });
+      } catch (e) {
+        inputParts.input.focus();
+      }
+    }
+  });
+  inputContainer.appendChild(aiModeButton);
+  updateAiModeButtonVisualState();
+  if (storageArea) {
+    storageArea.get([AI_SEARCH_MODE_STORAGE_KEY], (result) => {
+      setAiSearchModeEnabled(Boolean(result && result[AI_SEARCH_MODE_STORAGE_KEY]), {
+        silent: true,
+        skipPersist: true
+      });
     });
   }
   const defaultPlaceholder = searchInput.placeholder;
@@ -8614,10 +9071,22 @@
   }
 
   window.addEventListener('resize', () => {
+    const previousBookmarkLimit = getBookmarkLimit();
+    applyNewtabWidthMode();
+    const recentColumnsChanged = applyRecentGridColumns();
+    const bookmarkColumnsChanged = applyBookmarkGridColumns();
     updateSiteSearchPrefixLayout();
+    if (bookmarkColumnsChanged && bookmarkLoadedOnce) {
+      keepBookmarkPageAnchorAfterLimitChange(previousBookmarkLimit);
+      renderCurrentBookmarkPage();
+    }
     updateBookmarkGridHeightLock();
     updateBookmarkSectionPosition();
     updateSuggestionsFloatingLayout();
+    if (recentColumnsChanged) {
+      markRecentDataDirty();
+      loadRecentSites({ force: true });
+    }
   });
 
   handleTabKey = function(event) {
@@ -8740,6 +9209,7 @@
   searchLayer.appendChild(suggestionsContainer);
   root.appendChild(searchLayer);
   bottomDockScroller.appendChild(bookmarkSection);
+  bottomDockScroller.appendChild(sectionSafeCorridor);
   bottomDockScroller.appendChild(recentSection);
   bottomDock.appendChild(bottomDockScroller);
   document.body.appendChild(bottomDock);

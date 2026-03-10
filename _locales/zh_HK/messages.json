@@ -53,6 +53,9 @@
   "settings_recent_sites_title": {
     "message": "站點卡片"
   },
+  "settings_newtab_width_title": {
+    "message": "新分頁內容寬度"
+  },
   "settings_bookmarks_title": {
     "message": "書籤"
   },
@@ -241,6 +244,15 @@
   },
   "bookmark_columns_6": {
     "message": "每行 6 個"
+  },
+  "bookmark_columns_8": {
+    "message": "每行 8 個"
+  },
+  "newtab_width_standard": {
+    "message": "標準"
+  },
+  "newtab_width_wide": {
+    "message": "寬螢幕（推薦）"
   },
   "recent_mode_latest": {
     "message": "最近瀏覽"
