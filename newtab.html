@@ -544,6 +544,7 @@
         all: unset;
         --x-nt-recent-card-color: var(--x-nt-recent-card-bg);
         --x-nt-recent-action-offset: 0px;
+        --x-nt-recent-title-line-height: 16px;
         --x-nt-recent-title-lines: 3;
         display: flex;
         flex-direction: column;
@@ -661,14 +662,15 @@
         color: var(--x-nt-recent-title);
         font-family: "Open Sans", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.35;
+        line-height: var(--x-nt-recent-title-line-height, 16px);
         overflow: hidden;
         text-overflow: ellipsis;
         display: -webkit-box;
         -webkit-line-clamp: var(--x-nt-recent-title-lines);
         -webkit-box-orient: vertical;
         white-space: pre-wrap;
-        padding-bottom: 6px;
+        max-height: calc(var(--x-nt-recent-title-lines) * var(--x-nt-recent-title-line-height, 16px));
+        padding-bottom: 0;
       }
       .x-nt-recent-url {
         margin: 0 10px;
