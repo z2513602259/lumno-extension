@@ -322,6 +322,7 @@ const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
 const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
 const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
 const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
+const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
 const PINNED_TAB_SNAPSHOT_STORAGE_KEY = '_x_extension_pinned_tab_snapshot_2026_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const HOTKEY_DUP_GUARD_MS = 180;
@@ -2481,6 +2482,7 @@ migrateStorageIfNeeded([
   AI_SEARCH_MODE_STORAGE_KEY,
   AI_PROVIDER_STORAGE_KEY,
   AI_ENTITLEMENT_CACHE_KEY,
+  SEARCH_RESULT_PRIORITY_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
   SITE_SEARCH_DISABLED_STORAGE_KEY
 ]);
@@ -4814,6 +4816,8 @@ async function getSearchSuggestions(query, options) {
   let overlayThemeStorageListener = null;
   let overlayLanguageStorageListener = null;
   let overlaySearchEngineStorageListener = null;
+  let overlaySearchResultPriorityStorageListener = null;
+  let overlaySizeStorageListener = null;
   let overlayTabPriorityStorageListener = null;
   let overlayTabScoreDebugStorageListener = null;
   let overlayThemeMediaListener = null;
@@ -4839,6 +4843,8 @@ async function getSearchSuggestions(query, options) {
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
+  const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
+  const OVERLAY_SIZE_MODE_STORAGE_KEY = '_x_extension_overlay_size_mode_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
@@ -4855,7 +4861,13 @@ async function getSearchSuggestions(query, options) {
     : 'assets/fonts/open-sans/open-sans.css';
   const overlayMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let overlayThemeMode = 'system';
+  let overlaySearchResultPriorityMode = 'autocomplete';
+  let overlaySizeMode = 'standard';
   let overlayThemeListenerAttached = false;
+
+  function normalizeSearchResultPriority(value) {
+    return value === 'search' ? 'search' : 'autocomplete';
+  }
 
   function isInjectedBrowserExtensionProtocol(protocol) {
     const normalized = String(protocol || '').toLowerCase();
@@ -5223,6 +5235,32 @@ async function getSearchSuggestions(query, options) {
     return fallback || '';
   }
 
+  function getStorageValuesAsync(keys) {
+    return new Promise((resolve) => {
+      if (!storageArea || !storageArea.get) {
+        resolve({});
+        return;
+      }
+      storageArea.get(keys, (result) => {
+        resolve(result || {});
+      });
+    });
+  }
+
+  async function bootstrapOverlayLanguageForInitialRender() {
+    const result = await getStorageValuesAsync([LANGUAGE_STORAGE_KEY, LANGUAGE_MESSAGES_STORAGE_KEY]);
+    overlayLanguageMode = result[LANGUAGE_STORAGE_KEY] || 'system';
+    const targetLocale = overlayLanguageMode === 'system'
+      ? getSystemLocale()
+      : normalizeLocale(overlayLanguageMode);
+    const payload = result[LANGUAGE_MESSAGES_STORAGE_KEY];
+    if (payload && payload.locale === targetLocale && payload.messages) {
+      currentMessages = payload.messages || {};
+      return;
+    }
+    currentMessages = await loadLocaleMessages(targetLocale).catch(() => ({}));
+  }
+
   function formatMessage(key, fallback, params) {
     let text = t(key, fallback);
     if (!params) {
@@ -5250,6 +5288,24 @@ async function getSearchSuggestions(query, options) {
 
   function normalizeTabRankScoreDebugMode(mode) {
     return mode === true;
+  }
+
+  function normalizeOverlaySizeMode(mode) {
+    if (mode === 'compact' || mode === 'large') {
+      return mode;
+    }
+    return 'standard';
+  }
+
+  function getOverlaySizePreset(mode) {
+    const normalizedMode = normalizeOverlaySizeMode(mode);
+    if (normalizedMode === 'compact') {
+      return { width: 680, maxHeightVh: 72, uiScale: 0.94 };
+    }
+    if (normalizedMode === 'large') {
+      return { width: 840, maxHeightVh: 80, uiScale: 1.06 };
+    }
+    return { width: 760, maxHeightVh: 75, uiScale: 1 };
   }
 
   function formatTabRankDebugText(tab) {
@@ -5468,6 +5524,7 @@ async function getSearchSuggestions(query, options) {
     if (!overlayElement || !overlayElement.isConnected) {
       return;
     }
+    const sizePreset = getOverlaySizePreset(overlaySizeMode);
     const visualViewport = window.visualViewport;
     const viewportWidth = visualViewport && Number.isFinite(visualViewport.width) && visualViewport.width > 0
       ? visualViewport.width
@@ -5475,9 +5532,6 @@ async function getSearchSuggestions(query, options) {
     const viewportHeight = visualViewport && Number.isFinite(visualViewport.height) && visualViewport.height > 0
       ? visualViewport.height
       : (window.innerHeight || document.documentElement.clientHeight || 0);
-    const visualViewportScale = visualViewport && Number.isFinite(visualViewport.scale) && visualViewport.scale > 0
-      ? visualViewport.scale
-      : 1;
     const currentDpr = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
       ? window.devicePixelRatio
       : 1;
@@ -5488,22 +5542,25 @@ async function getSearchSuggestions(query, options) {
     const tabZoomFactor = Number.isFinite(overlayInitialTabZoomFactor) && overlayInitialTabZoomFactor > 0
       ? overlayInitialTabZoomFactor
       : 1;
-    const extraViewportScale = Math.abs(visualViewportScale - 1) > 0.02
-      ? visualViewportScale
-      : 1;
-    const zoomScale = tabZoomFactor * dprScaleDelta * extraViewportScale;
+    // 不对双指手势缩放做反向补偿，保持与网页一致缩放感知。
+    const zoomScale = tabZoomFactor * dprScaleDelta;
     const safeZoomScale = Math.max(0.5, Math.min(3, zoomScale));
-    const inverseZoomScale = 1 / safeZoomScale;
+    const presetUiScale = Number.isFinite(sizePreset.uiScale) && sizePreset.uiScale > 0
+      ? sizePreset.uiScale
+      : 1;
+    const finalOverlayZoom = (1 / safeZoomScale) * presetUiScale;
+    const safeFinalOverlayZoom = Math.max(0.35, Math.min(4, finalOverlayZoom));
     const maxWidth = Math.max(280, viewportWidth - 24);
     const baseTop = Number.isFinite(overlayBaseTopPx) && overlayBaseTopPx > 0
       ? overlayBaseTopPx
       : (viewportHeight * 0.2);
     const compensatedTop = baseTop * safeZoomScale;
     const topPx = Math.max(16, Math.min(compensatedTop, Math.max(16, viewportHeight - 120)));
-    overlayElement.style.setProperty('width', '760px', 'important');
+    overlayElement.style.setProperty('width', `${sizePreset.width}px`, 'important');
     overlayElement.style.setProperty('max-width', `${maxWidth}px`, 'important');
+    overlayElement.style.setProperty('max-height', `${sizePreset.maxHeightVh}vh`, 'important');
     overlayElement.style.setProperty('top', `${topPx}px`, 'important');
-    overlayElement.style.setProperty('zoom', `${inverseZoomScale}`, 'important');
+    overlayElement.style.setProperty('zoom', `${safeFinalOverlayZoom}`, 'important');
   }
 
   function startOverlayViewportSizeSync(overlayElement) {
@@ -5576,6 +5633,10 @@ async function getSearchSuggestions(query, options) {
       chrome.storage.onChanged.removeListener(overlaySearchEngineStorageListener);
       overlaySearchEngineStorageListener = null;
     }
+    if (overlaySearchResultPriorityStorageListener) {
+      chrome.storage.onChanged.removeListener(overlaySearchResultPriorityStorageListener);
+      overlaySearchResultPriorityStorageListener = null;
+    }
     if (overlayTabPriorityStorageListener) {
       chrome.storage.onChanged.removeListener(overlayTabPriorityStorageListener);
       overlayTabPriorityStorageListener = null;
@@ -5583,6 +5644,10 @@ async function getSearchSuggestions(query, options) {
     if (overlayTabScoreDebugStorageListener) {
       chrome.storage.onChanged.removeListener(overlayTabScoreDebugStorageListener);
       overlayTabScoreDebugStorageListener = null;
+    }
+    if (overlaySizeStorageListener) {
+      chrome.storage.onChanged.removeListener(overlaySizeStorageListener);
+      overlaySizeStorageListener = null;
     }
     if (overlayThemeMediaListener) {
       overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
@@ -5607,6 +5672,7 @@ async function getSearchSuggestions(query, options) {
     overlay = document.createElement('div');
     overlay.id = '_x_extension_overlay_2024_unique_';
     applyNoTranslate(overlay);
+    const initialOverlaySizePreset = getOverlaySizePreset(overlaySizeMode);
     overlay.style.cssText = `
       all: unset !important;
       position: fixed !important;
@@ -5614,9 +5680,9 @@ async function getSearchSuggestions(query, options) {
       left: 50% !important;
       transform: translateX(-50%) translateY(10px) scale(0.985) !important;
       transform-origin: top center !important;
-      width: 760px !important;
+      width: ${initialOverlaySizePreset.width}px !important;
       max-width: calc(100vw - 24px) !important;
-      max-height: 75vh !important;
+      max-height: ${initialOverlaySizePreset.maxHeightVh}vh !important;
       background: var(--x-ov-bg, rgba(255, 255, 255, 0.82)) !important;
       backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
       -webkit-backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
@@ -5750,6 +5816,8 @@ async function getSearchSuggestions(query, options) {
       removeOverlay(overlay);
       return;
     }
+
+    await bootstrapOverlayLanguageForInitialRender();
 
     const inputParts = window._x_extension_createSearchInput_2024_unique_({
       placeholder: t('overlay_search_placeholder', t('search_placeholder', defaultPlaceholderText)),
@@ -6804,6 +6872,21 @@ async function getSearchSuggestions(query, options) {
       }
     };
     chrome.storage.onChanged.addListener(overlaySearchEngineStorageListener);
+    if (storageArea) {
+      storageArea.get([SEARCH_RESULT_PRIORITY_STORAGE_KEY], (result) => {
+        overlaySearchResultPriorityMode = normalizeSearchResultPriority(result[SEARCH_RESULT_PRIORITY_STORAGE_KEY]);
+      });
+    }
+    overlaySearchResultPriorityStorageListener = (changes, areaName) => {
+      if (!storageAreaName || areaName !== storageAreaName || !changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]) {
+        return;
+      }
+      overlaySearchResultPriorityMode = normalizeSearchResultPriority(changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY].newValue);
+      if (latestOverlayQuery) {
+        updateSearchSuggestions(lastSuggestionResponse, latestOverlayQuery);
+      }
+    };
+    chrome.storage.onChanged.addListener(overlaySearchResultPriorityStorageListener);
 
     if (storageArea) {
       storageArea.get([OVERLAY_TAB_PRIORITY_STORAGE_KEY], (result) => {
@@ -6820,6 +6903,20 @@ async function getSearchSuggestions(query, options) {
       }
     };
     chrome.storage.onChanged.addListener(overlayTabPriorityStorageListener);
+    if (storageArea) {
+      storageArea.get([OVERLAY_SIZE_MODE_STORAGE_KEY], (result) => {
+        overlaySizeMode = normalizeOverlaySizeMode(result[OVERLAY_SIZE_MODE_STORAGE_KEY]);
+        applyOverlaySizeForPageZoom(overlay);
+      });
+    }
+    overlaySizeStorageListener = (changes, areaName) => {
+      if (!storageAreaName || areaName !== storageAreaName || !changes[OVERLAY_SIZE_MODE_STORAGE_KEY]) {
+        return;
+      }
+      overlaySizeMode = normalizeOverlaySizeMode(changes[OVERLAY_SIZE_MODE_STORAGE_KEY].newValue);
+      applyOverlaySizeForPageZoom(overlay);
+    };
+    chrome.storage.onChanged.addListener(overlaySizeStorageListener);
     if (storageArea) {
       storageArea.get([TAB_RANK_SCORE_DEBUG_STORAGE_KEY], (result) => {
         overlayTabScoreDebugEnabled = normalizeTabRankScoreDebugMode(result[TAB_RANK_SCORE_DEBUG_STORAGE_KEY]);
@@ -8297,9 +8394,41 @@ async function getSearchSuggestions(query, options) {
       autocompleteState = null;
     }
 
+    function dismissAutocompletePreviewOnNonTabKey(event) {
+      if (!event || event.key === 'Tab') {
+        return false;
+      }
+      const isModifierOnly = event.key === 'Shift' || event.key === 'Control' || event.key === 'Alt' || event.key === 'Meta';
+      if (isModifierOnly) {
+        return false;
+      }
+      if (!autocompleteState || !autocompleteState.completion) {
+        return false;
+      }
+      const rawQuery = typeof autocompleteState.rawQuery === 'string'
+        ? autocompleteState.rawQuery
+        : String(latestRawInputValue || '');
+      if (searchInput && searchInput.value !== rawQuery) {
+        searchInput.value = rawQuery;
+        searchInput.setSelectionRange(rawQuery.length, rawQuery.length);
+      }
+      latestRawInputValue = rawQuery;
+      latestOverlayQuery = rawQuery.trim();
+      clearAutocomplete();
+      return true;
+    }
+
     function applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason) {
       const rawQuery = latestRawInputValue;
       const trimmedQuery = rawQuery.trim();
+      if (overlaySearchResultPriorityMode === 'search') {
+        if (searchInput && searchInput.value !== rawQuery) {
+          searchInput.value = rawQuery;
+          searchInput.setSelectionRange(rawQuery.length, rawQuery.length);
+        }
+        clearAutocomplete();
+        return;
+      }
       if (Date.now() - lastDeletionAt < 250) {
         clearAutocomplete();
         return;
@@ -9105,6 +9234,7 @@ async function getSearchSuggestions(query, options) {
       if (!e.metaKey && !e.ctrlKey && !e.altKey) {
         e.stopPropagation();
       }
+      dismissAutocompletePreviewOnNonTabKey(e);
       if (e.key !== 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         latestRawInputValue = searchInput.value;
         latestOverlayQuery = searchInput.value.trim();
@@ -9171,6 +9301,7 @@ async function getSearchSuggestions(query, options) {
       if (e && (e.isComposing || isComposing)) {
         return;
       }
+      dismissAutocompletePreviewOnNonTabKey(e);
       if (e.key === 'Escape' && overlay) {
         removeOverlay(overlay);
         document.removeEventListener('keydown', keydownHandler);
@@ -10663,8 +10794,9 @@ async function getSearchSuggestions(query, options) {
         let siteSearchTrigger = null;
         let mergedProvider = null;
         let primarySuggestion = null;
+        const preferAutocompleteFirst = overlaySearchResultPriorityMode !== 'search';
         if (!modeCommandActive && !hasCommand) {
-          if (!siteSearchState && !inlineEnabled) {
+          if (!siteSearchState && !inlineEnabled && preferAutocompleteFirst) {
             topSiteMatch = promoteTopSiteMatch(allSuggestions, latestRawInputValue.trim());
           }
           siteSearchTrigger = (!siteSearchState && !inlineEnabled)
@@ -10684,7 +10816,7 @@ async function getSearchSuggestions(query, options) {
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'siteSearchPrompt';
           }
-          if (!siteSearchState && !inlineEnabled && !siteSearchPrompt) {
+          if (!siteSearchState && !inlineEnabled && !siteSearchPrompt && preferAutocompleteFirst) {
             autocompleteCandidate = getAutocompleteCandidate(allSuggestions, latestRawInputValue);
             if (autocompleteCandidate) {
               const candidateIndex = allSuggestions.findIndex((suggestion) => {
@@ -10715,7 +10847,7 @@ async function getSearchSuggestions(query, options) {
             allSuggestions.unshift(inlineSuggestion);
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'inline';
-          } else if (!siteSearchPrompt && topSiteMatch) {
+          } else if (!siteSearchPrompt && topSiteMatch && preferAutocompleteFirst) {
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'topSite';
           }

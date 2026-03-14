@@ -1,5 +1,7 @@
 (function() {
   const panel = document.getElementById('_x_extension_settings_panel_2024_unique_');
+  const optionsRoot = document.getElementById('_x_extension_options_root_2024_unique_');
+  const tabsRow = document.querySelector('._x_extension_settings_tabs_row_2024_unique_');
   const appearanceContent = document.querySelector('._x_extension_settings_content_2024_unique_[data-content="appearance"]');
   const themePicker = appearanceContent
     ? appearanceContent.querySelector('._x_extension_theme_picker_2024_unique_')
@@ -20,6 +22,11 @@
     : null;
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
   const newtabWidthSelect = document.getElementById('_x_extension_newtab_width_select_2026_unique_');
+  const overlaySizeTabButtons = Array.from(document.querySelectorAll('button[data-overlay-size]'));
+  const overlaySizeTabsWrap = document.getElementById('_x_extension_overlay_size_tabs_wrap_2026_unique_');
+  const overlaySizeTabsIndicator = overlaySizeTabsWrap
+    ? overlaySizeTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
   const bookmarkColumnsSelect = document.getElementById('_x_extension_bookmark_columns_select_2024_unique_');
   const bookmarkColumnsSelectWrap = bookmarkColumnsSelect
@@ -37,6 +44,7 @@
   const aiEntitlementStatus = document.getElementById('_x_extension_ai_entitlement_status_2026_unique_');
   const aiEntitlementRefreshButton = document.getElementById('_x_extension_ai_entitlement_refresh_2026_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
+  const searchResultPrioritySelect = document.getElementById('_x_extension_search_result_priority_select_2026_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
   const syncStatusText = document.getElementById('_x_extension_sync_status_text_2024_unique_');
   const syncNowButton = document.getElementById('_x_extension_sync_now_2024_unique_');
@@ -50,6 +58,11 @@
   const restrictedActionTabButtons = Array.from(document.querySelectorAll('button[data-restricted-action]'));
   const restrictedActionTabsIndicator = restrictedActionSelectWrap
     ? restrictedActionSelectWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
+  const searchResultPriorityTabsWrap = document.getElementById('_x_extension_search_result_priority_tabs_wrap_2026_unique_');
+  const searchResultPriorityTabButtons = Array.from(document.querySelectorAll('button[data-search-result-priority]'));
+  const searchResultPriorityTabsIndicator = searchResultPriorityTabsWrap
+    ? searchResultPriorityTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
     : null;
   const clearShortcutButton = document.getElementById('_x_extension_clear_shortcut_2024_unique_');
   const resetShortcutButton = document.getElementById('_x_extension_reset_shortcut_2024_unique_');
@@ -105,6 +118,7 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const NEWTAB_WIDTH_MODE_STORAGE_KEY = '_x_extension_newtab_width_mode_2026_unique_';
+  const OVERLAY_SIZE_MODE_STORAGE_KEY = '_x_extension_overlay_size_mode_2026_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const AUTO_PIP_ENABLED_STORAGE_KEY = '_x_extension_auto_pip_enabled_2026_unique_';
@@ -116,6 +130,7 @@
   const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
   const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
+  const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
@@ -128,6 +143,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     NEWTAB_WIDTH_MODE_STORAGE_KEY,
+    OVERLAY_SIZE_MODE_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
@@ -138,6 +154,7 @@
     AI_PROVIDER_STORAGE_KEY,
     AI_ENTITLEMENT_CACHE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
+    SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
@@ -271,6 +288,13 @@
     return value === 'standard' ? 'standard' : 'wide';
   }
 
+  function normalizeOverlaySizeMode(value) {
+    if (value === 'compact' || value === 'large') {
+      return value;
+    }
+    return 'standard';
+  }
+
   function updateBookmarkColumnsSelectVisibility(countValue) {
     if (!bookmarkColumnsSelectWrap) {
       return;
@@ -319,6 +343,10 @@
       return 'openai';
     }
     return raw.slice(0, 32);
+  }
+
+  function normalizeSearchResultPriority(value) {
+    return value === 'search' ? 'search' : 'autocomplete';
   }
 
   function updateAiApiKeyStatus(hasKey) {
@@ -392,6 +420,22 @@
     );
   }
 
+  function updateSearchResultPriorityTabsIndicator() {
+    updateInlineTabsIndicator(
+      searchResultPriorityTabsWrap,
+      searchResultPriorityTabsIndicator,
+      'button[data-search-result-priority][data-active="true"]'
+    );
+  }
+
+  function updateOverlaySizeTabsIndicator() {
+    updateInlineTabsIndicator(
+      overlaySizeTabsWrap,
+      overlaySizeTabsIndicator,
+      'button[data-overlay-size][data-active="true"]'
+    );
+  }
+
   function setRecentModeTabState(mode) {
     const nextMode = mode === 'most' ? 'most' : 'latest';
     recentModeTabButtons.forEach((button) => {
@@ -401,6 +445,17 @@
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     requestAnimationFrame(updateRecentModeTabsIndicator);
+  }
+
+  function setOverlaySizeTabState(mode) {
+    const nextMode = normalizeOverlaySizeMode(mode);
+    overlaySizeTabButtons.forEach((button) => {
+      const buttonMode = normalizeOverlaySizeMode(button.getAttribute('data-overlay-size'));
+      const active = buttonMode === nextMode;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(updateOverlaySizeTabsIndicator);
   }
 
   function updateRecentModeTabsVisibility(countValue) {
@@ -427,6 +482,17 @@
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     requestAnimationFrame(updateRestrictedActionTabsIndicator);
+  }
+
+  function setSearchResultPriorityTabState(priority) {
+    const nextPriority = normalizeSearchResultPriority(priority);
+    searchResultPriorityTabButtons.forEach((button) => {
+      const buttonPriority = normalizeSearchResultPriority(button.getAttribute('data-search-result-priority'));
+      const active = buttonPriority === nextPriority;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(updateSearchResultPriorityTabsIndicator);
   }
 
   function storageGet(area, keys) {
@@ -1286,6 +1352,7 @@
         updateTabIndicator();
         updateThemeIndicator();
         updateRecentModeTabsIndicator();
+        updateOverlaySizeTabsIndicator();
         updateRestrictedActionTabsIndicator();
       });
       setEditingState(editingSiteSearchKey);
@@ -1781,6 +1848,7 @@
     if (tabKey === 'appearance') {
       requestAnimationFrame(() => {
         requestAnimationFrame(updateThemeIndicator);
+        requestAnimationFrame(updateOverlaySizeTabsIndicator);
       });
     }
     if (tabKey === 'general') {
@@ -1811,6 +1879,18 @@
     const offset = Math.round(buttonRect.left - containerRect.left - inset);
     tabsIndicator.style.width = `${Math.round(buttonRect.width)}px`;
     tabsIndicator.style.transform = `translateX(${offset}px)`;
+  }
+
+  function updateTabsStickyVisualState() {
+    if (!tabsRow) return;
+    const stickyTop = parseFloat(window.getComputedStyle(tabsRow).top || '0') || 0;
+    const isStuck = tabsRow.getBoundingClientRect().top <= stickyTop + 0.5;
+    tabsRow.setAttribute('data-stuck', isStuck ? 'true' : 'false');
+  }
+
+  function resetPageScrollToDefault() {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    updateTabsStickyVisualState();
   }
 
   if (settingsVersion && chrome?.runtime?.getManifest) {
@@ -1965,7 +2045,12 @@
   tabButtons.forEach((button) => {
     button.addEventListener('click', function() {
       const tabKey = button.getAttribute('data-tab');
+      const activeButton = tabButtons.find((item) => item.getAttribute('data-active') === 'true');
+      const currentTabKey = activeButton ? activeButton.getAttribute('data-tab') : '';
       setActiveTab(tabKey);
+      if (tabKey && tabKey !== currentTabKey) {
+        resetPageScrollToDefault();
+      }
       if (tabKey === 'shortcuts') {
         refreshSiteSearchProviders();
       }
@@ -1977,10 +2062,15 @@
   if (initialTab === 'shortcuts') {
     refreshSiteSearchProviders();
   }
+  window.addEventListener('scroll', updateTabsStickyVisualState, { passive: true });
+  window.addEventListener('resize', updateTabsStickyVisualState);
+  updateTabsStickyVisualState();
   window.addEventListener('resize', updateTabIndicator);
   window.addEventListener('resize', updateThemeIndicator);
   window.addEventListener('resize', updateRecentModeTabsIndicator);
+  window.addEventListener('resize', updateOverlaySizeTabsIndicator);
   window.addEventListener('resize', updateRestrictedActionTabsIndicator);
+  window.addEventListener('resize', updateSearchResultPriorityTabsIndicator);
   window.addEventListener('resize', syncFallbackShortcutWrapWidth);
   migrateStorageIfNeeded([
     THEME_STORAGE_KEY,
@@ -1991,6 +2081,8 @@
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     NEWTAB_WIDTH_MODE_STORAGE_KEY,
+    OVERLAY_SIZE_MODE_STORAGE_KEY,
+    SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     AUTO_PIP_ENABLED_STORAGE_KEY,
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
@@ -2122,6 +2214,43 @@
       }
       storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: nextMode });
       notifyNewtabSectionsRefresh('all');
+    });
+  }
+  if (overlaySizeTabButtons.length > 0) {
+    overlaySizeTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextMode = normalizeOverlaySizeMode(button.getAttribute('data-overlay-size'));
+        setOverlaySizeTabState(nextMode);
+        if (!storageArea) {
+          return;
+        }
+        storageArea.set({ [OVERLAY_SIZE_MODE_STORAGE_KEY]: nextMode });
+      });
+    });
+  }
+  if (searchResultPrioritySelect) {
+    searchResultPrioritySelect.addEventListener('change', () => {
+      const nextPriority = normalizeSearchResultPriority(searchResultPrioritySelect.value);
+      setSearchResultPriorityTabState(nextPriority);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [SEARCH_RESULT_PRIORITY_STORAGE_KEY]: nextPriority });
+    });
+  }
+  if (searchResultPriorityTabButtons.length > 0) {
+    searchResultPriorityTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextPriority = normalizeSearchResultPriority(button.getAttribute('data-search-result-priority'));
+        setSearchResultPriorityTabState(nextPriority);
+        if (searchResultPrioritySelect) {
+          searchResultPrioritySelect.value = nextPriority;
+        }
+        if (!storageArea) {
+          return;
+        }
+        storageArea.set({ [SEARCH_RESULT_PRIORITY_STORAGE_KEY]: nextPriority });
+      });
     });
   }
   if (recentModeSelect) {
@@ -2611,6 +2740,27 @@
       }
       if (stored !== mode) {
         storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: mode });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([OVERLAY_SIZE_MODE_STORAGE_KEY], (result) => {
+      const stored = result[OVERLAY_SIZE_MODE_STORAGE_KEY];
+      const mode = normalizeOverlaySizeMode(stored);
+      setOverlaySizeTabState(mode);
+      if (stored !== mode) {
+        storageArea.set({ [OVERLAY_SIZE_MODE_STORAGE_KEY]: mode });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([SEARCH_RESULT_PRIORITY_STORAGE_KEY], (result) => {
+      const stored = result[SEARCH_RESULT_PRIORITY_STORAGE_KEY];
+      const priority = normalizeSearchResultPriority(stored);
+      if (searchResultPrioritySelect) {
+        searchResultPrioritySelect.value = priority;
+      }
+      setSearchResultPriorityTabState(priority);
+      if (stored !== priority) {
+        storageArea.set({ [SEARCH_RESULT_PRIORITY_STORAGE_KEY]: priority });
       }
       refreshCustomSelects();
     });
@@ -3524,6 +3674,7 @@
         changes[RECENT_MODE_STORAGE_KEY] ||
         changes[RECENT_COUNT_STORAGE_KEY] ||
         changes[NEWTAB_WIDTH_MODE_STORAGE_KEY] ||
+        changes[OVERLAY_SIZE_MODE_STORAGE_KEY] ||
         changes[BOOKMARK_COUNT_STORAGE_KEY] ||
         changes[BOOKMARK_COLUMNS_STORAGE_KEY] ||
         changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
@@ -3533,6 +3684,7 @@
         changes[AI_PROVIDER_STORAGE_KEY] ||
         changes[AI_ENTITLEMENT_CACHE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
+        changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY] ||
         changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
         changes[SITE_SEARCH_DISABLED_STORAGE_KEY] ||
@@ -3556,6 +3708,19 @@
     if (changes[NEWTAB_WIDTH_MODE_STORAGE_KEY] && newtabWidthSelect) {
       const mode = normalizeNewtabWidthMode(changes[NEWTAB_WIDTH_MODE_STORAGE_KEY].newValue);
       newtabWidthSelect.value = mode;
+      refreshCustomSelects();
+    }
+    if (changes[OVERLAY_SIZE_MODE_STORAGE_KEY]) {
+      const mode = normalizeOverlaySizeMode(changes[OVERLAY_SIZE_MODE_STORAGE_KEY].newValue);
+      setOverlaySizeTabState(mode);
+      refreshCustomSelects();
+    }
+    if (changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]) {
+      const nextValue = normalizeSearchResultPriority(changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY].newValue);
+      if (searchResultPrioritySelect) {
+        searchResultPrioritySelect.value = nextValue;
+      }
+      setSearchResultPriorityTabState(nextValue);
       refreshCustomSelects();
     }
     if (changes[RECENT_MODE_STORAGE_KEY] && recentModeSelect) {

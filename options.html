@@ -11,6 +11,7 @@
       html {
         height: 100%;
         scrollbar-gutter: stable;
+        overscroll-behavior-y: none;
       }
       html {
         background: #111111;
@@ -28,11 +29,12 @@
         display: flex;
         align-items: flex-start;
         justify-content: center;
-        padding: 10vh 20px 40px;
+        padding: clamp(64px, 11vh, 120px) 20px 40px;
         box-sizing: border-box;
         font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
         overflow-y: auto;
+        overscroll-behavior-y: none;
         position: relative;
         opacity: 0;
       }
@@ -222,11 +224,107 @@
         position: relative;
       }
       ._x_extension_settings_tabs_row_2024_unique_ {
+        --tabs-panel-gap: 14px;
+        --tabs-sticky-top: max(var(--tabs-panel-gap), env(safe-area-inset-top));
         display: flex;
         align-items: center;
         gap: 10px;
-        margin-bottom: 14px;
+        margin-bottom: var(--tabs-panel-gap);
         width: 100%;
+        position: sticky;
+        top: var(--tabs-sticky-top);
+        z-index: 30;
+        isolation: isolate;
+        background: transparent;
+        transition: none;
+      }
+      ._x_extension_settings_tabs_row_2024_unique_::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        width: 100vw;
+        transform: translateX(-50%);
+        top: calc(-1 * var(--tabs-sticky-top));
+        height: calc(100% + var(--tabs-sticky-top) + var(--tabs-panel-gap));
+        background-color: #f1f5f9;
+        pointer-events: none;
+        z-index: -2;
+        opacity: 0;
+      }
+      ._x_extension_settings_tabs_row_2024_unique_::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        width: 100vw;
+        transform: translateX(-50%);
+        top: calc(-1 * var(--tabs-sticky-top));
+        height: calc(100% + var(--tabs-sticky-top) + var(--tabs-panel-gap));
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="2" stitchTiles="stitch"/></filter><rect width="96" height="96" filter="url(%23n)" opacity="1"/></svg>');
+        background-repeat: repeat;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0;
+      }
+      ._x_extension_settings_sticky_line_2026_unique_ {
+        position: absolute;
+        left: 50%;
+        width: 100vw;
+        height: 1px;
+        bottom: calc(-1 * var(--tabs-panel-gap));
+        transform: translateX(-50%) scaleX(0);
+        transform-origin: center;
+        opacity: 0;
+        background: rgba(15, 23, 42, 0.08);
+        pointer-events: none;
+        z-index: 1;
+      }
+      ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"] ._x_extension_settings_sticky_line_2026_unique_ {
+        animation: _xStickyLineGrow_2026_unique_ 500ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+      }
+      @keyframes _xStickyLineGrow_2026_unique_ {
+        from {
+          transform: translateX(-50%) scaleX(0);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) scaleX(1);
+          opacity: 1;
+        }
+      }
+      ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"] {
+        background: rgba(241, 245, 249, 0.92);
+      }
+      ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"]::before {
+        animation: _xStickyBgFadeInBase_2026_unique_ 180ms ease forwards;
+        opacity: 1;
+      }
+      ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"]::after {
+        animation: _xStickyBgFadeInNoiseLight_2026_unique_ 200ms ease forwards;
+        opacity: 0.24;
+      }
+      @keyframes _xStickyBgFadeInBase_2026_unique_ {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes _xStickyBgFadeInNoiseLight_2026_unique_ {
+        from { opacity: 0; }
+        to { opacity: 0.24; }
+      }
+      body[data-theme="dark"] ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"] {
+        background: rgba(17, 17, 17, 0.9);
+      }
+      body[data-theme="dark"] ._x_extension_settings_tabs_row_2024_unique_::before {
+        background-color: #111111;
+      }
+      body[data-theme="dark"] ._x_extension_settings_sticky_line_2026_unique_ {
+        background: rgba(241, 245, 249, 0.16);
+      }
+      body[data-theme="dark"] ._x_extension_settings_tabs_row_2024_unique_::after {
+        background-image: none;
+      }
+      body[data-theme="dark"] ._x_extension_settings_tabs_row_2024_unique_[data-stuck="true"]::after {
+        animation: none;
+        opacity: 0;
       }
       ._x_extension_settings_version_badge_2024_unique_ {
         margin-left: auto;
@@ -777,7 +875,7 @@
         width: 18px;
         box-sizing: border-box;
         left: 3px;
-        top: 3px;
+        top: 50%;
         background: #fafafa;
         border: 0.5px solid #cdcdcd;
         border-radius: 50%;
@@ -791,13 +889,14 @@
           0 1px 2px rgba(0, 0, 0, 0.1),
           inset 0 2px 1px #ffffff,
           inset 0 -1px 2px rgba(0, 0, 0, 0.15);
+        transform: translateY(-50%);
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_ {
         border-color: transparent;
         box-shadow: none;
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_:before {
-        transform: translateX(20px);
+        transform: translate(20px, -50%);
       }
       ._x_extension_switch_2024_unique_ input:checked + ._x_extension_switch_slider_2024_unique_::after {
         opacity: 1;
@@ -2024,6 +2123,7 @@
           </button>
         </div>
         <div id="_x_extension_settings_version_2024_unique_" class="_x_extension_settings_version_badge_2024_unique_" aria-label="version"></div>
+        <span class="_x_extension_settings_sticky_line_2026_unique_" aria-hidden="true"></span>
       </div>
       <div id="_x_extension_settings_panel_2024_unique_" data-theme="light">
         <div class="_x_extension_settings_content_2024_unique_" data-content="general" data-active="false">
@@ -2167,6 +2267,34 @@
           </div>
           <div class="_x_extension_setting_row_2024_unique_">
             <div>
+              <p class="_x_extension_section_title_2024_unique_" data-i18n="settings_command_bar_section_title">聚焦搜索设置</p>
+            </div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_ _x_extension_setting_row_compact_2024_unique_">
+            <div>
+              <p class="_x_extension_setting_title_2024_unique_">
+                <span data-i18n="settings_search_result_priority_title">搜索结果首位优先级</span>
+              </p>
+            </div>
+            <div id="_x_extension_search_result_priority_tabs_wrap_2026_unique_" class="_x_extension_theme_picker_2024_unique_ _x_extension_inline_tabs_2024_unique_" role="tablist" aria-label="search result priority">
+              <span class="_x_extension_theme_indicator_2024_unique_"></span>
+              <button class="_x_extension_theme_option_2024_unique_" data-search-result-priority="autocomplete" data-active="true" aria-pressed="true" type="button">
+                <span data-i18n="search_result_priority_autocomplete">补全优先</span>
+              </button>
+              <button class="_x_extension_theme_option_2024_unique_" data-search-result-priority="search" data-active="false" aria-pressed="false" type="button">
+                <span data-i18n="search_result_priority_search">搜索优先</span>
+              </button>
+              <select id="_x_extension_search_result_priority_select_2026_unique_" class="_x_extension_select_2024_unique_" tabindex="-1" aria-hidden="true" style="display:none;">
+                <option value="autocomplete" data-i18n="search_result_priority_autocomplete" selected>补全优先</option>
+                <option value="search" data-i18n="search_result_priority_search">搜索优先</option>
+              </select>
+            </div>
+          </div>
+          <div class="_x_extension_setting_divider_wrap_2024_unique_" role="presentation">
+            <div class="_x_extension_setting_divider_2024_unique_"></div>
+          </div>
+          <div class="_x_extension_setting_row_2024_unique_">
+            <div>
               <p class="_x_extension_section_title_2024_unique_ _x_extension_setting_title_with_icon_2024_unique_ _x_extension_shortcuts_title_with_tag_2026_unique_">
                 <span data-i18n="settings_shortcuts_section_title">快捷键设置</span>
                 <span
@@ -2276,6 +2404,25 @@
               </span>
               <span class="_x_extension_theme_label_2026_unique_" data-i18n="settings_theme_dark">深色</span>
             </button>
+          </div>
+        </div>
+        <div class="_x_extension_setting_row_2024_unique_">
+          <div>
+            <p class="_x_extension_setting_title_2024_unique_" data-i18n="settings_overlay_size_title">聚焦搜索框尺寸</p>
+          </div>
+          <div class="_x_extension_recent_select_group_2024_unique_">
+            <div id="_x_extension_overlay_size_tabs_wrap_2026_unique_" class="_x_extension_theme_picker_2024_unique_ _x_extension_inline_tabs_2024_unique_" role="tablist" aria-label="overlay size">
+              <span class="_x_extension_theme_indicator_2024_unique_"></span>
+              <button class="_x_extension_theme_option_2024_unique_" data-overlay-size="compact" data-active="false" aria-pressed="false" type="button">
+                <span data-i18n="overlay_size_compact">小</span>
+              </button>
+              <button class="_x_extension_theme_option_2024_unique_" data-overlay-size="standard" data-active="true" aria-pressed="true" type="button">
+                <span data-i18n="overlay_size_standard">标准</span>
+              </button>
+              <button class="_x_extension_theme_option_2024_unique_" data-overlay-size="large" data-active="false" aria-pressed="false" type="button">
+                <span data-i18n="overlay_size_large">大</span>
+              </button>
+            </div>
           </div>
         </div>
         </div>

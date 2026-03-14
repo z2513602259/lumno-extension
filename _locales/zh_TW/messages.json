@@ -47,6 +47,18 @@
   "settings_newtab_section_title": {
     "message": "新分頁設定"
   },
+  "settings_command_bar_section_title": {
+    "message": "聚焦搜尋設定"
+  },
+  "settings_search_result_priority_title": {
+    "message": "搜尋結果首位優先級"
+  },
+  "search_result_priority_autocomplete": {
+    "message": "補全優先"
+  },
+  "search_result_priority_search": {
+    "message": "搜尋優先"
+  },
   "settings_recent_desc": {
     "message": "顯示最近/最常瀏覽站點"
   },
@@ -253,6 +265,18 @@
   },
   "newtab_width_wide": {
     "message": "寬螢幕（推薦）"
+  },
+  "settings_overlay_size_title": {
+    "message": "聚焦搜尋框尺寸"
+  },
+  "overlay_size_compact": {
+    "message": "小"
+  },
+  "overlay_size_standard": {
+    "message": "標準"
+  },
+  "overlay_size_large": {
+    "message": "大"
   },
   "recent_mode_latest": {
     "message": "最近瀏覽"

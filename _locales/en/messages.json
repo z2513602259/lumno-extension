@@ -47,6 +47,18 @@
   "settings_newtab_section_title": {
     "message": "New Tab Settings"
   },
+  "settings_command_bar_section_title": {
+    "message": "Command Bar Settings"
+  },
+  "settings_search_result_priority_title": {
+    "message": "First Search Result Priority"
+  },
+  "search_result_priority_autocomplete": {
+    "message": "Autocomplete First"
+  },
+  "search_result_priority_search": {
+    "message": "Search First"
+  },
   "settings_recent_desc": {
     "message": "Show Recent / Most Visited Sites"
   },
@@ -254,6 +266,18 @@
   "newtab_width_wide": {
     "message": "Wide (Recommended)"
   },
+  "settings_overlay_size_title": {
+    "message": "Command bar size"
+  },
+  "overlay_size_compact": {
+    "message": "Compact"
+  },
+  "overlay_size_standard": {
+    "message": "Standard"
+  },
+  "overlay_size_large": {
+    "message": "Large"
+  },
   "recent_mode_latest": {
     "message": "Show Recent"
   },
@@ -270,7 +294,7 @@
     "message": "Follow system or choose manually"
   },
   "settings_theme_system": {
-    "message": "System / Website"
+    "message": "Auto"
   },
   "settings_theme_light": {
     "message": "Light"

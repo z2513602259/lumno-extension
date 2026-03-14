@@ -47,6 +47,18 @@
   "settings_newtab_section_title": {
     "message": "新标签页设置"
   },
+  "settings_command_bar_section_title": {
+    "message": "聚焦搜索设置"
+  },
+  "settings_search_result_priority_title": {
+    "message": "搜索结果首位优先级"
+  },
+  "search_result_priority_autocomplete": {
+    "message": "补全优先"
+  },
+  "search_result_priority_search": {
+    "message": "搜索优先"
+  },
   "settings_recent_desc": {
     "message": "显示最近/最常访问站点"
   },
@@ -253,6 +265,18 @@
   },
   "newtab_width_wide": {
     "message": "宽屏（推荐）"
+  },
+  "settings_overlay_size_title": {
+    "message": "聚焦搜索框尺寸"
+  },
+  "overlay_size_compact": {
+    "message": "小"
+  },
+  "overlay_size_standard": {
+    "message": "标准"
+  },
+  "overlay_size_large": {
+    "message": "大"
   },
   "recent_mode_latest": {
     "message": "最近访问"
