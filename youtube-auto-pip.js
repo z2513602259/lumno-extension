@@ -25,7 +25,8 @@
     recoveryTimer: null,
     enterRetryTimer: null,
     suppressEnterUntil: 0,
-    uiRecoverySuppressUntil: 0
+    uiRecoverySuppressUntil: 0,
+    shouldResumeInlinePlayback: false
   };
   const RECOVERY_RELOAD_GUARD_KEY = "_x_lumno_yt_pip_recovery_reload_at_2026_";
   const PAGE_BRIDGE_SCRIPT_ID = "__lumno_yt_auto_pip_page_bridge_script_2026__";
@@ -71,6 +72,9 @@
         return;
       }
       setAutoPipEnabled(changes[AUTO_PIP_ENABLED_STORAGE_KEY].newValue);
+      if (!autoPipEnabled) {
+        state.shouldResumeInlinePlayback = false;
+      }
       if (!autoPipEnabled && (state.managedPiP || document.pictureInPictureElement)) {
         maybeExitPiP("settings_disabled").catch(() => {});
       }
@@ -761,6 +765,9 @@
     if (document.visibilityState !== "visible") {
       return;
     }
+    if (!state.shouldResumeInlinePlayback) {
+      return;
+    }
 
     if (document.pictureInPictureElement) {
       return;
@@ -795,6 +802,11 @@
 
   function scheduleVisibleRecovery() {
     clearRecoveryTimer();
+    if (!state.shouldResumeInlinePlayback &&
+        !state.managedPiP &&
+        !document.pictureInPictureElement) {
+      return;
+    }
 
     let attempts = 0;
     const run = async () => {
@@ -840,6 +852,16 @@
 
   function handleVisibilityChange() {
     if (document.visibilityState === "hidden") {
+      const videoForHiddenSnapshot = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
+      const shouldTrackRecovery = autoPipEnabled || state.managedPiP || Boolean(document.pictureInPictureElement);
+      state.shouldResumeInlinePlayback = Boolean(
+        shouldTrackRecovery &&
+        (
+          (videoForHiddenSnapshot && isVideoPlaying(videoForHiddenSnapshot) && !videoForHiddenSnapshot.ended) ||
+          state.managedPiP ||
+          document.pictureInPictureElement
+        )
+      );
       clearRecoveryTimer();
       scheduleDeferredEnterPiP("visibility_hidden_retry");
       maybeEnterPiP("visibility_hidden");
@@ -858,6 +880,9 @@
       return;
     }
     syncActiveVideo(target);
+    if ((event.type === "pause" || event.type === "ended") && document.visibilityState === "visible") {
+      state.shouldResumeInlinePlayback = false;
+    }
 
     if (event.type === "play" && document.visibilityState === "hidden") {
       maybeEnterPiP("video_play_hidden");

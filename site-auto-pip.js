@@ -20,7 +20,8 @@
     lastVisibleAt: 0,
     hadUserGesture: false,
     mediaSessionHandlerBound: false,
-    hiddenRetryBudget: 0
+    hiddenRetryBudget: 0,
+    shouldResumeInlinePlayback: false
   };
 
   const ENTER_SUPPRESS_AFTER_EXIT_MS = 1100;
@@ -73,6 +74,9 @@
         return;
       }
       setAutoPipEnabled(changes[AUTO_PIP_ENABLED_STORAGE_KEY].newValue);
+      if (!autoPipEnabled) {
+        state.shouldResumeInlinePlayback = false;
+      }
       if (!autoPipEnabled && (state.managedPiP || document.pictureInPictureElement)) {
         maybeExitPiP().catch(() => {});
       }
@@ -994,6 +998,9 @@
     if (document.visibilityState !== "visible") {
       return;
     }
+    if (!state.shouldResumeInlinePlayback) {
+      return;
+    }
     if (document.pictureInPictureElement) {
       return;
     }
@@ -1007,6 +1014,11 @@
 
   function scheduleVisibleRecovery() {
     clearRecoveryTimer();
+    if (!state.shouldResumeInlinePlayback &&
+        !state.managedPiP &&
+        !document.pictureInPictureElement) {
+      return;
+    }
     if (!state.managedPiP && !document.pictureInPictureElement) {
       recoverInlinePlaybackIfNeeded();
       return;
@@ -1032,6 +1044,16 @@
 
   function handleVisibilityChange() {
     if (document.visibilityState === "hidden") {
+      const videoForHiddenSnapshot = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
+      const shouldTrackRecovery = autoPipEnabled || state.managedPiP || Boolean(document.pictureInPictureElement);
+      state.shouldResumeInlinePlayback = Boolean(
+        shouldTrackRecovery &&
+        (
+          (videoForHiddenSnapshot && isVideoPlaying(videoForHiddenSnapshot) && !videoForHiddenSnapshot.ended) ||
+          state.managedPiP ||
+          document.pictureInPictureElement
+        )
+      );
       state.hiddenRetryBudget = getHiddenRetryLimit();
       if (isIqiyiHost()) {
         requestBackgroundSetupIqiyiAutoPiP(960).catch(() => {});
@@ -1063,6 +1085,9 @@
       return;
     }
     syncActiveVideo(target);
+    if ((event.type === "pause" || event.type === "ended") && document.visibilityState === "visible") {
+      state.shouldResumeInlinePlayback = false;
+    }
     if ((event.type === "play" || event.type === "playing") && !state.hadUserGesture) {
       state.hadUserGesture = true;
     }

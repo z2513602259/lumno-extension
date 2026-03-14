@@ -1115,27 +1115,40 @@ function openOverlayOnTab(activeTab, tabs, source) {
       openNewtabFallback();
       return;
     }
-    chrome.scripting.executeScript({
-      target: {tabId: activeTab.id},
-      function: toggleBlackRectangle,
-      args: [tabs]
-    }, function() {
-      if (chrome.runtime.lastError) {
-        logHotkeyDebug('inject-failed', {
-          step: 'toggleBlackRectangle',
+    const runOverlayScript = (tabZoomFactor) => {
+      chrome.scripting.executeScript({
+        target: {tabId: activeTab.id},
+        function: toggleBlackRectangle,
+        args: [tabs, { tabZoomFactor: tabZoomFactor }]
+      }, function() {
+        if (chrome.runtime.lastError) {
+          logHotkeyDebug('inject-failed', {
+            step: 'toggleBlackRectangle',
+            tabId: activeTab.id,
+            error: chrome.runtime.lastError.message || 'unknown',
+            source: source || ''
+          });
+          openNewtabFallback();
+          return;
+        }
+        logHotkeyDebug('overlay-opened', {
           tabId: activeTab.id,
-          error: chrome.runtime.lastError.message || 'unknown',
-          source: source || ''
+          tabCount: Array.isArray(tabs) ? tabs.length : 0,
+          source: source || '',
+          tabZoomFactor: tabZoomFactor
         });
-        openNewtabFallback();
-        return;
-      }
-      logHotkeyDebug('overlay-opened', {
-        tabId: activeTab.id,
-        tabCount: Array.isArray(tabs) ? tabs.length : 0,
-        source: source || ''
       });
-    });
+    };
+    if (chrome.tabs && typeof chrome.tabs.getZoom === 'function') {
+      chrome.tabs.getZoom(activeTab.id, (zoomFactor) => {
+        const zoom = Number.isFinite(Number(zoomFactor)) && Number(zoomFactor) > 0
+          ? Number(zoomFactor)
+          : 1;
+        runOverlayScript(zoom);
+      });
+      return;
+    }
+    runOverlayScript(1);
   });
 }
 
@@ -2239,6 +2252,9 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     ensureTabSwitchStatsLoaded()
       .catch(() => {})
       .finally(() => {
+        const currentTabId = sender && sender.tab && typeof sender.tab.id === 'number'
+          ? sender.tab.id
+          : null;
         chrome.tabs.query({}, (tabs) => {
           const normalizedTabs = (Array.isArray(tabs) ? tabs : [])
             .map((tab) => {
@@ -2259,7 +2275,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             ...tab,
             _xTabFetchSeq: tabOverlayFetchSeq
           }));
-          sendResponse({ tabs: withSeq });
+          sendResponse({ tabs: withSeq, currentTabId: currentTabId });
         });
       });
     return true;
@@ -3536,8 +3552,9 @@ function renderHighlightedText(target, text, query, styles) {
       mark.style.color = styles && styles.color
         ? styles.color
         : 'var(--x-ext-mark-text, #1E3A8A)';
-      mark.style.padding = '2px 4px';
-      mark.style.borderRadius = '3px';
+      mark.style.padding = '0 1px';
+      mark.style.borderRadius = '2px';
+      mark.style.lineHeight = 'inherit';
       mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
       mark.textContent = part;
       target.appendChild(mark);
@@ -4792,7 +4809,7 @@ async function getSearchSuggestions(query, options) {
   }
 }
 
-  async function toggleBlackRectangle(tabs) {
+  async function toggleBlackRectangle(tabs, overlayContext) {
   let captureTabHandler = null;
   let overlayThemeStorageListener = null;
   let overlayLanguageStorageListener = null;
@@ -4808,6 +4825,16 @@ async function getSearchSuggestions(query, options) {
   let clickOutsideHandler = null;
   let overlayEnterAnimationRafA = null;
   let overlayEnterAnimationRafB = null;
+  let overlayViewportResizeHandler = null;
+  let overlayVisualViewportTarget = null;
+  let overlayBaseDevicePixelRatio = null;
+  let overlayBaseTopPx = null;
+  let overlayInitialTabZoomFactor = 1;
+  const normalizedOverlayContext = (overlayContext && typeof overlayContext === 'object') ? overlayContext : {};
+  const requestedTabZoomFactorRaw = Number(normalizedOverlayContext.tabZoomFactor);
+  const requestedTabZoomFactor = Number.isFinite(requestedTabZoomFactorRaw) && requestedTabZoomFactorRaw > 0
+    ? requestedTabZoomFactorRaw
+    : 1;
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
@@ -4884,8 +4911,9 @@ async function getSearchSuggestions(query, options) {
         mark.style.color = styles && styles.color
           ? styles.color
           : 'var(--x-ext-mark-text, #1E3A8A)';
-        mark.style.padding = '2px 4px';
-        mark.style.borderRadius = '3px';
+        mark.style.padding = '0 1px';
+        mark.style.borderRadius = '2px';
+        mark.style.lineHeight = 'inherit';
         mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
         mark.textContent = part;
         target.appendChild(mark);
@@ -5418,9 +5446,95 @@ async function getSearchSuggestions(query, options) {
     }
   }
 
+  function stopOverlayViewportSizeSync() {
+    if (!overlayViewportResizeHandler) {
+      overlayBaseDevicePixelRatio = null;
+      overlayBaseTopPx = null;
+      overlayInitialTabZoomFactor = 1;
+      return;
+    }
+    window.removeEventListener('resize', overlayViewportResizeHandler);
+    if (overlayVisualViewportTarget && typeof overlayVisualViewportTarget.removeEventListener === 'function') {
+      overlayVisualViewportTarget.removeEventListener('resize', overlayViewportResizeHandler);
+    }
+    overlayViewportResizeHandler = null;
+    overlayVisualViewportTarget = null;
+    overlayBaseDevicePixelRatio = null;
+    overlayBaseTopPx = null;
+    overlayInitialTabZoomFactor = 1;
+  }
+
+  function applyOverlaySizeForPageZoom(overlayElement) {
+    if (!overlayElement || !overlayElement.isConnected) {
+      return;
+    }
+    const visualViewport = window.visualViewport;
+    const viewportWidth = visualViewport && Number.isFinite(visualViewport.width) && visualViewport.width > 0
+      ? visualViewport.width
+      : (window.innerWidth || document.documentElement.clientWidth || 0);
+    const viewportHeight = visualViewport && Number.isFinite(visualViewport.height) && visualViewport.height > 0
+      ? visualViewport.height
+      : (window.innerHeight || document.documentElement.clientHeight || 0);
+    const visualViewportScale = visualViewport && Number.isFinite(visualViewport.scale) && visualViewport.scale > 0
+      ? visualViewport.scale
+      : 1;
+    const currentDpr = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
+      ? window.devicePixelRatio
+      : 1;
+    const baseDpr = Number.isFinite(overlayBaseDevicePixelRatio) && overlayBaseDevicePixelRatio > 0
+      ? overlayBaseDevicePixelRatio
+      : currentDpr;
+    const dprScaleDelta = currentDpr / baseDpr;
+    const tabZoomFactor = Number.isFinite(overlayInitialTabZoomFactor) && overlayInitialTabZoomFactor > 0
+      ? overlayInitialTabZoomFactor
+      : 1;
+    const extraViewportScale = Math.abs(visualViewportScale - 1) > 0.02
+      ? visualViewportScale
+      : 1;
+    const zoomScale = tabZoomFactor * dprScaleDelta * extraViewportScale;
+    const safeZoomScale = Math.max(0.5, Math.min(3, zoomScale));
+    const inverseZoomScale = 1 / safeZoomScale;
+    const maxWidth = Math.max(280, viewportWidth - 24);
+    const baseTop = Number.isFinite(overlayBaseTopPx) && overlayBaseTopPx > 0
+      ? overlayBaseTopPx
+      : (viewportHeight * 0.2);
+    const compensatedTop = baseTop * safeZoomScale;
+    const topPx = Math.max(16, Math.min(compensatedTop, Math.max(16, viewportHeight - 120)));
+    overlayElement.style.setProperty('width', '760px', 'important');
+    overlayElement.style.setProperty('max-width', `${maxWidth}px`, 'important');
+    overlayElement.style.setProperty('top', `${topPx}px`, 'important');
+    overlayElement.style.setProperty('zoom', `${inverseZoomScale}`, 'important');
+  }
+
+  function startOverlayViewportSizeSync(overlayElement) {
+    stopOverlayViewportSizeSync();
+    if (!overlayElement) {
+      return;
+    }
+    overlayBaseDevicePixelRatio = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
+      ? window.devicePixelRatio
+      : 1;
+    overlayInitialTabZoomFactor = requestedTabZoomFactor;
+    const visualViewport = window.visualViewport;
+    const viewportHeight = visualViewport && Number.isFinite(visualViewport.height) && visualViewport.height > 0
+      ? visualViewport.height
+      : (window.innerHeight || document.documentElement.clientHeight || 0);
+    overlayBaseTopPx = viewportHeight * 0.2;
+    overlayViewportResizeHandler = () => {
+      applyOverlaySizeForPageZoom(overlayElement);
+    };
+    window.addEventListener('resize', overlayViewportResizeHandler);
+    if (visualViewport && typeof visualViewport.addEventListener === 'function') {
+      visualViewport.addEventListener('resize', overlayViewportResizeHandler);
+      overlayVisualViewportTarget = visualViewport;
+    }
+    applyOverlaySizeForPageZoom(overlayElement);
+  }
+
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
     clearOverlayEnterAnimationFrames();
+    stopOverlayViewportSizeSync();
     stopOverlayAntiTranslateObserver();
     if (overlayElement) {
       overlayElement.remove();
@@ -5616,7 +5730,12 @@ async function getSearchSuggestions(query, options) {
       }
       #_x_extension_search_input_2024_unique_::placeholder {
         color: var(--x-ov-placeholder, #9CA3AF) !important;
+        opacity: 0.68 !important;
         text-align: left !important;
+      }
+      #_x_extension_search_input_2024_unique_::-webkit-input-placeholder {
+        color: var(--x-ov-placeholder, #9CA3AF) !important;
+        opacity: 0.68 !important;
       }
       #_x_extension_search_input_2024_unique_::selection {
         background: #CFE8FF !important;
@@ -5633,7 +5752,7 @@ async function getSearchSuggestions(query, options) {
     }
 
     const inputParts = window._x_extension_createSearchInput_2024_unique_({
-      placeholder: t('search_placeholder', defaultPlaceholderText),
+      placeholder: t('overlay_search_placeholder', t('search_placeholder', defaultPlaceholderText)),
       inputId: '_x_extension_search_input_2024_unique_',
       iconId: '_x_extension_search_icon_2024_unique_',
       containerId: '_x_extension_input_container_2024_unique_',
@@ -5646,10 +5765,22 @@ async function getSearchSuggestions(query, options) {
     const searchInput = inputParts.input;
     const inputContainer = inputParts.container;
     const rightIcon = inputParts.rightIcon;
+    const overlayInputHeight = 56;
     applyNoTranslate(searchInput);
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
+    if (inputContainer) {
+      inputContainer.style.setProperty('height', `${overlayInputHeight}px`, 'important');
+      inputContainer.style.setProperty('min-height', `${overlayInputHeight}px`, 'important');
+      inputContainer.style.setProperty('max-height', `${overlayInputHeight}px`, 'important');
+    }
     if (searchInput) {
+      searchInput.style.setProperty('height', `${overlayInputHeight}px`, 'important');
+      searchInput.style.setProperty('min-height', `${overlayInputHeight}px`, 'important');
+      searchInput.style.setProperty('max-height', `${overlayInputHeight}px`, 'important');
+      searchInput.style.setProperty('line-height', '1.3', 'important');
+      searchInput.style.setProperty('padding-top', '0', 'important');
+      searchInput.style.setProperty('padding-bottom', '0', 'important');
       searchInput.style.setProperty('padding-right', '144px', 'important');
     }
     if (rightIcon) {
@@ -5901,7 +6032,7 @@ async function getSearchSuggestions(query, options) {
       const settingsTooltipText = formatMessage('command_settings', '打开 Lumno 设置', { name: 'Lumno' });
       const closeOtherTooltipText = t('overlay_close_other_tabs_tooltip', '清理本页外的其他标签页（除置顶与群组）');
       if (searchInput) {
-        defaultPlaceholderText = t('search_placeholder', defaultPlaceholderText);
+        defaultPlaceholderText = t('overlay_search_placeholder', t('search_placeholder', defaultPlaceholderText));
         if (!siteSearchState) {
           searchInput.placeholder = defaultPlaceholderText;
         }
@@ -6165,6 +6296,7 @@ async function getSearchSuggestions(query, options) {
     });
     
     let tabs = [];
+    let currentOverlayTabId = null;
     let latestOverlayQuery = '';
     let latestRawInputValue = '';
     let lastDeletionAt = 0;
@@ -7869,7 +8001,7 @@ async function getSearchSuggestions(query, options) {
     function clearInputModePrefix() {
       siteSearchPrefix.textContent = '';
       siteSearchPrefix.style.setProperty('display', 'none', 'important');
-      searchInput.placeholder = defaultPlaceholder;
+      searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
       searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
       updateSiteSearchPrefixLayout();
     }
@@ -7951,7 +8083,18 @@ async function getSearchSuggestions(query, options) {
       const list = Array.isArray(tabList) ? tabList : [];
       const normalized = normalizeTabSearchToken(queryText);
       if (!normalized) {
-        return list.slice();
+        if (list.length < 2 || typeof currentOverlayTabId !== 'number') {
+          return list.slice();
+        }
+        if (!list[0] || list[0].id !== currentOverlayTabId) {
+          return list.slice();
+        }
+        const reordered = list.slice();
+        const currentTab = reordered.shift();
+        if (currentTab) {
+          reordered.splice(1, 0, currentTab);
+        }
+        return reordered;
       }
       const tokens = normalized.split(/\s+/).filter(Boolean);
       if (tokens.length === 0) {
@@ -9406,6 +9549,9 @@ async function getSearchSuggestions(query, options) {
             item._xTagContainer.style.setProperty('display', 'none', 'important');
           }
         }
+        if (item._xTitle) {
+          item._xTitle.style.setProperty('font-weight', isHighlighted ? '600' : '400', 'important');
+        }
       });
     }
 
@@ -9486,7 +9632,7 @@ async function getSearchSuggestions(query, options) {
       currentSuggestions = [];
       lastRenderedQuery = '';
       const list = Array.isArray(tabList) ? tabList : [];
-      const showOpenTabsModeEntry = !openTabsSearchModeActive;
+      const showOpenTabsModeEntry = false;
       const totalItems = list.length + (showOpenTabsModeEntry ? 1 : 0);
       if (totalItems === 0) {
         const emptyText = openTabsSearchModeActive
@@ -9529,7 +9675,7 @@ async function getSearchSuggestions(query, options) {
         `;
         entryItem._xIsSearchSuggestion = false;
         entryItem._xIsOpenTabsModeEntry = true;
-        entryItem._xIsAutocompleteTop = true;
+        entryItem._xIsAutocompleteTop = false;
         entryItem._xTheme = defaultTheme;
         suggestionItems.push(entryItem);
 
@@ -9608,6 +9754,7 @@ async function getSearchSuggestions(query, options) {
           display: inline-block !important;
           vertical-align: baseline !important;
         `;
+        entryItem._xTitle = entryTitle;
 
         const entryActionTags = document.createElement('div');
         entryActionTags.style.cssText = `
@@ -9764,7 +9911,7 @@ async function getSearchSuggestions(query, options) {
         
         // Store reference to suggestion item
         suggestionItems.push(suggestionItem);
-        suggestionItem._xIsAutocompleteTop = index === 0;
+        suggestionItem._xIsAutocompleteTop = tabIndex === 0;
         suggestionItem._xTheme = defaultTheme;
         suggestionItem._xTabId = tab && typeof tab.id === 'number' ? tab.id : null;
 
@@ -9902,6 +10049,7 @@ async function getSearchSuggestions(query, options) {
           display: inline-block !important;
           vertical-align: baseline !important;
         `;
+        suggestionItem._xTitle = title;
 
         // Create switch button
         const switchButton = document.createElement('button');
@@ -9971,9 +10119,7 @@ async function getSearchSuggestions(query, options) {
           vertical-align: baseline !important;
           flex-shrink: 0 !important;
         `;
-        if (openTabsSearchModeActive) {
-          actionTags.appendChild(createActionTag(t('action_switch', '切换'), 'Enter'));
-        }
+        actionTags.appendChild(createActionTag(t('action_switch', '切换'), 'Enter'));
         suggestionItem._xTagContainer = actionTags;
         suggestionItem._xHasActionTags = actionTags.childNodes.length > 0;
 
@@ -10089,6 +10235,7 @@ async function getSearchSuggestions(query, options) {
             return;
           }
           suggestionItem._xTheme = theme;
+          applyThemeVariables(suggestionItem, theme);
           updateSelection();
         });
       });
@@ -10100,6 +10247,9 @@ async function getSearchSuggestions(query, options) {
     function requestTabsAndRender(filterQuery) {
       chrome.runtime.sendMessage({ action: 'getTabsForOverlay' }, (response) => {
         const freshTabs = response && Array.isArray(response.tabs) ? response.tabs : [];
+        currentOverlayTabId = (response && typeof response.currentTabId === 'number')
+          ? response.currentTabId
+          : null;
         const queryText = typeof filterQuery === 'string'
           ? filterQuery
           : String(searchInput.value || '').trim();
@@ -11200,11 +11350,10 @@ async function getSearchSuggestions(query, options) {
           const shouldShowSiteSearchTag = !isPrimarySearchSuggest && isPrimaryHighlight &&
             ((siteSearchTrigger && (primaryHighlightReason === 'siteSearchPrompt' || isTopSiteMatch)) ||
               isMergedHighlight);
-          if (shouldShowEnterTag) {
-            actionTags.appendChild(createActionTag(
-              shouldSwitchMatchedTab ? t('action_switch', '切换') : t('action_open_new_tab', '新开'),
-              'Enter'
-            ));
+          if (shouldSwitchMatchedTab) {
+            actionTags.appendChild(createActionTag(t('action_switch', '切换'), 'Enter'));
+          } else if (shouldShowEnterTag) {
+            actionTags.appendChild(createActionTag(t('action_open_new_tab', '新开'), 'Enter'));
           }
           if (shouldShowSiteSearchTag) {
             actionTags.appendChild(createActionTag(t('action_search', '搜索'), 'Tab'));
@@ -11490,6 +11639,7 @@ async function getSearchSuggestions(query, options) {
     overlay.appendChild(suggestionsContainer);
     applyNoTranslateDeep(overlay);
     document.body.appendChild(overlay);
+    startOverlayViewportSizeSync(overlay);
     startOverlayAntiTranslateObserver(overlay);
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) {

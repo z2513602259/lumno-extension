@@ -449,6 +449,9 @@
   "search_placeholder": {
     "message": "Search or type a URL..."
   },
+  "overlay_search_placeholder": {
+    "message": "Search or type a URL, press Tab to search open tabs"
+  },
   "options_page_title": {
     "message": "Lumno Settings"
   },
@@ -537,7 +540,7 @@
     "message": "{name}: switch to {mode} mode"
   },
   "switch_to_tab": {
-    "message": "Switch to tab"
+    "message": "Switch"
   },
   "untitled": {
     "message": "Untitled"
@@ -585,7 +588,7 @@
     "message": "Search in {site} |"
   },
   "search_open_tabs_only_prefix": {
-    "message": "Search open tabs only |"
+    "message": "Search open tabs |"
   },
   "search_open_tabs_only_entry": {
     "message": "Search open tabs"

@@ -449,6 +449,9 @@
   "search_placeholder": {
     "message": "搜索或输入网址..."
   },
+  "overlay_search_placeholder": {
+    "message": "搜索或输入网址，按 Tab 搜索已打开标签页"
+  },
   "options_page_title": {
     "message": "Lumno 设置"
   },
@@ -537,7 +540,7 @@
     "message": "{name}：切换到{mode}模式"
   },
   "switch_to_tab": {
-    "message": "切换到标签页"
+    "message": "切换"
   },
   "untitled": {
     "message": "无标题"
@@ -585,7 +588,7 @@
     "message": "在 {site} 中搜索｜"
   },
   "search_open_tabs_only_prefix": {
-    "message": "仅搜索已打开标签页｜"
+    "message": "搜索已打开标签页｜"
   },
   "search_open_tabs_only_entry": {
     "message": "搜索已打开标签页"

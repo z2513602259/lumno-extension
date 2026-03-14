@@ -445,8 +445,9 @@
         mark.style.color = styles && styles.color
           ? styles.color
           : 'var(--x-ext-mark-text, #1E3A8A)';
-        mark.style.padding = '2px 4px';
-        mark.style.borderRadius = '3px';
+        mark.style.padding = '0 1px';
+        mark.style.borderRadius = '2px';
+        mark.style.lineHeight = 'inherit';
         mark.style.fontFamily = "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
         mark.textContent = part;
         target.appendChild(mark);
@@ -7133,6 +7134,9 @@
           item._xSwitchButton.style.setProperty('color', 'var(--x-nt-subtext, #9CA3AF)', 'important');
         }
       }
+      if (item._xTitle) {
+        item._xTitle.style.setProperty('font-weight', isHighlighted ? '600' : '400', 'important');
+      }
     });
   }
 
@@ -7332,6 +7336,7 @@
         display: inline-block !important;
         vertical-align: baseline !important;
       `;
+      suggestionItem._xTitle = title;
 
       const switchButton = document.createElement('button');
       switchButton.innerHTML = `${t('switch_to_tab', '切换到标签页')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;

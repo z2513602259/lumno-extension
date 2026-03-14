@@ -449,6 +449,9 @@
   "search_placeholder": {
     "message": "搜尋或輸入網址..."
   },
+  "overlay_search_placeholder": {
+    "message": "搜尋或輸入網址，按 Tab 搜尋已開啟分頁"
+  },
   "options_page_title": {
     "message": "Lumno 設定"
   },
@@ -537,7 +540,7 @@
     "message": "{name}：切換為{mode}模式"
   },
   "switch_to_tab": {
-    "message": "切換到分頁"
+    "message": "切換"
   },
   "untitled": {
     "message": "未命名"
@@ -585,7 +588,7 @@
     "message": "在 {site} 中搜尋｜"
   },
   "search_open_tabs_only_prefix": {
-    "message": "僅搜尋已開啟分頁｜"
+    "message": "搜尋已開啟分頁｜"
   },
   "search_open_tabs_only_entry": {
     "message": "搜尋已開啟分頁"
