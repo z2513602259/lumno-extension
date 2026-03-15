@@ -302,6 +302,9 @@
   "settings_theme_dark": {
     "message": "深色"
   },
+  "settings_newtab_wordmark_title": {
+    "message": "在新分頁搜尋框上方顯示 Logo"
+  },
   "settings_wallpaper_title": {
     "message": "新分頁壁紙"
   },

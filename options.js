@@ -36,6 +36,7 @@
   const documentPipToggle = document.getElementById('_x_extension_document_pip_toggle_2026_unique_');
   const pinnedTabRecoveryToggle = document.getElementById('_x_extension_pinned_tab_recovery_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
+  const newtabWordmarkToggle = document.getElementById('_x_extension_newtab_wordmark_toggle_2026_unique_');
   const aiSearchToggle = document.getElementById('_x_extension_ai_search_toggle_2026_unique_');
   const aiProviderInput = document.getElementById('_x_extension_ai_provider_input_2026_unique_');
   const aiApiKeyInput = document.getElementById('_x_extension_ai_api_key_input_2026_unique_');
@@ -125,6 +126,7 @@
   const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
   const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
+  const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
   const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
   const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
   const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
@@ -150,6 +152,7 @@
     DOCUMENT_PIP_ENABLED_STORAGE_KEY,
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
+    NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY,
     AI_SEARCH_MODE_STORAGE_KEY,
     AI_PROVIDER_STORAGE_KEY,
     AI_ENTITLEMENT_CACHE_KEY,
@@ -321,6 +324,10 @@
     return true;
   }
 
+  function normalizeNewtabWordmarkVisible(value) {
+    return value !== false;
+  }
+
   function normalizeAutoPipEnabled(value) {
     return value === true;
   }
@@ -434,6 +441,27 @@
       overlaySizeTabsIndicator,
       'button[data-overlay-size][data-active="true"]'
     );
+  }
+
+  function refreshAllTabsIndicators() {
+    updateTabIndicator();
+    updateThemeIndicator();
+    updateRecentModeTabsIndicator();
+    updateOverlaySizeTabsIndicator();
+    updateRestrictedActionTabsIndicator();
+    updateSearchResultPriorityTabsIndicator();
+  }
+
+  function scheduleTabsIndicatorsRefresh(framePasses) {
+    const passes = Number.isFinite(framePasses) && framePasses > 0 ? Math.floor(framePasses) : 2;
+    const run = (remaining) => {
+      if (remaining <= 0) {
+        refreshAllTabsIndicators();
+        return;
+      }
+      requestAnimationFrame(() => run(remaining - 1));
+    };
+    run(passes);
   }
 
   function setRecentModeTabState(mode) {
@@ -1348,13 +1376,7 @@
       }
       applyI18n();
       refreshCustomSelects();
-      requestAnimationFrame(() => {
-        updateTabIndicator();
-        updateThemeIndicator();
-        updateRecentModeTabsIndicator();
-        updateOverlaySizeTabsIndicator();
-        updateRestrictedActionTabsIndicator();
-      });
+      scheduleTabsIndicatorsRefresh(2);
       setEditingState(editingSiteSearchKey);
       updateBuiltinResetTooltip();
       updateCustomClearTooltip();
@@ -1856,6 +1878,7 @@
         requestAnimationFrame(() => {
           updateRecentModeTabsIndicator();
           updateRestrictedActionTabsIndicator();
+          updateSearchResultPriorityTabsIndicator();
           syncFallbackShortcutWrapWidth();
           updateFallbackShortcutWrapWidthForContent();
         });
@@ -2061,6 +2084,12 @@
   setActiveTab(initialTab);
   if (initialTab === 'shortcuts') {
     refreshSiteSearchProviders();
+  }
+  scheduleTabsIndicatorsRefresh(2);
+  if (document.fonts && typeof document.fonts.ready === 'object' && typeof document.fonts.ready.then === 'function') {
+    document.fonts.ready.then(() => {
+      scheduleTabsIndicatorsRefresh(2);
+    });
   }
   window.addEventListener('scroll', updateTabsStickyVisualState, { passive: true });
   window.addEventListener('resize', updateTabsStickyVisualState);
@@ -2309,6 +2338,15 @@
         return;
       }
       storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
+    });
+  }
+  if (newtabWordmarkToggle) {
+    newtabWordmarkToggle.addEventListener('change', () => {
+      const next = normalizeNewtabWordmarkVisible(newtabWordmarkToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
     });
   }
   if (aiSearchToggle) {
@@ -2808,6 +2846,17 @@
       }
       if (rawValue !== stored) {
         storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY], (result) => {
+      const rawValue = result[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY];
+      const stored = normalizeNewtabWordmarkVisible(rawValue);
+      if (newtabWordmarkToggle) {
+        newtabWordmarkToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: stored });
       }
       refreshCustomSelects();
     });
@@ -3680,6 +3729,7 @@
         changes[AUTO_PIP_ENABLED_STORAGE_KEY] ||
         changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
+        changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY] ||
         changes[AI_SEARCH_MODE_STORAGE_KEY] ||
         changes[AI_PROVIDER_STORAGE_KEY] ||
         changes[AI_ENTITLEMENT_CACHE_KEY] ||
@@ -3746,6 +3796,15 @@
       overlayTabQuickSwitchToggle.checked = next;
       if (changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY].newValue !== next && storageArea) {
         storageArea.set({ [OVERLAY_TAB_PRIORITY_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY] && newtabWordmarkToggle) {
+      const raw = changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY].newValue;
+      const next = normalizeNewtabWordmarkVisible(raw);
+      newtabWordmarkToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
       }
       refreshCustomSelects();
     }

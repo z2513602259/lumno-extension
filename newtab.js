@@ -28,6 +28,7 @@
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const NEWTAB_WIDTH_MODE_STORAGE_KEY = '_x_extension_newtab_width_mode_2026_unique_';
+  const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
@@ -75,6 +76,9 @@
   let tabRankScoreDebugEnabled = false;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
+  let wordmarkContainer = null;
+  let wordmarkImageEl = null;
+  let newtabWordmarkVisible = true;
   let bookmarkCurrentPage = 0;
   let bookmarkAllItems = [];
   let bookmarkCurrentFolderId = '1';
@@ -133,6 +137,10 @@
     return value === 'standard' ? 'standard' : 'wide';
   }
 
+  function normalizeNewtabWordmarkVisible(value) {
+    return value !== false;
+  }
+
   function normalizeSearchResultPriority(value) {
     return value === 'search' ? 'search' : 'autocomplete';
   }
@@ -166,6 +174,33 @@
 
   function normalizeTabRankScoreDebugMode(value) {
     return value === true;
+  }
+
+  function applyNewtabWordmarkVisibility() {
+    if (!wordmarkContainer) {
+      return;
+    }
+    wordmarkContainer.style.setProperty('display', newtabWordmarkVisible ? 'flex' : 'none', 'important');
+  }
+
+  function applyWordmarkThemeAppearance(resolvedTheme) {
+    if (!wordmarkImageEl) {
+      return;
+    }
+    const theme = resolvedTheme || (document.body ? document.body.getAttribute('data-theme') : 'light');
+    const lightSrc = 'assets/images/lumno-wordmark.svg';
+    const darkSrc = 'assets/images/lumno-wordmark-dark.svg';
+    if (theme === 'dark') {
+      if (wordmarkImageEl.getAttribute('src') !== darkSrc) {
+        wordmarkImageEl.setAttribute('src', darkSrc);
+      }
+      wordmarkImageEl.style.setProperty('opacity', '0.9', 'important');
+      return;
+    }
+    if (wordmarkImageEl.getAttribute('src') !== lightSrc) {
+      wordmarkImageEl.setAttribute('src', lightSrc);
+    }
+    wordmarkImageEl.style.setProperty('opacity', '0.82', 'important');
   }
 
   function formatTabRankDebugText(tab) {
@@ -1488,6 +1523,7 @@
     const previousResolved = document.body ? document.body.getAttribute('data-theme') : '';
     const resolved = resolveTheme(mode, mediaMatchesOverride);
     document.body.setAttribute('data-theme', resolved);
+    applyWordmarkThemeAppearance(resolved);
     const didResolvedThemeChange = previousResolved !== resolved;
     suggestionItems.forEach((item) => {
       if (item && item._xTheme) {
@@ -1632,6 +1668,15 @@
       updateBookmarkGridHeightLock();
       updateBookmarkSectionPosition();
     }
+    if (changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]) {
+      const raw = changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY].newValue;
+      const nextValue = normalizeNewtabWordmarkVisible(raw);
+      newtabWordmarkVisible = nextValue;
+      if (storageArea && raw !== nextValue) {
+        storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: nextValue });
+      }
+      applyNewtabWordmarkVisibility();
+    }
     if (changes[RECENT_MODE_STORAGE_KEY]) {
       const nextMode = changes[RECENT_MODE_STORAGE_KEY].newValue;
       currentRecentMode = nextMode === 'most' ? 'most' : 'latest';
@@ -1736,6 +1781,15 @@
       }
       updateBookmarkGridHeightLock();
       updateBookmarkSectionPosition();
+    });
+    storageArea.get([NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY], (result) => {
+      const raw = result[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY];
+      const nextValue = normalizeNewtabWordmarkVisible(raw);
+      newtabWordmarkVisible = nextValue;
+      if (raw !== nextValue) {
+        storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: nextValue });
+      }
+      applyNewtabWordmarkVisibility();
     });
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
@@ -1963,6 +2017,7 @@
     RECENT_MODE_STORAGE_KEY,
     RECENT_COUNT_STORAGE_KEY,
     NEWTAB_WIDTH_MODE_STORAGE_KEY,
+    NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
@@ -4284,7 +4339,11 @@
   }
 
   function renderRecentSites(items) {
-    const normalizedItems = Array.isArray(items) ? items : [];
+    const normalizedItems = (Array.isArray(items) ? items : [])
+      .filter((item) => {
+        const url = item && item.url ? String(item.url) : '';
+        return !shouldExcludeFromRecentSites(url);
+      });
     const nextSignature = getRecentSitesSignature(normalizedItems);
     if (nextSignature === recentRenderSignature) {
       if (normalizedItems.length === 0) {
@@ -5072,6 +5131,18 @@
     }, 700);
   }
 
+  function shouldExcludeFromRecentSites(url) {
+    if (!url) {
+      return true;
+    }
+    try {
+      const parsed = new URL(url);
+      return isBrowserExtensionProtocol(parsed.protocol);
+    } catch (e) {
+      return true;
+    }
+  }
+
   function getRecentSites(limit, mode) {
     return new Promise((resolve) => {
       function appendOpenTabs(results, seenHosts) {
@@ -5092,7 +5163,7 @@
             .filter((tab) => tab && tab.incognito !== true)
             .map((tab) => {
               const tabUrl = tab && tab.url ? String(tab.url) : '';
-              if (!tabUrl) {
+              if (!tabUrl || shouldExcludeFromRecentSites(tabUrl)) {
                 return null;
               }
               try {
@@ -5146,7 +5217,7 @@
           for (let i = 0; i < items.length; i += 1) {
             const item = items[i];
             const url = item && item.url ? String(item.url) : '';
-            if (!url) {
+            if (!url || shouldExcludeFromRecentSites(url)) {
               continue;
             }
             let host = '';
@@ -5181,7 +5252,7 @@
             for (let i = 0; i < topSites.length; i += 1) {
               const item = topSites[i];
               const url = item && item.url ? String(item.url) : '';
-              if (!url) {
+              if (!url || shouldExcludeFromRecentSites(url)) {
                 continue;
               }
               let host = '';
@@ -5225,7 +5296,7 @@
           for (let i = 0; i < topSites.length; i += 1) {
             const item = topSites[i];
             const url = item && item.url ? String(item.url) : '';
-            if (!url) {
+            if (!url || shouldExcludeFromRecentSites(url)) {
               continue;
             }
             let host = '';
@@ -8986,6 +9057,9 @@
     if (!target) {
       return false;
     }
+    if (wordmarkContainer && (target === wordmarkContainer || wordmarkContainer.contains(target))) {
+      return false;
+    }
     if (target === inputParts.input || inputParts.input.contains(target)) {
       return false;
     }
@@ -9058,6 +9132,57 @@
   searchInputRef = searchInput;
   const inputContainer = inputParts.container;
   const rightIcon = inputParts.rightIcon;
+  wordmarkContainer = document.createElement('div');
+  wordmarkContainer.id = '_x_extension_newtab_wordmark_2026_unique_';
+  wordmarkContainer.setAttribute('aria-hidden', 'true');
+  wordmarkContainer.style.cssText = `
+    all: unset !important;
+    width: 90vw !important;
+    max-width: var(--x-nt-search-max-width, 720px) !important;
+    min-height: 0 !important;
+    margin: 0 0 28px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    user-select: none !important;
+  `;
+  const wordmarkButton = document.createElement('button');
+  wordmarkButton.type = 'button';
+  wordmarkButton.setAttribute('aria-label', t('settings_tab_appearance', '外观'));
+  wordmarkButton.style.cssText = `
+    all: unset !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  `;
+  wordmarkButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const optionsUrl = chrome.runtime.getURL('options.html#appearance');
+    window.open(optionsUrl, '_blank');
+  });
+  wordmarkImageEl = document.createElement('img');
+  wordmarkImageEl.src = 'assets/images/lumno-wordmark.svg';
+  wordmarkImageEl.alt = '';
+  wordmarkImageEl.draggable = false;
+  wordmarkImageEl.style.cssText = `
+    width: 180px !important;
+    max-width: 52% !important;
+    height: auto !important;
+    display: block !important;
+    object-fit: contain !important;
+    opacity: 0.82 !important;
+    filter: none !important;
+    transform: translateY(0) !important;
+  `;
+  wordmarkButton.appendChild(wordmarkImageEl);
+  wordmarkContainer.appendChild(wordmarkButton);
+  applyNewtabWordmarkVisibility();
+  applyWordmarkThemeAppearance();
   searchLayer = document.createElement('div');
   searchLayer.id = '_x_extension_newtab_search_layer_2024_unique_';
   searchLayer.style.cssText = `
@@ -9365,6 +9490,7 @@
     requestSuggestions(query);
   });
 
+  document.body.insertBefore(wordmarkContainer, root);
   searchLayer.appendChild(inputParts.container);
   searchLayer.appendChild(suggestionsContainer);
   root.appendChild(searchLayer);

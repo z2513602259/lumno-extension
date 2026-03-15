@@ -302,6 +302,9 @@
   "settings_theme_dark": {
     "message": "Dark"
   },
+  "settings_newtab_wordmark_title": {
+    "message": "Show logo above the New Tab search bar"
+  },
   "settings_wallpaper_title": {
     "message": "New Tab wallpaper"
   },
