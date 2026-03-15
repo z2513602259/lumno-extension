@@ -6,10 +6,14 @@
 
   const REFRESH_SHORTCUT_MS = 15000;
   const TAB_VISIBLE_REPORT_MIN_INTERVAL_MS = 800;
+  const PAGE_TOAST_STYLE_ID = '_x_extension_page_toast_style_2026_unique_';
+  const PAGE_TOAST_ID = '_x_extension_page_toast_2026_unique_';
+  const PAGE_TOAST_SHOW_DURATION_MS = 2000;
   let shortcutRaw = '';
   let shortcutSpec = null;
   let lastRefreshAt = 0;
   let lastVisibleReportAt = 0;
+  let pageToastTimer = null;
 
   function logHotkeyListenerDebug(stage, payload) {
     try {
@@ -32,6 +36,242 @@
       logHotkeyListenerDebug('trigger-overlay-failed', {
         error: e && e.message ? e.message : String(e || '')
       });
+    }
+  }
+
+  function ensureRemixIconStyles() {
+    if (!chrome || !chrome.runtime || !chrome.runtime.getURL) {
+      return;
+    }
+    if (document.getElementById('_x_extension_remixicon_css_2024_unique_')) {
+      return;
+    }
+    const host = document.head || document.documentElement;
+    if (!host) {
+      return;
+    }
+    const link = document.createElement('link');
+    link.id = '_x_extension_remixicon_css_2024_unique_';
+    link.rel = 'stylesheet';
+    link.href = chrome.runtime.getURL('assets/remixicon/fonts/remixicon.css');
+    host.appendChild(link);
+  }
+
+  function ensurePageToast() {
+    ensureRemixIconStyles();
+    const root = document.documentElement || document.body;
+    if (!root) {
+      return null;
+    }
+    if (!document.getElementById(PAGE_TOAST_STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = PAGE_TOAST_STYLE_ID;
+      style.textContent = `
+        #${PAGE_TOAST_ID} {
+          position: fixed;
+          top: 24px;
+          left: 50%;
+          transform: translateX(-50%) translateY(-18px) scale(0.96);
+          background: rgba(17, 24, 39, 0.92);
+          color: #f9fafb;
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 12px;
+          line-height: 1.35;
+          max-width: min(560px, calc(100vw - 32px));
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+          opacity: 0;
+          filter: blur(8px);
+          pointer-events: none;
+          transition: opacity 180ms ease, filter 220ms ease, transform 220ms ease;
+          z-index: 2147483647;
+          display: inline-flex;
+          isolation: isolate;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        #${PAGE_TOAST_ID}::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: -40%;
+          width: 40%;
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0.26),
+            rgba(255, 255, 255, 0)
+          );
+          opacity: 0;
+          transform: translateX(0);
+          pointer-events: none;
+        }
+        #${PAGE_TOAST_ID}[data-show="true"] {
+          opacity: 1;
+          filter: blur(0);
+          transform: translateX(-50%) translateY(0) scale(1);
+        }
+        #${PAGE_TOAST_ID}[data-show="true"]::after {
+          animation: _x_extension_page_toast_sheen_2026_unique_ 900ms ease-out 120ms 1 both;
+        }
+        @keyframes _x_extension_page_toast_sheen_2026_unique_ {
+          0% {
+            opacity: 0;
+            transform: translateX(0);
+          }
+          24% {
+            opacity: 0.5;
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(360%);
+          }
+        }
+        #${PAGE_TOAST_ID} ._x_extension_page_toast_icon_2026_unique_ {
+          flex: 0 0 auto;
+          width: 16px;
+          height: 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+          padding: 0;
+          font-size: 16px;
+          line-height: 1;
+          transform: translateX(0);
+        }
+        #${PAGE_TOAST_ID} ._x_extension_page_toast_text_2026_unique_ {
+          display: inline-block;
+          margin: 0;
+          padding: 0;
+          line-height: 1.35;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          transform: translateX(0);
+        }
+        #${PAGE_TOAST_ID}[data-show="true"] ._x_extension_page_toast_icon_2026_unique_ {
+          animation: _x_extension_page_toast_icon_gather_2026_unique_ 320ms cubic-bezier(0.22, 1, 0.36, 1) 220ms 1 both;
+        }
+        #${PAGE_TOAST_ID}[data-show="true"] ._x_extension_page_toast_text_2026_unique_ {
+          animation: _x_extension_page_toast_text_gather_2026_unique_ 320ms cubic-bezier(0.22, 1, 0.36, 1) 220ms 1 both;
+        }
+        @keyframes _x_extension_page_toast_icon_gather_2026_unique_ {
+          0% {
+            transform: translateX(-6px);
+          }
+          100% {
+            transform: translateX(0);
+          }
+        }
+        @keyframes _x_extension_page_toast_text_gather_2026_unique_ {
+          0% {
+            transform: translateX(6px);
+          }
+          100% {
+            transform: translateX(0);
+          }
+        }
+      `;
+      root.appendChild(style);
+    }
+    let toast = document.getElementById(PAGE_TOAST_ID);
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = PAGE_TOAST_ID;
+      toast.setAttribute('aria-live', 'polite');
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('data-show', 'false');
+      root.appendChild(toast);
+    }
+    return toast;
+  }
+
+  function showPageToast(message, isError) {
+    const toast = ensurePageToast();
+    if (!toast) {
+      return;
+    }
+    if (pageToastTimer) {
+      window.clearTimeout(pageToastTimer);
+      pageToastTimer = null;
+    }
+    let icon = toast.querySelector('i._x_extension_page_toast_icon_2026_unique_');
+    let text = toast.querySelector('span._x_extension_page_toast_text_2026_unique_');
+    if (!icon || !text) {
+      toast.textContent = '';
+      icon = document.createElement('i');
+      icon.className = '_x_extension_page_toast_icon_2026_unique_ _x_extension_svg_2024_unique_ ri-icon ri-size-16 ri-share-circle-line';
+      icon.setAttribute('aria-hidden', 'true');
+      text = document.createElement('span');
+      text.className = '_x_extension_page_toast_text_2026_unique_';
+      toast.appendChild(icon);
+      toast.appendChild(text);
+    }
+    text.textContent = String(message || '');
+    if (isError) {
+      toast.style.setProperty('background', 'rgba(153, 27, 27, 0.92)');
+    } else {
+      toast.style.removeProperty('background');
+    }
+    toast.setAttribute('data-show', 'false');
+    void toast.offsetWidth;
+    toast.setAttribute('data-show', 'true');
+    pageToastTimer = window.setTimeout(() => {
+      toast.setAttribute('data-show', 'false');
+      pageToastTimer = null;
+    }, PAGE_TOAST_SHOW_DURATION_MS);
+  }
+
+  function fallbackCopyText(text) {
+    const value = String(text || '');
+    if (!value || !document.body) {
+      return false;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (e) {
+      copied = false;
+    }
+    document.body.removeChild(textarea);
+    return copied;
+  }
+
+  async function copyCurrentPageUrlWithToast() {
+    const url = location && location.href ? location.href : '';
+    if (!url) {
+      showPageToast('复制失败，请重试', true);
+      return;
+    }
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(url);
+      } else if (!fallbackCopyText(url)) {
+        throw new Error('fallback-copy-failed');
+      }
+      showPageToast('已复制当前页面链接');
+    } catch (error) {
+      if (fallbackCopyText(url)) {
+        showPageToast('已复制当前页面链接');
+        return;
+      }
+      showPageToast('复制失败，请检查剪贴板权限', true);
     }
   }
 
@@ -260,6 +500,21 @@
       return;
     }
     refreshShortcut(false);
+    const isCopyCurrentUrlHotkey = (
+      !event.altKey &&
+      event.shiftKey &&
+      String(event.key || '').toLowerCase() === 'c' &&
+      (
+        (event.metaKey && !event.ctrlKey) ||
+        (event.ctrlKey && !event.metaKey)
+      )
+    );
+    if (isCopyCurrentUrlHotkey) {
+      event.preventDefault();
+      event.stopPropagation();
+      copyCurrentPageUrlWithToast();
+      return;
+    }
     if (isEditableTarget(event.target)) {
       return;
     }

@@ -22,6 +22,11 @@
     : null;
   const recentCountSelect = document.getElementById('_x_extension_recent_count_select_2024_unique_');
   const newtabWidthSelect = document.getElementById('_x_extension_newtab_width_select_2026_unique_');
+  const newtabWidthTabsWrap = document.getElementById('_x_extension_newtab_width_tabs_wrap_2026_unique_');
+  const newtabWidthTabButtons = Array.from(document.querySelectorAll('button[data-newtab-width]'));
+  const newtabWidthTabsIndicator = newtabWidthTabsWrap
+    ? newtabWidthTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
   const overlaySizeTabButtons = Array.from(document.querySelectorAll('button[data-overlay-size]'));
   const overlaySizeTabsWrap = document.getElementById('_x_extension_overlay_size_tabs_wrap_2026_unique_');
   const overlaySizeTabsIndicator = overlaySizeTabsWrap
@@ -443,9 +448,18 @@
     );
   }
 
+  function updateNewtabWidthTabsIndicator() {
+    updateInlineTabsIndicator(
+      newtabWidthTabsWrap,
+      newtabWidthTabsIndicator,
+      'button[data-newtab-width][data-active="true"]'
+    );
+  }
+
   function refreshAllTabsIndicators() {
     updateTabIndicator();
     updateThemeIndicator();
+    updateNewtabWidthTabsIndicator();
     updateRecentModeTabsIndicator();
     updateOverlaySizeTabsIndicator();
     updateRestrictedActionTabsIndicator();
@@ -484,6 +498,17 @@
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     requestAnimationFrame(updateOverlaySizeTabsIndicator);
+  }
+
+  function setNewtabWidthTabState(mode) {
+    const nextMode = normalizeNewtabWidthMode(mode);
+    newtabWidthTabButtons.forEach((button) => {
+      const buttonMode = normalizeNewtabWidthMode(button.getAttribute('data-newtab-width'));
+      const active = buttonMode === nextMode;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(updateNewtabWidthTabsIndicator);
   }
 
   function updateRecentModeTabsVisibility(countValue) {
@@ -1876,6 +1901,7 @@
     if (tabKey === 'general') {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
+          updateNewtabWidthTabsIndicator();
           updateRecentModeTabsIndicator();
           updateRestrictedActionTabsIndicator();
           updateSearchResultPriorityTabsIndicator();
@@ -2096,6 +2122,7 @@
   updateTabsStickyVisualState();
   window.addEventListener('resize', updateTabIndicator);
   window.addEventListener('resize', updateThemeIndicator);
+  window.addEventListener('resize', updateNewtabWidthTabsIndicator);
   window.addEventListener('resize', updateRecentModeTabsIndicator);
   window.addEventListener('resize', updateOverlaySizeTabsIndicator);
   window.addEventListener('resize', updateRestrictedActionTabsIndicator);
@@ -2238,11 +2265,28 @@
   if (newtabWidthSelect) {
     newtabWidthSelect.addEventListener('change', () => {
       const nextMode = normalizeNewtabWidthMode(newtabWidthSelect.value);
+      setNewtabWidthTabState(nextMode);
       if (!storageArea) {
         return;
       }
       storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: nextMode });
       notifyNewtabSectionsRefresh('all');
+    });
+  }
+  if (newtabWidthTabButtons.length > 0) {
+    newtabWidthTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextMode = normalizeNewtabWidthMode(button.getAttribute('data-newtab-width'));
+        setNewtabWidthTabState(nextMode);
+        if (newtabWidthSelect) {
+          newtabWidthSelect.value = nextMode;
+        }
+        if (!storageArea) {
+          return;
+        }
+        storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: nextMode });
+        notifyNewtabSectionsRefresh('all');
+      });
     });
   }
   if (overlaySizeTabButtons.length > 0) {
@@ -2776,6 +2820,7 @@
       if (newtabWidthSelect) {
         newtabWidthSelect.value = mode;
       }
+      setNewtabWidthTabState(mode);
       if (stored !== mode) {
         storageArea.set({ [NEWTAB_WIDTH_MODE_STORAGE_KEY]: mode });
       }
@@ -3758,6 +3803,7 @@
     if (changes[NEWTAB_WIDTH_MODE_STORAGE_KEY] && newtabWidthSelect) {
       const mode = normalizeNewtabWidthMode(changes[NEWTAB_WIDTH_MODE_STORAGE_KEY].newValue);
       newtabWidthSelect.value = mode;
+      setNewtabWidthTabState(mode);
       refreshCustomSelects();
     }
     if (changes[OVERLAY_SIZE_MODE_STORAGE_KEY]) {

@@ -106,6 +106,12 @@
   const BOOKMARK_HOVER_INTENT_DELAY_MS = 80;
   const SECTION_VERTICAL_GAP_PX = 32;
   const SECTION_SAFE_CORRIDOR_PX = 16;
+  const SEARCH_LAYOUT_MIN_TOP_PX = 28;
+  const SEARCH_LAYOUT_MIN_BOTTOM_PX = 20;
+  const SEARCH_LAYOUT_UPSHIFT_RATIO = 0.06;
+  const SEARCH_LAYOUT_UPSHIFT_MIN_PX = 16;
+  const SEARCH_LAYOUT_UPSHIFT_MAX_PX = 72;
+  const SEARCH_LAYOUT_EMPTY_SECTIONS_EXTRA_UPSHIFT_PX = 96;
   const NEWTAB_WIDTH_MODE_CONFIGS = {
     standard: {
       searchMaxWidth: 720,
@@ -181,6 +187,7 @@
       return;
     }
     wordmarkContainer.style.setProperty('display', newtabWordmarkVisible ? 'flex' : 'none', 'important');
+    updateSearchEntryLayout();
   }
 
   function applyWordmarkThemeAppearance(resolvedTheme) {
@@ -4258,7 +4265,68 @@
     sectionSafeCorridor.style.setProperty('display', (bookmarkVisible && recentVisible) ? 'block' : 'none', 'important');
     bottomDock.style.setProperty('max-height', `${bottomDockMaxHeight}px`, 'important');
     bottomDock.style.setProperty('display', (bookmarkVisible || recentVisible) ? 'flex' : 'none', 'important');
+    updateSearchEntryLayout();
     updateSuggestionsFloatingLayout();
+  }
+
+  function getElementOuterHeight(element) {
+    if (!element) {
+      return 0;
+    }
+    const style = window.getComputedStyle(element);
+    if (!style || style.display === 'none') {
+      return 0;
+    }
+    const rect = element.getBoundingClientRect();
+    const marginTop = Number.parseFloat(style.marginTop) || 0;
+    const marginBottom = Number.parseFloat(style.marginBottom) || 0;
+    return Math.max(0, rect.height + marginTop + marginBottom);
+  }
+
+  function updateSearchEntryLayout() {
+    if (!document.body || !root) {
+      return;
+    }
+    const viewportHeight = Math.max(0, window.innerHeight || 0);
+    if (viewportHeight <= 0) {
+      return;
+    }
+    const bottomDockVisible = Boolean(
+      bottomDock &&
+      bottomDock.style.getPropertyValue('display') !== 'none'
+    );
+    let occupiedBottomHeight = 0;
+    if (bottomDockVisible && bottomDock) {
+      const dockRect = bottomDock.getBoundingClientRect();
+      occupiedBottomHeight = Math.max(0, Number(dockRect && dockRect.height) || 0);
+    }
+    const availableHeight = Math.max(0, viewportHeight - occupiedBottomHeight);
+    const wordmarkOuterHeight = getElementOuterHeight(wordmarkContainer);
+    const rootHeight = Math.max(55, Number(root.getBoundingClientRect().height) || 0);
+    const searchBlockHeight = wordmarkOuterHeight + rootHeight;
+    const bookmarkVisible = Boolean(
+      bookmarkSection &&
+      bookmarkSection.style.getPropertyValue('display') !== 'none'
+    );
+    const recentVisible = Boolean(
+      recentSection &&
+      recentSection.style.getPropertyValue('display') !== 'none'
+    );
+    const extraUpshift = (!bookmarkVisible && !recentVisible)
+      ? SEARCH_LAYOUT_EMPTY_SECTIONS_EXTRA_UPSHIFT_PX
+      : 0;
+    const upwardOffset = Math.min(
+      SEARCH_LAYOUT_UPSHIFT_MAX_PX,
+      Math.max(SEARCH_LAYOUT_UPSHIFT_MIN_PX, availableHeight * SEARCH_LAYOUT_UPSHIFT_RATIO)
+    ) + extraUpshift;
+    const minTop = SEARCH_LAYOUT_MIN_TOP_PX;
+    const maxTop = Math.max(minTop, availableHeight - searchBlockHeight - SEARCH_LAYOUT_MIN_BOTTOM_PX);
+    let targetTop = ((availableHeight - searchBlockHeight) / 2) - upwardOffset;
+    if (!Number.isFinite(targetTop)) {
+      targetTop = minTop;
+    }
+    targetTop = Math.max(minTop, Math.min(maxTop, targetTop));
+    document.body.style.setProperty('padding-top', `${Math.round(targetTop)}px`, 'important');
   }
 
   function renderBookmarks(items) {
