@@ -325,6 +325,7 @@ const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
 const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
 const PINNED_TAB_SNAPSHOT_STORAGE_KEY = '_x_extension_pinned_tab_snapshot_2026_unique_';
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
+const SHOW_SEARCH_PREFILL_COMMAND_NAME = 'show-search-prefill';
 const HOTKEY_DUP_GUARD_MS = 180;
 const PAGE_HOTKEY_NEWTAB_RECOVER_MS = 1200;
 const TAB_SWITCH_WINDOW_SHORT_MS = 30 * 60 * 1000;
@@ -1009,6 +1010,17 @@ function clearRecentPageHotkeyContext() {
   lastPageHotkeyContext = null;
 }
 
+function buildPrefillQueryForCurrentPage(tab) {
+  return getResolvedTabUrl(tab);
+}
+
+function getOverlayPrefillQueryForSource(tab, source) {
+  if (source !== 'page-hotkey-prefill' && source !== 'commands-prefill') {
+    return '';
+  }
+  return buildPrefillQueryForCurrentPage(tab);
+}
+
 function recoverFromPageHotkeyNewtab(newTabId, windowId) {
   const recentContext = getRecentPageHotkeyContext(windowId);
   if (!recentContext || typeof newTabId !== 'number') {
@@ -1117,10 +1129,18 @@ function openOverlayOnTab(activeTab, tabs, source) {
       return;
     }
     const runOverlayScript = (tabZoomFactor) => {
+      const prefillQuery = getOverlayPrefillQueryForSource(activeTab, source);
+      const prioritizeCurrentPageMatch = source === 'page-hotkey-prefill';
       chrome.scripting.executeScript({
         target: {tabId: activeTab.id},
         function: toggleBlackRectangle,
-        args: [tabs, { tabZoomFactor: tabZoomFactor }]
+        args: [tabs, {
+          tabZoomFactor: tabZoomFactor,
+          prefillQuery: prefillQuery,
+          prioritizeCurrentPageMatch: prioritizeCurrentPageMatch,
+          currentTabId: typeof activeTab.id === 'number' ? activeTab.id : null,
+          currentTabUrl: getResolvedTabUrl(activeTab)
+        }]
       }, function() {
         if (chrome.runtime.lastError) {
           logHotkeyDebug('inject-failed', {
@@ -1328,12 +1348,12 @@ function openDocumentPipPickerOnTab(activeTab, source) {
 }
 
 function getDefaultFallbackShortcutByPlatform(platformOs) {
-  return platformOs === 'mac' ? 'Command+Shift+L' : 'Ctrl+Shift+L';
+  return platformOs === 'mac' ? 'Command+Shift+K' : 'Ctrl+Shift+K';
 }
 
 function getDefaultFallbackShortcut(callback) {
   if (!chrome || !chrome.runtime || typeof chrome.runtime.getPlatformInfo !== 'function') {
-    callback('Ctrl+Shift+L');
+    callback('Ctrl+Shift+K');
     return;
   }
   chrome.runtime.getPlatformInfo((info) => {
@@ -1343,6 +1363,48 @@ function getDefaultFallbackShortcut(callback) {
 }
 
 function getConfiguredFallbackShortcut(callback) {
+  function normalizeShortcutFromCommandsValue(value) {
+    const text = String(value || '').trim();
+    if (!text || text.includes('%')) {
+      return '';
+    }
+    const parts = text.split('+').map((item) => String(item || '').trim()).filter(Boolean);
+    if (parts.length < 2) {
+      return '';
+    }
+    const keyToken = parts[parts.length - 1];
+    if (!/^[A-Za-z0-9]$/.test(keyToken) && !/^F\d{1,2}$/i.test(keyToken)) {
+      const specialKeys = new Set([
+        'Tab', 'Enter', 'Return', 'Escape', 'Esc', 'Space', 'Spacebar',
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+        ',', '.', '/', ';', '\'', '-', '+', '\\', '`', '[', ']'
+      ]);
+      if (!specialKeys.has(keyToken)) {
+        return '';
+      }
+    }
+    let hasModifier = false;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const token = parts[i].toLowerCase();
+      const isModifier =
+        token === 'ctrl' ||
+        token === 'control' ||
+        token === 'macctrl' ||
+        token === 'alt' ||
+        token === 'option' ||
+        token === 'shift' ||
+        token === 'command' ||
+        token === 'cmd' ||
+        token === 'meta' ||
+        token === 'super';
+      if (!isModifier) {
+        return '';
+      }
+      hasModifier = true;
+    }
+    return hasModifier ? text : '';
+  }
+
   getDefaultFallbackShortcut((defaultShortcut) => {
     if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
       callback(defaultShortcut);
@@ -1356,7 +1418,7 @@ function getConfiguredFallbackShortcut(callback) {
       const items = Array.isArray(commands) ? commands : [];
       const command = items.find((item) => item && item.name === SHOW_SEARCH_COMMAND_NAME);
       const shortcut = command && typeof command.shortcut === 'string'
-        ? String(command.shortcut).trim()
+        ? normalizeShortcutFromCommandsValue(command.shortcut)
         : '';
       callback(shortcut || defaultShortcut);
     });
@@ -1371,12 +1433,14 @@ function openExtensionShortcutsPage(callback) {
 }
 
 chrome.commands.onCommand.addListener(function(command) {
-  if (command === SHOW_SEARCH_COMMAND_NAME) {
-    logHotkeyDebug('received', { command: command, source: 'commands' });
-    chrome.tabs.query({active: true, currentWindow: true}, function(activeTabs) {
-      triggerShowSearchForTab(activeTabs[0], 'commands');
-    });
+  if (command !== SHOW_SEARCH_COMMAND_NAME && command !== SHOW_SEARCH_PREFILL_COMMAND_NAME) {
+    return;
   }
+  const source = command === SHOW_SEARCH_PREFILL_COMMAND_NAME ? 'commands-prefill' : 'commands';
+  logHotkeyDebug('received', { command: command, source: source });
+  chrome.tabs.query({active: true, currentWindow: true}, function(activeTabs) {
+    triggerShowSearchForTab(activeTabs[0], source);
+  });
 });
 
 chrome.tabs.onCreated.addListener((tab) => {
@@ -1492,15 +1556,18 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       sendResponse({ ok: false });
       return;
     }
+    const shouldPrefillCurrentUrl = Boolean(request && request.prefillCurrentUrl);
+    const triggerSource = shouldPrefillCurrentUrl ? 'page-hotkey-prefill' : 'page-hotkey';
     logHotkeyDebug('received', {
       command: SHOW_SEARCH_COMMAND_NAME,
-      source: 'page-hotkey',
+      source: triggerSource,
       tabId: senderTab.id,
       url: senderTab.url || '',
-      pendingUrl: senderTab.pendingUrl || ''
+      pendingUrl: senderTab.pendingUrl || '',
+      prefillCurrentUrl: shouldPrefillCurrentUrl
     });
     rememberPageHotkeyContext(senderTab);
-    triggerShowSearchForTab(senderTab, 'page-hotkey');
+    triggerShowSearchForTab(senderTab, triggerSource);
     sendResponse({ ok: true });
     return;
   } else if (request.action === 'siteTryEnterPiPInMainWorld') {
@@ -4836,6 +4903,22 @@ async function getSearchSuggestions(query, options) {
   let overlayInitialTabZoomFactor = 1;
   const normalizedOverlayContext = (overlayContext && typeof overlayContext === 'object') ? overlayContext : {};
   const requestedTabZoomFactorRaw = Number(normalizedOverlayContext.tabZoomFactor);
+  const initialPrefillQuery = typeof normalizedOverlayContext.prefillQuery === 'string'
+    ? String(normalizedOverlayContext.prefillQuery).trim()
+    : '';
+  const prioritizeCurrentPageMatch = Boolean(normalizedOverlayContext.prioritizeCurrentPageMatch);
+  const initialContextTabId = Number.isFinite(Number(normalizedOverlayContext.currentTabId))
+    ? Number(normalizedOverlayContext.currentTabId)
+    : null;
+  const initialContextTabUrl = typeof normalizedOverlayContext.currentTabUrl === 'string'
+    ? String(normalizedOverlayContext.currentTabUrl).trim()
+    : '';
+  const initialOverlayTabs = Array.isArray(tabs)
+    ? tabs.map((tab) => ({
+      ...tab,
+      url: tab && typeof tab.url === 'string' ? String(tab.url).trim() : ''
+    }))
+    : [];
   const requestedTabZoomFactor = Number.isFinite(requestedTabZoomFactorRaw) && requestedTabZoomFactorRaw > 0
     ? requestedTabZoomFactorRaw
     : 1;
@@ -6365,6 +6448,12 @@ async function getSearchSuggestions(query, options) {
     
     let tabs = [];
     let currentOverlayTabId = null;
+    if (initialOverlayTabs.length > 0) {
+      tabs = initialOverlayTabs;
+    }
+    if (typeof initialContextTabId === 'number') {
+      currentOverlayTabId = initialContextTabId;
+    }
     let latestOverlayQuery = '';
     let latestRawInputValue = '';
     let lastDeletionAt = 0;
@@ -8228,6 +8317,28 @@ async function getSearchSuggestions(query, options) {
       }
     }
 
+    function normalizeTabMatchUrlWithoutSearch(url) {
+      if (!url) {
+        return '';
+      }
+      try {
+        const parsed = new URL(url);
+        const protocol = String(parsed.protocol || '').toLowerCase();
+        if (protocol !== 'http:' && protocol !== 'https:') {
+          return String(url).trim().toLowerCase();
+        }
+        const host = normalizeHost(parsed.hostname);
+        let path = parsed.pathname || '/';
+        path = path.replace(/\/+$/, '');
+        if (!path) {
+          path = '/';
+        }
+        return `${host}${path}`;
+      } catch (e) {
+        return String(url).trim().toLowerCase();
+      }
+    }
+
     function getMatchedOpenTabIdForSuggestion(suggestion) {
       if (!suggestion || !suggestion.url || !Array.isArray(tabs) || tabs.length === 0) {
         return null;
@@ -8246,7 +8357,38 @@ async function getSearchSuggestions(query, options) {
           return tab.id;
         }
       }
+      if (prioritizeCurrentPageMatch && typeof currentOverlayTabId === 'number') {
+        const currentTab = tabs.find((tab) => tab && tab.id === currentOverlayTabId) || null;
+        const targetNoSearch = normalizeTabMatchUrlWithoutSearch(suggestion.url);
+        const currentNoSearch = currentTab ? normalizeTabMatchUrlWithoutSearch(currentTab.url) : '';
+        if (targetNoSearch && currentNoSearch && targetNoSearch === currentNoSearch) {
+          return currentOverlayTabId;
+        }
+      }
       return null;
+    }
+
+    function isCurrentOverlayTabUrl(url) {
+      if (!prioritizeCurrentPageMatch || !url) {
+        return false;
+      }
+      const currentTab = typeof currentOverlayTabId === 'number'
+        ? (tabs.find((tab) => tab && tab.id === currentOverlayTabId) || null)
+        : null;
+      const currentUrl = currentTab && currentTab.url
+        ? currentTab.url
+        : initialContextTabUrl;
+      if (!currentUrl) {
+        return false;
+      }
+      const targetFull = normalizeTabMatchUrl(url);
+      const currentFull = normalizeTabMatchUrl(currentUrl);
+      if (targetFull && currentFull && targetFull === currentFull) {
+        return true;
+      }
+      const targetNoSearch = normalizeTabMatchUrlWithoutSearch(url);
+      const currentNoSearch = normalizeTabMatchUrlWithoutSearch(currentUrl);
+      return Boolean(targetNoSearch && currentNoSearch && targetNoSearch === currentNoSearch);
     }
 
     function getAutocompleteCandidate(allSuggestions, rawQuery) {
@@ -9290,6 +9432,12 @@ async function getSearchSuggestions(query, options) {
     function shouldSwitchMatchedTabSuggestion(suggestion, index) {
       if (!suggestion || typeof suggestion._xMatchedTabId !== 'number') {
         return false;
+      }
+      if (prioritizeCurrentPageMatch &&
+        typeof currentOverlayTabId === 'number' &&
+        suggestion._xMatchedTabId === currentOverlayTabId &&
+        index === 0) {
+        return true;
       }
       if (!overlayTabQuickSwitchEnabled) {
         return false;
@@ -10709,7 +10857,7 @@ async function getSearchSuggestions(query, options) {
             preSuggestions.push(buildCommandSuggestion(commandMatch.command));
           }
           const directUrlSuggestion = getDirectUrlSuggestion(query);
-          if (directUrlSuggestion) {
+          if (directUrlSuggestion && !isCurrentOverlayTabUrl(directUrlSuggestion.url)) {
             preSuggestions.push(directUrlSuggestion);
           }
           const keywordSuggestions = buildKeywordSuggestions(query, rules);
@@ -10851,19 +10999,36 @@ async function getSearchSuggestions(query, options) {
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'topSite';
           }
-          if (!siteSearchState && query && overlayTabQuickSwitchEnabled) {
-            const openTabMatchIndex = allSuggestions.findIndex((item) =>
-              item &&
-              item.type !== 'newtab' &&
-              typeof item._xMatchedTabId === 'number'
-            );
-            if (openTabMatchIndex >= 0) {
-              if (openTabMatchIndex > 0) {
-                const [openTabMatch] = allSuggestions.splice(openTabMatchIndex, 1);
-                allSuggestions.unshift(openTabMatch);
+          if (!siteSearchState && query && (overlayTabQuickSwitchEnabled || prioritizeCurrentPageMatch)) {
+            const preferredCurrentTabMatchIndex = prioritizeCurrentPageMatch && typeof currentOverlayTabId === 'number'
+              ? allSuggestions.findIndex((item) =>
+                item &&
+                item.type !== 'newtab' &&
+                item._xMatchedTabId === currentOverlayTabId
+              )
+              : -1;
+            if (preferredCurrentTabMatchIndex >= 0) {
+              if (preferredCurrentTabMatchIndex > 0) {
+                const [preferredCurrentTabMatch] = allSuggestions.splice(preferredCurrentTabMatchIndex, 1);
+                allSuggestions.unshift(preferredCurrentTabMatch);
               }
               primaryHighlightIndex = 0;
-              primaryHighlightReason = 'openTab';
+              primaryHighlightReason = 'currentOpenTab';
+            }
+            if (preferredCurrentTabMatchIndex < 0) {
+              const openTabMatchIndex = allSuggestions.findIndex((item) =>
+                item &&
+                item.type !== 'newtab' &&
+                typeof item._xMatchedTabId === 'number'
+              );
+              if (openTabMatchIndex >= 0) {
+                if (openTabMatchIndex > 0) {
+                  const [openTabMatch] = allSuggestions.splice(openTabMatchIndex, 1);
+                  allSuggestions.unshift(openTabMatch);
+                }
+                primaryHighlightIndex = 0;
+                primaryHighlightReason = 'openTab';
+              }
             }
           }
           if (query && primaryHighlightIndex < 0 && allSuggestions.length > 0) {
@@ -10932,7 +11097,7 @@ async function getSearchSuggestions(query, options) {
           const isLastItem = index === allSuggestions.length - 1;
           const isPrimaryHighlight = index === primaryHighlightIndex;
           const shouldSwitchMatchedTab = isPrimaryHighlight &&
-            primaryHighlightReason === 'openTab' &&
+            (primaryHighlightReason === 'openTab' || primaryHighlightReason === 'currentOpenTab') &&
             shouldSwitchMatchedTabSuggestion(suggestion, index);
           const isPrimarySearchSuggest = isPrimaryHighlight && suggestion.type === 'googleSuggest';
           let immediateTheme = getImmediateThemeForSuggestion(suggestion) || defaultTheme;
@@ -11477,6 +11642,7 @@ async function getSearchSuggestions(query, options) {
               primaryHighlightReason === 'inline' ||
               primaryHighlightReason === 'autocomplete' ||
               primaryHighlightReason === 'openTab' ||
+              primaryHighlightReason === 'currentOpenTab' ||
               isDirectHighlight ||
               isMergedHighlight);
           const shouldShowSiteSearchTag = !isPrimarySearchSuggest && isPrimaryHighlight &&
@@ -11765,7 +11931,18 @@ async function getSearchSuggestions(query, options) {
       vertical-align: baseline !important;
     `;
 
-    requestTabsAndRender();
+    if (initialPrefillQuery) {
+      searchInput.value = initialPrefillQuery;
+      if (typeof searchInput.setSelectionRange === 'function') {
+        searchInput.setSelectionRange(initialPrefillQuery.length, initialPrefillQuery.length);
+      }
+      latestRawInputValue = initialPrefillQuery;
+      latestOverlayQuery = initialPrefillQuery.trim();
+      updateModeBadge(initialPrefillQuery);
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      requestTabsAndRender();
+    }
     
     overlay.appendChild(inputContainer);
     overlay.appendChild(suggestionsContainer);

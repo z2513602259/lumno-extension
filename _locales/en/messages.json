@@ -563,6 +563,9 @@
   "command_show_search": {
     "message": "Open command bar"
   },
+  "command_show_search_prefill": {
+    "message": "Open command bar with current page URL"
+  },
   "mode_switch_title": {
     "message": "{name}: switch to {mode} mode"
   },

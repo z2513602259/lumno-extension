@@ -563,6 +563,9 @@
   "command_show_search": {
     "message": "喚起聚焦搜尋視窗"
   },
+  "command_show_search_prefill": {
+    "message": "喚起搜尋並預填當前網頁連結"
+  },
   "mode_switch_title": {
     "message": "{name}：切換為{mode}模式"
   },

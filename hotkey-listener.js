@@ -496,10 +496,30 @@
   }, true);
 
   document.addEventListener('keydown', (event) => {
-    if (!event || event.defaultPrevented || event.isComposing || event.repeat) {
+    if (!event || event.isComposing || event.repeat) {
       return;
     }
     refreshShortcut(false);
+    const editableTarget = isEditableTarget(event.target);
+    const matchedConfiguredShortcut = Boolean(shortcutSpec && shortcutMatchesEvent(event, shortcutSpec));
+    if (matchedConfiguredShortcut) {
+      logHotkeyListenerDebug('shortcut-matched', {
+        key: String(event.key || ''),
+        shortcut: shortcutRaw || '',
+        defaultPrevented: Boolean(event.defaultPrevented),
+        editable: editableTarget
+      });
+      if (editableTarget) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      triggerOverlay();
+      return;
+    }
+    if (event.defaultPrevented) {
+      return;
+    }
     const isCopyCurrentUrlHotkey = (
       !event.altKey &&
       event.shiftKey &&
@@ -525,15 +545,6 @@
         shortcut: shortcutRaw || '',
         href: location && location.href ? location.href : ''
       });
-    }
-    if (shortcutSpec && shortcutMatchesEvent(event, shortcutSpec)) {
-      logHotkeyListenerDebug('shortcut-matched', {
-        key: String(event.key || ''),
-        shortcut: shortcutRaw || ''
-      });
-      event.preventDefault();
-      event.stopPropagation();
-      triggerOverlay();
     }
   }, true);
 })();

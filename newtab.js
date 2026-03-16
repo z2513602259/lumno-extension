@@ -1938,6 +1938,11 @@
     return raw === '/mode' || raw.startsWith('/mode ');
   }
 
+  function isSlashCommandInput(input) {
+    const raw = String(input || '').trim();
+    return raw.startsWith('/');
+  }
+
   function buildModeSuggestion() {
     const nextMode = getNextThemeMode(currentThemeMode);
     return {
@@ -8679,6 +8684,20 @@
         return;
       }
       requestSuggestions(query);
+    },
+    onBlur: function(event) {
+      const rawValue = event && event.target ? event.target.value : '';
+      if (!isSlashCommandInput(rawValue)) {
+        return;
+      }
+      latestRawQuery = '';
+      latestQuery = '';
+      clearAutocomplete();
+      clearSearchSuggestions();
+      if (event && event.target) {
+        event.target.value = '';
+      }
+      updateModeBadge('');
     },
     onKeyDown: function(event) {
       dismissAutocompletePreviewOnNonTabKey(event);

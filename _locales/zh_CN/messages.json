@@ -563,6 +563,9 @@
   "command_show_search": {
     "message": "唤起聚焦搜索窗口"
   },
+  "command_show_search_prefill": {
+    "message": "唤起搜索并预填当前网页链接"
+  },
   "mode_switch_title": {
     "message": "{name}：切换到{mode}模式"
   },

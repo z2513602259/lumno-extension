@@ -1433,7 +1433,7 @@
   }
 
   function getDefaultFallbackShortcut() {
-    return isMacPlatform ? 'Command+Shift+L' : 'Ctrl+Shift+L';
+    return isMacPlatform ? 'Command+Shift+K' : 'Ctrl+Shift+K';
   }
 
   function isReservedBrowserShortcut(shortcut) {

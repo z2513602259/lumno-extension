@@ -9,6 +9,13 @@
       "show-search": {
          "description": "__MSG_command_show_search__",
          "suggested_key": {
+            "default": "Ctrl+Shift+K",
+            "mac": "Command+Shift+K"
+         }
+      },
+      "show-search-prefill": {
+         "description": "__MSG_command_show_search_prefill__",
+         "suggested_key": {
             "default": "Ctrl+Shift+L",
             "mac": "Command+Shift+L"
          }
