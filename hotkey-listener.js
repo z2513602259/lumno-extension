@@ -9,11 +9,105 @@
   const PAGE_TOAST_STYLE_ID = '_x_extension_page_toast_style_2026_unique_';
   const PAGE_TOAST_ID = '_x_extension_page_toast_2026_unique_';
   const PAGE_TOAST_SHOW_DURATION_MS = 2000;
+  const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
+  const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
+  const storageArea = (chrome && chrome.storage && chrome.storage.sync)
+    ? chrome.storage.sync
+    : (chrome && chrome.storage ? chrome.storage.local : null);
+  const storageAreaName = storageArea
+    ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
+    : null;
   let shortcutRaw = '';
   let shortcutSpec = null;
+  let copyCommandShortcutRaw = '';
   let lastRefreshAt = 0;
+  let lastCopyCommandRefreshAt = 0;
   let lastVisibleReportAt = 0;
   let pageToastTimer = null;
+  let currentMessages = null;
+  let currentLanguageMode = 'system';
+
+  function getMessage(key, fallback) {
+    if (currentMessages && currentMessages[key] && currentMessages[key].message) {
+      return currentMessages[key].message;
+    }
+    try {
+      if (chrome && chrome.i18n && typeof chrome.i18n.getMessage === 'function') {
+        const value = chrome.i18n.getMessage(key);
+        if (value) {
+          return value;
+        }
+      }
+    } catch (e) {
+      // Ignore i18n failures in page context.
+    }
+    return fallback;
+  }
+
+  function hydrateLocaleMessages() {
+    if (!storageArea || typeof storageArea.get !== 'function') {
+      return;
+    }
+    storageArea.get([LANGUAGE_STORAGE_KEY, LANGUAGE_MESSAGES_STORAGE_KEY], (result) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        return;
+      }
+      currentLanguageMode = result && result[LANGUAGE_STORAGE_KEY]
+        ? String(result[LANGUAGE_STORAGE_KEY])
+        : 'system';
+      const payload = result && result[LANGUAGE_MESSAGES_STORAGE_KEY];
+      if (payload && payload.messages) {
+        currentMessages = payload.messages;
+      }
+      refreshLocaleMessages();
+    });
+  }
+
+  function normalizeLocale(value) {
+    const normalized = String(value || '').replace('-', '_').toLowerCase();
+    if (normalized === 'zh' || normalized === 'zh_cn' || normalized.startsWith('zh_cn') || normalized.startsWith('zh_hans')) {
+      return 'zh_CN';
+    }
+    if (normalized === 'zh_tw' || normalized.startsWith('zh_tw') || normalized.startsWith('zh_hant_tw')) {
+      return 'zh_TW';
+    }
+    if (normalized === 'zh_hk' || normalized.startsWith('zh_hk') || normalized.startsWith('zh_hant_hk')) {
+      return 'zh_HK';
+    }
+    if (normalized.startsWith('zh_hant')) {
+      return 'zh_TW';
+    }
+    return 'en';
+  }
+
+  function getTargetLocale() {
+    if (currentLanguageMode && currentLanguageMode !== 'system') {
+      return normalizeLocale(currentLanguageMode);
+    }
+    try {
+      if (chrome && chrome.i18n && typeof chrome.i18n.getUILanguage === 'function') {
+        return normalizeLocale(chrome.i18n.getUILanguage());
+      }
+    } catch (e) {
+      // Ignore i18n failures in page context.
+    }
+    return normalizeLocale(navigator.language || 'en');
+  }
+
+  function refreshLocaleMessages() {
+    const targetLocale = getTargetLocale();
+    if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'getLocaleMessages', locale: targetLocale }, (response) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        return;
+      }
+      if (response && response.messages) {
+        currentMessages = response.messages;
+      }
+    });
+  }
 
   function logHotkeyListenerDebug(stage, payload) {
     try {
@@ -256,8 +350,8 @@
   async function copyCurrentPageUrlWithToast() {
     const url = location && location.href ? location.href : '';
     if (!url) {
-      showPageToast('复制失败，请重试', true);
-      return;
+      showPageToast(getMessage('copy_page_url_failed_retry', '复制失败，请重试'), true);
+      return false;
     }
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -265,13 +359,15 @@
       } else if (!fallbackCopyText(url)) {
         throw new Error('fallback-copy-failed');
       }
-      showPageToast('已复制当前页面链接');
+      showPageToast(getMessage('copy_page_url_success', '已复制当前页面链接'));
+      return true;
     } catch (error) {
       if (fallbackCopyText(url)) {
-        showPageToast('已复制当前页面链接');
-        return;
+        showPageToast(getMessage('copy_page_url_success', '已复制当前页面链接'));
+        return true;
       }
-      showPageToast('复制失败，请检查剪贴板权限', true);
+      showPageToast(getMessage('copy_page_url_failed_permission', '复制失败，请检查剪贴板权限'), true);
+      return false;
     }
   }
 
@@ -479,15 +575,72 @@
     }
   }
 
+  function refreshCopyCommandShortcut(force) {
+    const now = Date.now();
+    if (!force && (now - lastCopyCommandRefreshAt) < REFRESH_SHORTCUT_MS) {
+      return;
+    }
+    lastCopyCommandRefreshAt = now;
+    try {
+      chrome.runtime.sendMessage({ action: 'getCopyCurrentUrlCommandShortcut' }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          logHotkeyListenerDebug('copy-command-shortcut-refresh-error', {
+            error: chrome.runtime.lastError.message || 'unknown'
+          });
+          return;
+        }
+        const nextShortcut = response && typeof response.shortcut === 'string'
+          ? String(response.shortcut).trim()
+          : '';
+        if (nextShortcut === copyCommandShortcutRaw) {
+          return;
+        }
+        copyCommandShortcutRaw = nextShortcut;
+        logHotkeyListenerDebug('copy-command-shortcut-refresh', {
+          shortcut: copyCommandShortcutRaw
+        });
+      });
+    } catch (e) {
+      logHotkeyListenerDebug('copy-command-shortcut-refresh-failed', {
+        error: e && e.message ? e.message : String(e || '')
+      });
+    }
+  }
+
+  hydrateLocaleMessages();
+  if (chrome && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (storageAreaName && areaName !== storageAreaName) {
+        return;
+      }
+      if (!changes) {
+        return;
+      }
+      if (changes[LANGUAGE_STORAGE_KEY]) {
+        currentLanguageMode = changes[LANGUAGE_STORAGE_KEY].newValue
+          ? String(changes[LANGUAGE_STORAGE_KEY].newValue)
+          : 'system';
+        refreshLocaleMessages();
+      }
+      if (changes[LANGUAGE_MESSAGES_STORAGE_KEY]) {
+        const payload = changes[LANGUAGE_MESSAGES_STORAGE_KEY].newValue;
+        currentMessages = payload && payload.messages ? payload.messages : null;
+      }
+    });
+  }
+
   refreshShortcut(true);
+  refreshCopyCommandShortcut(true);
   logHotkeyListenerDebug('listener-ready', {
     href: location && location.href ? location.href : ''
   });
   window.addEventListener('focus', () => refreshShortcut(true), true);
+  window.addEventListener('focus', () => refreshCopyCommandShortcut(true), true);
   window.addEventListener('focus', () => reportTabVisible('focus'), true);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshShortcut(false);
+      refreshCopyCommandShortcut(false);
       reportTabVisible('visibility');
     }
   }, true);
@@ -495,11 +648,26 @@
     reportTabVisible('pageshow');
   }, true);
 
+  if (chrome && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (!request || request.action !== 'copyCurrentPageUrlFromCommand') {
+        return;
+      }
+      copyCurrentPageUrlWithToast().then((ok) => {
+        sendResponse({ ok: Boolean(ok) });
+      }).catch(() => {
+        sendResponse({ ok: false });
+      });
+      return true;
+    });
+  }
+
   document.addEventListener('keydown', (event) => {
     if (!event || event.isComposing || event.repeat) {
       return;
     }
     refreshShortcut(false);
+    refreshCopyCommandShortcut(false);
     const editableTarget = isEditableTarget(event.target);
     const matchedConfiguredShortcut = Boolean(shortcutSpec && shortcutMatchesEvent(event, shortcutSpec));
     if (matchedConfiguredShortcut) {
@@ -521,6 +689,7 @@
       return;
     }
     const isCopyCurrentUrlHotkey = (
+      !copyCommandShortcutRaw &&
       !event.altKey &&
       event.shiftKey &&
       String(event.key || '').toLowerCase() === 'c' &&

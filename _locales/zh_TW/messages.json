@@ -566,6 +566,9 @@
   "command_show_search_prefill": {
     "message": "喚起搜尋並預填當前網頁連結"
   },
+  "command_show_search_prefill_v": {
+    "message": "複製當前網頁連結"
+  },
   "mode_switch_title": {
     "message": "{name}：切換為{mode}模式"
   },
@@ -706,5 +709,47 @@
   },
   "sync_import_invalid": {
     "message": "設定檔無效"
+  },
+  "document_pip_picker_unsupported_policy": {
+    "message": "此網站透過站點策略停用了畫中畫。"
+  },
+  "document_pip_picker_unsupported_iframe": {
+    "message": "Document Picture-in-Picture 僅支援在頂層頁面使用。"
+  },
+  "document_pip_picker_unsupported_insecure": {
+    "message": "Document Picture-in-Picture 僅支援 HTTPS 頁面。"
+  },
+  "document_pip_picker_open_failed_not_allowed": {
+    "message": "網站或瀏覽器阻止了開啟 Document Picture-in-Picture。"
+  },
+  "document_pip_picker_open_failed_not_supported": {
+    "message": "目前選取內容在此頁面中無法透過 Document Picture-in-Picture 開啟。"
+  },
+  "document_pip_picker_open_failed_invalid_state": {
+    "message": "已有懸浮視窗開啟，或頁面狀態已變更。請再試一次。"
+  },
+  "document_pip_picker_open_failed_security": {
+    "message": "瀏覽器基於安全策略阻止了此操作。"
+  },
+  "newtab_page_label": {
+    "message": "新分頁"
+  },
+  "settings_title": {
+    "message": "設定"
+  },
+  "extension_page_label": {
+    "message": "擴充功能頁面"
+  },
+  "settings_button_aria": {
+    "message": "設定"
+  },
+  "copy_page_url_failed_retry": {
+    "message": "複製失敗，請再試一次"
+  },
+  "copy_page_url_success": {
+    "message": "已複製目前頁面連結"
+  },
+  "copy_page_url_failed_permission": {
+    "message": "複製失敗，請檢查剪貼簿權限"
   }
 }

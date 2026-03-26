@@ -19,6 +19,13 @@
             "default": "Ctrl+Shift+L",
             "mac": "Command+Shift+L"
          }
+      },
+      "show-search-prefill-v": {
+         "description": "__MSG_command_show_search_prefill_v__",
+         "suggested_key": {
+            "default": "Ctrl+Shift+C",
+            "mac": "Command+Shift+C"
+         }
       }
    },
    "content_scripts": [
@@ -90,5 +97,5 @@
    "name": "__MSG_ext_name__",
    "author": "Kubai087",
    "permissions": [ "scripting", "tabs", "history", "topSites", "bookmarks", "storage", "search" ],
-   "version": "0.9.4"
+   "version": "0.9.5"
 }

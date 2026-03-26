@@ -566,6 +566,9 @@
   "command_show_search_prefill": {
     "message": "唤起搜索并预填当前网页链接"
   },
+  "command_show_search_prefill_v": {
+    "message": "复制当前网页链接"
+  },
   "mode_switch_title": {
     "message": "{name}：切换到{mode}模式"
   },
@@ -706,5 +709,47 @@
   },
   "sync_import_invalid": {
     "message": "配置文件无效"
+  },
+  "document_pip_picker_unsupported_policy": {
+    "message": "该网站通过站点策略禁用了画中画。"
+  },
+  "document_pip_picker_unsupported_iframe": {
+    "message": "Document Picture-in-Picture 仅支持在顶层页面使用。"
+  },
+  "document_pip_picker_unsupported_insecure": {
+    "message": "Document Picture-in-Picture 仅支持 HTTPS 页面。"
+  },
+  "document_pip_picker_open_failed_not_allowed": {
+    "message": "网站或浏览器阻止了打开 Document Picture-in-Picture。"
+  },
+  "document_pip_picker_open_failed_not_supported": {
+    "message": "当前选择的内容在此页面中无法通过 Document Picture-in-Picture 打开。"
+  },
+  "document_pip_picker_open_failed_invalid_state": {
+    "message": "已有悬浮窗口打开，或页面状态已变化。请重试。"
+  },
+  "document_pip_picker_open_failed_security": {
+    "message": "浏览器基于安全策略阻止了该操作。"
+  },
+  "newtab_page_label": {
+    "message": "新标签页"
+  },
+  "settings_title": {
+    "message": "设置"
+  },
+  "extension_page_label": {
+    "message": "扩展页面"
+  },
+  "settings_button_aria": {
+    "message": "设置"
+  },
+  "copy_page_url_failed_retry": {
+    "message": "复制失败，请重试"
+  },
+  "copy_page_url_success": {
+    "message": "已复制当前页面链接"
+  },
+  "copy_page_url_failed_permission": {
+    "message": "复制失败，请检查剪贴板权限"
   }
 }

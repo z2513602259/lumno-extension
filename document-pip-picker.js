@@ -22,7 +22,9 @@
     session: null,
     teardownSelection: null,
     toastTimer: null,
-    opening: false
+    opening: false,
+    ownerToken: '',
+    runtimeMessageHandlerBound: false
   };
 
   function getMessage(name, fallback) {
@@ -143,6 +145,59 @@
     return Boolean(document.pictureInPictureElement);
   }
 
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve) => {
+      if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+        resolve({ ok: false, reason: 'no-runtime-sendMessage' });
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            resolve({
+              ok: false,
+              reason: chrome.runtime.lastError.message || 'runtime-lastError'
+            });
+            return;
+          }
+          resolve(response && typeof response === 'object'
+            ? response
+            : { ok: false, reason: 'empty-response' });
+        });
+      } catch (error) {
+        resolve({ ok: false, reason: String(error) });
+      }
+    });
+  }
+
+  async function requestDocumentPipOwnership() {
+    const response = await sendRuntimeMessage({
+      action: 'pipRequestOwnership',
+      kind: 'document'
+    });
+    if (response && response.ok && response.granted && response.token) {
+      state.ownerToken = String(response.token);
+      return { ok: true, granted: true };
+    }
+    return {
+      ok: false,
+      granted: false,
+      reason: response && response.reason ? String(response.reason) : 'ownership-denied'
+    };
+  }
+
+  function releaseDocumentPipOwnership() {
+    const token = typeof state.ownerToken === 'string' ? state.ownerToken : '';
+    state.ownerToken = '';
+    if (!token) {
+      return;
+    }
+    sendRuntimeMessage({
+      action: 'pipReleaseOwnership',
+      token: token
+    }).catch(() => {});
+  }
+
   function showVideoPiPConflictToast() {
     ensurePickerUi();
     applyPickerTheme(getPickerTheme(null));
@@ -211,6 +266,21 @@
       return false;
     }
     return isVisibleElement(element);
+  }
+
+  function containsBlockedMediaContent(element) {
+    if (!(element instanceof Element)) {
+      return false;
+    }
+    const tagName = String(element.tagName || '').toUpperCase();
+    if (tagName === 'VIDEO' || tagName === 'AUDIO' || tagName === 'IFRAME') {
+      return true;
+    }
+    try {
+      return Boolean(element.querySelector('video, audio, iframe'));
+    } catch (error) {
+      return true;
+    }
   }
 
   function getElementStack(element) {
@@ -1159,6 +1229,7 @@
   function restoreSession(options) {
     const session = state.session;
     if (!session) {
+      releaseDocumentPipOwnership();
       return false;
     }
     state.session = null;
@@ -1221,6 +1292,7 @@
       }
     }
     setHighlight(null);
+    releaseDocumentPipOwnership();
     return true;
   }
 
@@ -1236,9 +1308,26 @@
       return { ok: false, reason: 'invalid-element' };
     }
 
+    if (containsBlockedMediaContent(element)) {
+      showToast(
+        getMessage(
+          'document_pip_picker_invalid',
+          'This element cannot be opened in the floating window.'
+        ),
+        'error'
+      );
+      return { ok: false, reason: 'media-selection-blocked' };
+    }
+
     if (hasActiveVideoPiP()) {
       showVideoPiPConflictToast();
       return { ok: false, reason: 'video-pip-active' };
+    }
+
+    const ownership = await requestDocumentPipOwnership();
+    if (!ownership.granted) {
+      showToast(getOpenFailureMessage({ name: 'InvalidStateError' }), 'error');
+      return { ok: false, reason: ownership.reason || 'document-owner-busy' };
     }
 
     const visualTheme = getVisualTheme(element);
@@ -1246,6 +1335,7 @@
     try {
       scaffold = await createPiPScaffold(element, visualTheme, getSelectionSnapshot(element));
     } catch (error) {
+      releaseDocumentPipOwnership();
       showToast(getOpenFailureMessage(error), 'error');
       return {
         ok: false,
@@ -1372,9 +1462,11 @@
     try {
       const result = await openDocumentPiP(target);
       if (!result || result.ok !== true) {
+        releaseDocumentPipOwnership();
         setHighlight(null);
       }
     } catch (error) {
+      releaseDocumentPipOwnership();
       setHighlight(null);
       showToast(
         getMessage(
@@ -1535,6 +1627,30 @@
     }
     return startSelection();
   }
+
+  function bindRuntimeMessageListener() {
+    if (state.runtimeMessageHandlerBound) {
+      return;
+    }
+    if (!chrome || !chrome.runtime || !chrome.runtime.onMessage ||
+        typeof chrome.runtime.onMessage.addListener !== 'function') {
+      return;
+    }
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!message || message.action !== 'lumno:pip-force-surrender') {
+        return;
+      }
+      if (state.active) {
+        stopSelection({});
+      }
+      restoreSession({ closeWindow: true });
+      sendResponse({ ok: true });
+      return true;
+    });
+    state.runtimeMessageHandlerBound = true;
+  }
+
+  bindRuntimeMessageListener();
 
   window.__lumnoDocumentPiPPicker2026 = {
     toggle: toggle,

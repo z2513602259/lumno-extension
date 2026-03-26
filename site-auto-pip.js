@@ -21,7 +21,11 @@
     hadUserGesture: false,
     mediaSessionHandlerBound: false,
     hiddenRetryBudget: 0,
-    shouldResumeInlinePlayback: false
+    shouldResumeInlinePlayback: false,
+    wasPlayingBeforeHide: false,
+    ownerToken: '',
+    runtimeMessageHandlerBound: false,
+    douyinModalReloadAt: 0
   };
 
   const ENTER_SUPPRESS_AFTER_EXIT_MS = 1100;
@@ -36,19 +40,81 @@
   const PAGE_BRIDGE_REQUEST_EVENT = "__lumno_yt_force_exit_pip_req_2026__";
   const PAGE_BRIDGE_RESPONSE_EVENT = "__lumno_yt_force_exit_pip_res_2026__";
   const DOCUMENT_PIP_ACTIVE_FLAG = "__lumno_document_pip_active_2026__";
+  const DOUYIN_MODAL_RECOVERY_RELOAD_GUARD_MS = 15000;
   let pageBridgeRequestSeq = 0;
 
   const host = String(location.hostname || "").toLowerCase();
   const AUTO_PIP_ENABLED_STORAGE_KEY = "_x_extension_auto_pip_enabled_2026_unique_";
   let autoPipEnabled = false;
   function normalizeAutoPipEnabled(value) {
-    return value === true;
+    return value !== false;
   }
   function setAutoPipEnabled(value) {
     autoPipEnabled = normalizeAutoPipEnabled(value);
   }
   function isDocumentPiPActive() {
     return window[DOCUMENT_PIP_ACTIVE_FLAG] === true;
+  }
+
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve) => {
+      if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== "function") {
+        resolve({ ok: false, reason: "no-runtime-sendMessage" });
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            resolve({
+              ok: false,
+              reason: chrome.runtime.lastError.message || "runtime-lastError"
+            });
+            return;
+          }
+          resolve(response && typeof response === "object"
+            ? response
+            : { ok: false, reason: "empty-response" });
+        });
+      } catch (error) {
+        resolve({ ok: false, reason: String(error) });
+      }
+    });
+  }
+
+  async function requestPiPOwnership(kind) {
+    const response = await sendRuntimeMessage({
+      action: "pipRequestOwnership",
+      kind: kind
+    });
+    if (response && response.ok && response.granted && response.token) {
+      state.ownerToken = String(response.token);
+      return { ok: true, granted: true };
+    }
+    return {
+      ok: false,
+      granted: false,
+      reason: response && response.reason ? String(response.reason) : "ownership-denied"
+    };
+  }
+
+  async function releasePiPOwnership() {
+    const token = typeof state.ownerToken === "string" ? state.ownerToken : "";
+    state.ownerToken = "";
+    if (!token) {
+      return { ok: true, released: false, reason: "no-owner-token" };
+    }
+    return sendRuntimeMessage({
+      action: "pipReleaseOwnership",
+      token: token
+    });
+  }
+
+  function clearPlaybackRecoveryState() {
+    state.shouldResumeInlinePlayback = false;
+    state.wasPlayingBeforeHide = false;
+    state.hiddenRetryBudget = 0;
+    clearEnterRetryTimer();
+    clearRecoveryTimer();
   }
   function syncAutoPipEnabledSetting() {
     if (!chrome || !chrome.storage) {
@@ -75,7 +141,7 @@
       }
       setAutoPipEnabled(changes[AUTO_PIP_ENABLED_STORAGE_KEY].newValue);
       if (!autoPipEnabled) {
-        state.shouldResumeInlinePlayback = false;
+        clearPlaybackRecoveryState();
       }
       if (!autoPipEnabled && (state.managedPiP || document.pictureInPictureElement)) {
         maybeExitPiP().catch(() => {});
@@ -370,6 +436,18 @@
     return host.endsWith(".douyin.com") || host === "douyin.com";
   }
 
+  function isDouyinJingxuanModalUrl() {
+    if (!isDouyinHost()) {
+      return false;
+    }
+    try {
+      const url = new URL(location.href);
+      return url.pathname === "/jingxuan" && url.searchParams.has("modal_id");
+    } catch (error) {
+      return false;
+    }
+  }
+
   function getHiddenRetryLimit() {
     const value = Number(matchedProfile && matchedProfile.hiddenRetryLimit);
     if (Number.isFinite(value) && value >= 0) {
@@ -459,6 +537,40 @@
       ? Number(matchedProfile.minVisibleArea)
       : MIN_VISIBLE_AREA;
     return getVisibleArea(video) >= minArea;
+  }
+
+  function hasAnyPlayingMedia() {
+    const mediaNodes = Array.from(document.querySelectorAll("video, audio"));
+    return mediaNodes.some((node) => {
+      return node instanceof HTMLMediaElement &&
+        !node.paused &&
+        !node.ended &&
+        Number(node.readyState || 0) >= 2;
+    });
+  }
+
+  function shouldRecoverDouyinModalByReload() {
+    if (!isDouyinJingxuanModalUrl()) {
+      return false;
+    }
+    const activeVideo = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
+    if (activeVideo && activeVideo.isConnected && isVideoVisibleEnough(activeVideo)) {
+      return false;
+    }
+    return hasAnyPlayingMedia() || state.shouldResumeInlinePlayback;
+  }
+
+  function reloadDouyinModalIfNeeded() {
+    if (!shouldRecoverDouyinModalByReload()) {
+      return false;
+    }
+    const now = Date.now();
+    if ((now - Number(state.douyinModalReloadAt || 0)) < DOUYIN_MODAL_RECOVERY_RELOAD_GUARD_MS) {
+      return false;
+    }
+    state.douyinModalReloadAt = now;
+    location.replace(location.href);
+    return true;
   }
 
   function isLikelyAudible(video) {
@@ -599,6 +711,82 @@
     }
     clearTimeout(state.recoveryTimer);
     state.recoveryTimer = null;
+  }
+
+  function pauseAllManagedMedia() {
+    const mediaNodes = Array.from(document.querySelectorAll("video, audio"));
+    mediaNodes.forEach((node) => {
+      if (!(node instanceof HTMLMediaElement)) {
+        return;
+      }
+      if (node.paused || node.ended) {
+        return;
+      }
+      try {
+        node.pause();
+      } catch (error) {
+        // Ignore pause failures from site-specific players.
+      }
+    });
+  }
+
+  function markPlaybackIntentFromActiveVideo() {
+    const activeVideo = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
+    if (isVideoPlaying(activeVideo)) {
+      state.hadUserGesture = true;
+      state.wasPlayingBeforeHide = true;
+      return true;
+    }
+    return false;
+  }
+
+  async function forceSurrenderPiP(reason) {
+    const isHidden = document.visibilityState === "hidden";
+    if (isHidden) {
+      clearPlaybackRecoveryState();
+    }
+    state.suppressEnterUntil = Date.now() + ENTER_SUPPRESS_AFTER_VISIBLE_MS;
+    try {
+      await maybeExitPiP();
+    } catch (error) {
+      // Best effort only.
+    }
+    if (isHidden) {
+      pauseAllManagedMedia();
+    }
+    state.managedPiP = false;
+    await releasePiPOwnership();
+    return {
+      ok: true,
+      reason: reason || "surrendered"
+    };
+  }
+
+  function bindRuntimeMessageListener() {
+    if (state.runtimeMessageHandlerBound) {
+      return;
+    }
+    if (!chrome || !chrome.runtime || !chrome.runtime.onMessage ||
+        typeof chrome.runtime.onMessage.addListener !== "function") {
+      return;
+    }
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!message || message.action !== "lumno:pip-force-surrender") {
+        return;
+      }
+      forceSurrenderPiP(message && message.reason ? String(message.reason) : "")
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch((error) => {
+          sendResponse({
+            ok: false,
+            reason: error && error.message ? error.message : String(error || "surrender-failed")
+          });
+        });
+      return true;
+    });
+    state.runtimeMessageHandlerBound = true;
   }
 
   function scheduleDeferredEnterPiP(reason) {
@@ -888,7 +1076,35 @@
       return true;
     }
 
+    let activeVideo = syncActiveVideo();
+    if ((!activeVideo || !isVideoPlaying(activeVideo)) &&
+        isVideoCandidate(state.lastManagedVideo)) {
+      activeVideo = syncActiveVideo(state.lastManagedVideo);
+    }
+
+    let ownershipGranted = false;
+    const ensureOwnership = async () => {
+      if (ownershipGranted || state.ownerToken) {
+        ownershipGranted = true;
+        return true;
+      }
+      const ownershipResult = await requestPiPOwnership("video");
+      if (!ownershipResult.granted) {
+        clearPlaybackRecoveryState();
+        return false;
+      }
+      ownershipGranted = true;
+      return true;
+    };
+
+    if (isDouyinHost() && !isVideoPlaying(activeVideo)) {
+      return false;
+    }
+
     if (isIqiyiHost() || isDouyinHost()) {
+      if (!(await ensureOwnership())) {
+        return false;
+      }
       if (isIqiyiHost()) {
         await requestBackgroundSetupIqiyiAutoPiP(960);
       }
@@ -907,34 +1123,7 @@
       }
     }
 
-    let activeVideo = syncActiveVideo();
-    if ((!activeVideo || !isVideoPlaying(activeVideo)) &&
-        isVideoCandidate(state.lastManagedVideo)) {
-      activeVideo = syncActiveVideo(state.lastManagedVideo);
-    }
-
-    const allowAutoResumeOnHiddenEnter = Boolean(
-      matchedProfile &&
-      matchedProfile.autoResumeOnHiddenEnter &&
-      document.visibilityState === "hidden"
-    );
-    if (allowAutoResumeOnHiddenEnter &&
-        activeVideo &&
-        !isVideoPlaying(activeVideo) &&
-        !activeVideo.ended) {
-      try {
-        await activeVideo.play();
-      } catch (error) {
-        // Ignore autoplay policy or transient resume errors.
-      }
-    }
-
-    const allowEnterWhenNotPlaying = Boolean(
-      matchedProfile &&
-      matchedProfile.allowEnterWhenNotPlaying &&
-      document.visibilityState === "hidden"
-    );
-    if (!isVideoPlaying(activeVideo) && !allowEnterWhenNotPlaying) {
+    if (!isVideoPlaying(activeVideo)) {
       return false;
     }
 
@@ -944,6 +1133,10 @@
       document.visibilityState === "hidden"
     );
     if (!allowEnterWhenHiddenVideo && !isVideoVisibleEnough(activeVideo)) {
+      return false;
+    }
+
+    if (!(await ensureOwnership())) {
       return false;
     }
 
@@ -962,6 +1155,9 @@
       return false;
     } finally {
       state.enteringPiP = false;
+      if (!state.managedPiP && ownershipGranted) {
+        await releasePiPOwnership();
+      }
     }
   }
 
@@ -970,6 +1166,7 @@
       return false;
     }
     if (!state.managedPiP && !document.pictureInPictureElement) {
+      await releasePiPOwnership();
       return true;
     }
     state.exitingPiP = true;
@@ -991,6 +1188,7 @@
     } finally {
       state.exitingPiP = false;
       state.managedPiP = false;
+      await releasePiPOwnership();
     }
   }
 
@@ -1002,6 +1200,9 @@
       return;
     }
     if (document.pictureInPictureElement) {
+      return;
+    }
+    if (reloadDouyinModalIfNeeded()) {
       return;
     }
     const video = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
@@ -1028,6 +1229,10 @@
     const run = async () => {
       attempts += 1;
       await maybeExitPiP();
+      if (reloadDouyinModalIfNeeded()) {
+        clearRecoveryTimer();
+        return;
+      }
       recoverInlinePlaybackIfNeeded();
       if (document.visibilityState !== "visible") {
         clearRecoveryTimer();
@@ -1046,10 +1251,15 @@
     if (document.visibilityState === "hidden") {
       const videoForHiddenSnapshot = syncActiveVideo(state.lastManagedVideo || state.activeVideo);
       const shouldTrackRecovery = autoPipEnabled || state.managedPiP || Boolean(document.pictureInPictureElement);
+      state.wasPlayingBeforeHide = Boolean(
+        videoForHiddenSnapshot &&
+        isVideoPlaying(videoForHiddenSnapshot) &&
+        !videoForHiddenSnapshot.ended
+      );
       state.shouldResumeInlinePlayback = Boolean(
         shouldTrackRecovery &&
         (
-          (videoForHiddenSnapshot && isVideoPlaying(videoForHiddenSnapshot) && !videoForHiddenSnapshot.ended) ||
+          state.wasPlayingBeforeHide ||
           state.managedPiP ||
           document.pictureInPictureElement
         )
@@ -1071,6 +1281,7 @@
       return;
     }
     if (document.visibilityState === "visible") {
+      markPlaybackIntentFromActiveVideo();
       state.hiddenRetryBudget = 0;
       state.lastVisibleAt = Date.now();
       clearEnterRetryTimer();
@@ -1085,11 +1296,18 @@
       return;
     }
     syncActiveVideo(target);
-    if ((event.type === "pause" || event.type === "ended") && document.visibilityState === "visible") {
+    if (event.type === "pause" || event.type === "ended") {
       state.shouldResumeInlinePlayback = false;
+      state.wasPlayingBeforeHide = false;
     }
     if ((event.type === "play" || event.type === "playing") && !state.hadUserGesture) {
       state.hadUserGesture = true;
+    }
+    if (event.type === "play" || event.type === "playing") {
+      state.wasPlayingBeforeHide = true;
+      if (document.visibilityState === "hidden") {
+        state.shouldResumeInlinePlayback = true;
+      }
     }
     if ((event.type === "play" || event.type === "playing") && document.visibilityState === "hidden") {
       maybeEnterPiP("video_play_hidden");
@@ -1130,8 +1348,10 @@
       requestBackgroundSetupIqiyiAutoPiP(960).catch(() => {});
     }
     syncActiveVideo();
+    markPlaybackIntentFromActiveVideo();
     ensurePageBridgeInjected();
     bindMediaSessionAutoPiP();
+    bindRuntimeMessageListener();
 
     document.addEventListener("pointerdown", markUserGesture, true);
     document.addEventListener("keydown", markUserGesture, true);
@@ -1146,11 +1366,13 @@
     document.addEventListener("leavepictureinpicture", onLeavePictureInPicture, true);
 
     window.addEventListener("focus", () => {
+      markPlaybackIntentFromActiveVideo();
       state.suppressEnterUntil = Date.now() + ENTER_SUPPRESS_AFTER_VISIBLE_MS;
       clearEnterRetryTimer();
       scheduleVisibleRecovery();
     }, true);
     window.addEventListener("pageshow", () => {
+      markPlaybackIntentFromActiveVideo();
       state.suppressEnterUntil = Date.now() + ENTER_SUPPRESS_AFTER_VISIBLE_MS;
       clearEnterRetryTimer();
       scheduleVisibleRecovery();

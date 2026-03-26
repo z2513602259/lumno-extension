@@ -42,13 +42,6 @@
   const pinnedTabRecoveryToggle = document.getElementById('_x_extension_pinned_tab_recovery_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const newtabWordmarkToggle = document.getElementById('_x_extension_newtab_wordmark_toggle_2026_unique_');
-  const aiSearchToggle = document.getElementById('_x_extension_ai_search_toggle_2026_unique_');
-  const aiProviderInput = document.getElementById('_x_extension_ai_provider_input_2026_unique_');
-  const aiApiKeyInput = document.getElementById('_x_extension_ai_api_key_input_2026_unique_');
-  const aiApiKeySaveButton = document.getElementById('_x_extension_ai_api_key_save_2026_unique_');
-  const aiApiKeyStatus = document.getElementById('_x_extension_ai_api_key_status_2026_unique_');
-  const aiEntitlementStatus = document.getElementById('_x_extension_ai_entitlement_status_2026_unique_');
-  const aiEntitlementRefreshButton = document.getElementById('_x_extension_ai_entitlement_refresh_2026_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const searchResultPrioritySelect = document.getElementById('_x_extension_search_result_priority_select_2026_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
@@ -103,14 +96,8 @@
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
     : (chrome && chrome.storage ? chrome.storage.local : null);
-  const localStorageArea = (chrome && chrome.storage && chrome.storage.local)
-    ? chrome.storage.local
-    : storageArea;
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
-    : null;
-  const localStorageAreaName = localStorageArea
-    ? (localStorageArea === (chrome && chrome.storage ? chrome.storage.local : null) ? 'local' : storageAreaName)
     : null;
 
   function getRiSvg(id, sizeClass) {
@@ -132,10 +119,6 @@
   const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
-  const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
-  const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
-  const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
-  const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
@@ -158,9 +141,6 @@
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY,
-    AI_SEARCH_MODE_STORAGE_KEY,
-    AI_PROVIDER_STORAGE_KEY,
-    AI_ENTITLEMENT_CACHE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
@@ -334,7 +314,7 @@
   }
 
   function normalizeAutoPipEnabled(value) {
-    return value === true;
+    return value !== false;
   }
 
   function normalizeDocumentPipEnabled(value) {
@@ -345,58 +325,8 @@
     return value === true;
   }
 
-  function normalizeAiSearchEnabled(value) {
-    return value === true;
-  }
-
-  function normalizeAiProvider(value) {
-    const raw = String(value || '').trim().toLowerCase();
-    if (!raw) {
-      return 'openai';
-    }
-    return raw.slice(0, 32);
-  }
-
   function normalizeSearchResultPriority(value) {
     return value === 'search' ? 'search' : 'autocomplete';
-  }
-
-  function updateAiApiKeyStatus(hasKey) {
-    if (!aiApiKeyStatus) {
-      return;
-    }
-    aiApiKeyStatus.textContent = hasKey ? '已设置' : '未设置';
-  }
-
-  function updateAiEntitlementStatusText(payload) {
-    if (!aiEntitlementStatus) {
-      return;
-    }
-    const plan = payload && payload.plan ? String(payload.plan) : 'free';
-    const status = payload && payload.status ? String(payload.status) : 'inactive';
-    aiEntitlementStatus.textContent = `plan: ${plan} · ${status}`;
-  }
-
-  function requestAiEntitlementStatus() {
-    if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
-      return;
-    }
-    chrome.runtime.sendMessage({ action: 'getAiEntitlementStatus' }, (response) => {
-      if (chrome.runtime && chrome.runtime.lastError) {
-        updateAiEntitlementStatusText({ plan: 'free', status: 'error' });
-        return;
-      }
-      updateAiEntitlementStatusText(response || { plan: 'free', status: 'inactive' });
-      if (!storageArea || !response || response.ok !== true) {
-        return;
-      }
-      const cachePayload = {
-        plan: String(response.plan || 'free'),
-        status: String(response.status || 'inactive'),
-        updatedAt: Date.now()
-      };
-      storageArea.set({ [AI_ENTITLEMENT_CACHE_KEY]: cachePayload });
-    });
   }
 
   function updateInlineTabsIndicator(wrapper, indicator, activeSelector) {
@@ -2393,48 +2323,6 @@
       storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
     });
   }
-  if (aiSearchToggle) {
-    aiSearchToggle.addEventListener('change', () => {
-      const next = normalizeAiSearchEnabled(aiSearchToggle.checked);
-      if (!storageArea) {
-        return;
-      }
-      storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: next });
-    });
-  }
-  if (aiProviderInput) {
-    aiProviderInput.addEventListener('change', () => {
-      const nextProvider = normalizeAiProvider(aiProviderInput.value);
-      aiProviderInput.value = nextProvider;
-      if (!storageArea) {
-        return;
-      }
-      storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: nextProvider });
-    });
-  }
-  if (aiApiKeySaveButton) {
-    aiApiKeySaveButton.addEventListener('click', () => {
-      if (!localStorageArea) {
-        return;
-      }
-      const nextKey = String(aiApiKeyInput ? aiApiKeyInput.value : '').trim();
-      localStorageArea.set({ [AI_API_KEY_STORAGE_KEY]: nextKey }, () => {
-        const hasError = chrome.runtime && chrome.runtime.lastError;
-        if (hasError) {
-          showToast('API Key 保存失败', true);
-          return;
-        }
-        updateAiApiKeyStatus(Boolean(nextKey));
-        requestAiEntitlementStatus();
-        showToast(nextKey ? 'API Key 已保存' : 'API Key 已清空', false);
-      });
-    });
-  }
-  if (aiEntitlementRefreshButton) {
-    aiEntitlementRefreshButton.addEventListener('click', () => {
-      requestAiEntitlementStatus();
-    });
-  }
   if (autoPipToggle) {
     autoPipToggle.addEventListener('change', () => {
       const next = Boolean(autoPipToggle.checked);
@@ -2905,35 +2793,6 @@
       }
       refreshCustomSelects();
     });
-    storageArea.get([AI_SEARCH_MODE_STORAGE_KEY], (result) => {
-      const rawValue = result[AI_SEARCH_MODE_STORAGE_KEY];
-      const stored = normalizeAiSearchEnabled(rawValue);
-      if (aiSearchToggle) {
-        aiSearchToggle.checked = stored;
-      }
-      if (rawValue !== stored) {
-        storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: stored });
-      }
-      refreshCustomSelects();
-    });
-    storageArea.get([AI_PROVIDER_STORAGE_KEY], (result) => {
-      const rawValue = result[AI_PROVIDER_STORAGE_KEY];
-      const stored = normalizeAiProvider(rawValue);
-      if (aiProviderInput) {
-        aiProviderInput.value = stored;
-      }
-      if (rawValue !== stored) {
-        storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: stored });
-      }
-      refreshCustomSelects();
-    });
-    storageArea.get([AI_ENTITLEMENT_CACHE_KEY], (result) => {
-      const payload = result[AI_ENTITLEMENT_CACHE_KEY];
-      if (payload && typeof payload === 'object') {
-        updateAiEntitlementStatusText(payload);
-      }
-      refreshCustomSelects();
-    });
     storageArea.get([AUTO_PIP_ENABLED_STORAGE_KEY], (result) => {
       const rawValue = result[AUTO_PIP_ENABLED_STORAGE_KEY];
       const stored = normalizeAutoPipEnabled(rawValue);
@@ -2967,14 +2826,6 @@
       }
       refreshCustomSelects();
     });
-
-    if (localStorageArea) {
-      localStorageArea.get([AI_API_KEY_STORAGE_KEY], (result) => {
-        const apiKey = String(result[AI_API_KEY_STORAGE_KEY] || '').trim();
-        updateAiApiKeyStatus(Boolean(apiKey));
-      });
-    }
-    requestAiEntitlementStatus();
 
     storageArea.get([RESTRICTED_ACTION_STORAGE_KEY], (result) => {
       const stored = result[RESTRICTED_ACTION_STORAGE_KEY];
@@ -3775,9 +3626,6 @@
         changes[PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY] ||
         changes[OVERLAY_TAB_PRIORITY_STORAGE_KEY] ||
         changes[NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY] ||
-        changes[AI_SEARCH_MODE_STORAGE_KEY] ||
-        changes[AI_PROVIDER_STORAGE_KEY] ||
-        changes[AI_ENTITLEMENT_CACHE_KEY] ||
         changes[RESTRICTED_ACTION_STORAGE_KEY] ||
         changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY] ||
         changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
@@ -3852,28 +3700,6 @@
       if (raw !== next && storageArea) {
         storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
       }
-      refreshCustomSelects();
-    }
-    if (changes[AI_SEARCH_MODE_STORAGE_KEY] && aiSearchToggle) {
-      const raw = changes[AI_SEARCH_MODE_STORAGE_KEY].newValue;
-      const next = normalizeAiSearchEnabled(raw);
-      aiSearchToggle.checked = next;
-      if (raw !== next && storageArea) {
-        storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: next });
-      }
-      refreshCustomSelects();
-    }
-    if (changes[AI_PROVIDER_STORAGE_KEY] && aiProviderInput) {
-      const raw = changes[AI_PROVIDER_STORAGE_KEY].newValue;
-      const next = normalizeAiProvider(raw);
-      aiProviderInput.value = next;
-      if (raw !== next && storageArea) {
-        storageArea.set({ [AI_PROVIDER_STORAGE_KEY]: next });
-      }
-      refreshCustomSelects();
-    }
-    if (changes[AI_ENTITLEMENT_CACHE_KEY]) {
-      updateAiEntitlementStatusText(changes[AI_ENTITLEMENT_CACHE_KEY].newValue || { plan: 'free', status: 'inactive' });
       refreshCustomSelects();
     }
     if (changes[AUTO_PIP_ENABLED_STORAGE_KEY] && autoPipToggle) {

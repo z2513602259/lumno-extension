@@ -1,0 +1,9 @@
+{
+  "release": {
+    "tag_name": "v0.9.6",
+    "name": "v0.9.6",
+    "body": "## 中文\n- 新增 AI 搜索模式\n- 优化新标签页体验\n\n## English\n- Added AI search mode\n- Improved the new tab experience",
+    "html_url": "https://github.com/kubai087/lumno-extension/releases/tag/v0.9.6",
+    "published_at": "2026-03-26T10:00:00Z"
+  }
+}

@@ -25,6 +25,20 @@
     return element;
   }
 
+  function getMessage(key, fallback) {
+    try {
+      if (chrome && chrome.i18n && typeof chrome.i18n.getMessage === 'function') {
+        const value = chrome.i18n.getMessage(key);
+        if (value) {
+          return value;
+        }
+      }
+    } catch (error) {
+      // Ignore i18n failures in page context.
+    }
+    return fallback;
+  }
+
 
   window._x_extension_createSearchInput_2024_unique_ = function(options) {
     const config = options || {};
@@ -33,7 +47,7 @@
     input.id = config.inputId || '_x_extension_search_input_2024_unique_';
     input.autocomplete = 'off';
     input.type = 'text';
-    input.placeholder = config.placeholder || '搜索或输入网址...';
+    input.placeholder = config.placeholder || getMessage('search_placeholder', '搜索或输入网址...');
     input.style.cssText = `
       all: unset !important;
       width: 100% !important;
@@ -186,7 +200,7 @@
     rightIcon.id = config.rightIconId || '_x_extension_search_right_icon_2024_unique_';
     rightIcon.type = 'button';
     rightIcon.innerHTML = config.rightIconHtml || '<i class="_x_extension_svg_2024_unique_ ri-icon ri-size-16 ri-settings-6-line" aria-hidden="true"></i>';
-    rightIcon.setAttribute('aria-label', config.rightIconAlt || 'Settings');
+    rightIcon.setAttribute('aria-label', config.rightIconAlt || getMessage('settings_button_aria', 'Settings'));
     rightIcon.style.cssText = `
       all: unset !important;
       position: absolute !important;
@@ -213,6 +227,13 @@
       transition: background-color 140ms ease, color 140ms ease, transform 160ms ease !important;
     `;
     applyStyleOverrides(rightIcon, config.rightIconStyleOverrides);
+    Array.from(rightIcon.querySelectorAll('*')).forEach((node) => {
+      if (!node || !node.style) {
+        return;
+      }
+      node.style.setProperty('pointer-events', 'none', 'important');
+      node.style.setProperty('cursor', 'pointer', 'important');
+    });
     const resetRightIconVisualState = () => {
       rightIcon.style.setProperty('background', 'transparent', 'important');
       rightIcon.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');

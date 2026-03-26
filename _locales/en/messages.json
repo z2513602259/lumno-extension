@@ -566,6 +566,9 @@
   "command_show_search_prefill": {
     "message": "Open command bar with current page URL"
   },
+  "command_show_search_prefill_v": {
+    "message": "Copy Current Page URL"
+  },
   "mode_switch_title": {
     "message": "{name}: switch to {mode} mode"
   },
@@ -706,5 +709,47 @@
   },
   "sync_import_invalid": {
     "message": "Invalid settings file"
+  },
+  "document_pip_picker_unsupported_policy": {
+    "message": "This website disables Picture-in-Picture via site policy."
+  },
+  "document_pip_picker_unsupported_iframe": {
+    "message": "Document Picture-in-Picture only works in the top-level page."
+  },
+  "document_pip_picker_unsupported_insecure": {
+    "message": "Document Picture-in-Picture requires HTTPS."
+  },
+  "document_pip_picker_open_failed_not_allowed": {
+    "message": "The website or browser blocked opening Document Picture-in-Picture."
+  },
+  "document_pip_picker_open_failed_not_supported": {
+    "message": "This selection cannot be opened in Document Picture-in-Picture on this page."
+  },
+  "document_pip_picker_open_failed_invalid_state": {
+    "message": "A floating window is already open or the page state changed. Try again."
+  },
+  "document_pip_picker_open_failed_security": {
+    "message": "The browser blocked this action for security reasons on this page."
+  },
+  "newtab_page_label": {
+    "message": "New Tab"
+  },
+  "settings_title": {
+    "message": "Settings"
+  },
+  "extension_page_label": {
+    "message": "Extension Page"
+  },
+  "settings_button_aria": {
+    "message": "Settings"
+  },
+  "copy_page_url_failed_retry": {
+    "message": "Copy failed. Please try again."
+  },
+  "copy_page_url_success": {
+    "message": "Current page URL copied."
+  },
+  "copy_page_url_failed_permission": {
+    "message": "Copy failed. Check clipboard permission."
   }
 }

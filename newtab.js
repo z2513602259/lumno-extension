@@ -32,7 +32,6 @@
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
-  const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const NEWTAB_OPEN_TAB_SUGGESTION_LIMIT = 8;
@@ -100,17 +99,21 @@
   let bookmarkOpenManagerButton = null;
   let bookmarkPageAnimating = false;
   let bookmarkWheelLastAt = 0;
+  let recentMouseInsideSection = false;
+  let recentMouseLeftAt = 0;
   const BOOKMARK_WHEEL_SWITCH_COOLDOWN_MS = 220;
   const BOOKMARK_GAP_ABOVE_RECENT_PX = 100;
   const BOOKMARK_FALLBACK_BOTTOM_PX = 340;
-  const BOOKMARK_HOVER_INTENT_DELAY_MS = 80;
   const SECTION_VERTICAL_GAP_PX = 32;
   const SECTION_SAFE_CORRIDOR_PX = 16;
+  const BOOKMARK_HOVER_DELAY_FROM_RECENT_MS = 56;
+  const BOOKMARK_HOVER_RECENT_TRANSFER_WINDOW_MS = 220;
   const SEARCH_LAYOUT_MIN_TOP_PX = 28;
   const SEARCH_LAYOUT_MIN_BOTTOM_PX = 20;
   const SEARCH_LAYOUT_UPSHIFT_RATIO = 0.06;
-  const SEARCH_LAYOUT_UPSHIFT_MIN_PX = 16;
-  const SEARCH_LAYOUT_UPSHIFT_MAX_PX = 72;
+  const SEARCH_LAYOUT_UPSHIFT_MIN_PX = 24;
+  const SEARCH_LAYOUT_UPSHIFT_MAX_PX = 80;
+  const SEARCH_LAYOUT_CONTENT_SECTIONS_EXTRA_UPSHIFT_PX = 20;
   const SEARCH_LAYOUT_EMPTY_SECTIONS_EXTRA_UPSHIFT_PX = 96;
   const NEWTAB_WIDTH_MODE_CONFIGS = {
     standard: {
@@ -1988,9 +1991,7 @@
   let pendingProviderReload = false;
   let suggestionRequestSeq = 0;
   let suggestionRequestWatchdogTimer = null;
-  let aiSearchModeEnabled = false;
   let searchResultPriorityMode = 'autocomplete';
-  let aiModeButton = null;
   let searchInputRef = null;
   loadDefaultSearchEngineState();
   if (chrome && chrome.storage && chrome.storage.onChanged) {
@@ -2004,16 +2005,11 @@
           defaultSearchEngineState = nextValue;
         }
       }
-      if (changes[AI_SEARCH_MODE_STORAGE_KEY]) {
-        aiSearchModeEnabled = Boolean(changes[AI_SEARCH_MODE_STORAGE_KEY].newValue);
-        updateAiModeButtonVisualState();
-      }
       if (changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]) {
         searchResultPriorityMode = normalizeSearchResultPriority(changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY].newValue);
       }
       if (latestQuery && latestQuery.trim() && (
         changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY] ||
-        changes[AI_SEARCH_MODE_STORAGE_KEY] ||
         changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]
       )) {
         requestSuggestions(latestQuery, { immediate: true });
@@ -2034,7 +2030,6 @@
     BOOKMARK_COLUMNS_STORAGE_KEY,
     TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
-    AI_SEARCH_MODE_STORAGE_KEY,
     SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -2501,6 +2496,17 @@
   newtabThemeStyle.textContent = `
     #_x_extension_newtab_root_2024_unique_ {
       color: var(--x-nt-text, #111827);
+    }
+    #_x_extension_newtab_root_2024_unique_ button,
+    #_x_extension_newtab_root_2024_unique_ a,
+    #_x_extension_newtab_root_2024_unique_ [role="button"] {
+      cursor: pointer !important;
+    }
+    #_x_extension_newtab_root_2024_unique_ button .ri-icon,
+    #_x_extension_newtab_root_2024_unique_ a .ri-icon,
+    #_x_extension_newtab_root_2024_unique_ [role="button"] .ri-icon {
+      cursor: inherit !important;
+      pointer-events: none !important;
     }
     #_x_extension_newtab_search_input_2024_unique_::placeholder {
       color: var(--x-nt-placeholder, #9CA3AF);
@@ -3911,6 +3917,23 @@
   recentSection.style.setProperty('margin', '0', 'important');
   recentSection.style.setProperty('width', '100%', 'important');
   recentSection.style.setProperty('pointer-events', 'auto', 'important');
+  recentSection.addEventListener('pointerenter', (event) => {
+    if (!event || event.pointerType !== 'mouse') {
+      return;
+    }
+    recentMouseInsideSection = true;
+    recentMouseLeftAt = 0;
+  });
+  recentSection.addEventListener('pointerleave', (event) => {
+    if (!event || event.pointerType !== 'mouse') {
+      return;
+    }
+    recentMouseInsideSection = false;
+    recentMouseLeftAt = Date.now();
+  });
+  recentSection.addEventListener('pointercancel', () => {
+    recentMouseInsideSection = false;
+  });
   recentHeading = document.createElement('div');
   recentHeading.className = 'x-nt-recent-heading';
   updateRecentHeading();
@@ -4264,6 +4287,10 @@
     const bottomDockMaxHeight = Math.max(0, window.innerHeight - 240);
     const bookmarkVisible = bookmarkSection.style.getPropertyValue('display') !== 'none';
     const recentVisible = recentSection.style.getPropertyValue('display') !== 'none';
+    if (!recentVisible) {
+      recentMouseInsideSection = false;
+      recentMouseLeftAt = 0;
+    }
     document.body.classList.remove('x-nt-stack-layout');
     document.body.classList.add('x-nt-bottom-layout');
     document.body.classList.toggle('x-nt-no-bookmarks', !bookmarkVisible);
@@ -4319,7 +4346,7 @@
     );
     const extraUpshift = (!bookmarkVisible && !recentVisible)
       ? SEARCH_LAYOUT_EMPTY_SECTIONS_EXTRA_UPSHIFT_PX
-      : 0;
+      : SEARCH_LAYOUT_CONTENT_SECTIONS_EXTRA_UPSHIFT_PX;
     const upwardOffset = Math.min(
       SEARCH_LAYOUT_UPSHIFT_MAX_PX,
       Math.max(SEARCH_LAYOUT_UPSHIFT_MIN_PX, availableHeight * SEARCH_LAYOUT_UPSHIFT_RATIO)
@@ -4715,9 +4742,6 @@
 
   function isEnglishQuery(query) {
     if (!query) {
-      return false;
-    }
-    if (!/[A-Za-z]/.test(query)) {
       return false;
     }
     return /^[A-Za-z0-9\s._/-]+$/.test(query);
@@ -6139,6 +6163,19 @@
     return card;
   }
 
+  function shouldDelayBookmarkHoverFromRecent(pointerType) {
+    if (pointerType && pointerType !== 'mouse') {
+      return false;
+    }
+    if (recentMouseInsideSection) {
+      return true;
+    }
+    if (!recentMouseLeftAt) {
+      return false;
+    }
+    return (Date.now() - recentMouseLeftAt) <= BOOKMARK_HOVER_RECENT_TRANSFER_WINDOW_MS;
+  }
+
   function buildBookmarkCard(item, index) {
     if (!item || (!item.url && item.type !== 'folder')) {
       return null;
@@ -6250,21 +6287,21 @@
         playFolderPathMorph(folderIcon, active);
       }
     };
-    const scheduleHoverVisualActive = () => {
-      clearHoverIntentTimer();
-      hoverIntentTimer = window.setTimeout(() => {
-        hoverIntentTimer = null;
-        setHoverVisualActive(true);
-      }, BOOKMARK_HOVER_INTENT_DELAY_MS);
-    };
-    card.addEventListener('pointerenter', (event) => {
+    const activateBookmarkHoverVisual = (event) => {
       const pointerType = event && typeof event.pointerType === 'string' ? event.pointerType : '';
-      if (pointerType && pointerType !== 'mouse') {
+      if (!shouldDelayBookmarkHoverFromRecent(pointerType)) {
         clearHoverIntentTimer();
         setHoverVisualActive(true);
         return;
       }
-      scheduleHoverVisualActive();
+      clearHoverIntentTimer();
+      hoverIntentTimer = window.setTimeout(() => {
+        hoverIntentTimer = null;
+        setHoverVisualActive(true);
+      }, BOOKMARK_HOVER_DELAY_FROM_RECENT_MS);
+    };
+    card.addEventListener('pointerenter', (event) => {
+      activateBookmarkHoverVisual(event);
     });
     card.addEventListener('pointerleave', () => {
       clearHoverIntentTimer();
@@ -6315,36 +6352,36 @@
     for (let passIndex = 0; passIndex < passes.length; passIndex += 1) {
       const skipGoogleSuggest = passes[passIndex];
       for (let i = 0; i < allSuggestions.length; i += 1) {
-      const suggestion = allSuggestions[i];
-      if (!suggestion || suggestion.type === 'newtab') {
-        continue;
-      }
-      if (skipGoogleSuggest && suggestion.type === 'googleSuggest') {
-        continue;
-      }
-      if (suggestion.commandText) {
-        const commandText = String(suggestion.commandText).toLowerCase();
-        if (commandText.startsWith(rawLower)) {
-          return {
-            completion: suggestion.commandText,
-            url: '',
-            title: suggestion.title || '',
-            type: 'command'
-          };
+        const suggestion = allSuggestions[i];
+        if (!suggestion || suggestion.type === 'newtab') {
+          continue;
         }
-        const aliases = Array.isArray(suggestion.commandAliases) ? suggestion.commandAliases : [];
-        for (let aliasIndex = 0; aliasIndex < aliases.length; aliasIndex += 1) {
-          const alias = String(aliases[aliasIndex] || '').toLowerCase();
-          if (alias && alias.startsWith(rawLower)) {
+        if (skipGoogleSuggest && suggestion.type === 'googleSuggest') {
+          continue;
+        }
+        if (suggestion.commandText) {
+          const commandText = String(suggestion.commandText).toLowerCase();
+          if (commandText.startsWith(rawLower)) {
             return {
-              completion: aliases[aliasIndex],
+              completion: suggestion.commandText,
               url: '',
               title: suggestion.title || '',
               type: 'command'
             };
           }
+          const aliases = Array.isArray(suggestion.commandAliases) ? suggestion.commandAliases : [];
+          for (let aliasIndex = 0; aliasIndex < aliases.length; aliasIndex += 1) {
+            const alias = String(aliases[aliasIndex] || '').toLowerCase();
+            if (alias && alias.startsWith(rawLower)) {
+              return {
+                completion: aliases[aliasIndex],
+                url: '',
+                title: suggestion.title || '',
+                type: 'command'
+              };
+            }
+          }
         }
-      }
         const urlText = getUrlDisplay(suggestion.url);
         if (urlText && urlText.toLowerCase().startsWith(rawLower)) {
           return {
@@ -6528,6 +6565,10 @@
       clearAutocomplete();
       return;
     }
+    if (candidate.type === 'title') {
+      clearAutocomplete();
+      return;
+    }
     if (candidate.completion.length <= rawQuery.length) {
       clearAutocomplete();
       return;
@@ -6536,10 +6577,7 @@
       clearAutocomplete();
       return;
     }
-    let displayText = candidate.completion;
-    if (candidate.type === 'url' && candidate.title) {
-      displayText = `${candidate.completion} - ${candidate.title}`;
-    }
+    const displayText = candidate.completion;
     inputParts.input.value = displayText;
     inputParts.input.setSelectionRange(rawQuery.length, displayText.length);
     autocompleteState = {
@@ -8523,40 +8561,6 @@
     });
   }
 
-  function updateAiModeButtonVisualState() {
-    if (!aiModeButton) {
-      return;
-    }
-    if (aiSearchModeEnabled) {
-      aiModeButton.style.setProperty('background', 'var(--x-nt-link, #2563EB)', 'important');
-      aiModeButton.style.setProperty('border-color', 'var(--x-nt-link, #2563EB)', 'important');
-      aiModeButton.style.setProperty('color', '#FFFFFF', 'important');
-      aiModeButton.setAttribute('title', t('ai_search_mode_on', 'AI 搜索：开启'));
-      return;
-    }
-    aiModeButton.style.setProperty('background', 'transparent', 'important');
-    aiModeButton.style.setProperty('border-color', 'var(--x-nt-input-border, rgba(0, 0, 0, 0.06))', 'important');
-    aiModeButton.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
-    aiModeButton.setAttribute('title', t('ai_search_mode_off', 'AI 搜索：关闭'));
-  }
-
-  function setAiSearchModeEnabled(enabled, options) {
-    const nextValue = Boolean(enabled);
-    const nextOptions = options || {};
-    aiSearchModeEnabled = nextValue;
-    updateAiModeButtonVisualState();
-    if (storageArea && !nextOptions.skipPersist) {
-      storageArea.set({ [AI_SEARCH_MODE_STORAGE_KEY]: nextValue });
-    }
-    if (nextOptions.silent) {
-      return;
-    }
-    const liveQuery = searchInputRef ? String(searchInputRef.value || '').trim() : '';
-    if (liveQuery) {
-      requestSuggestions(liveQuery, { immediate: true });
-    }
-  }
-
   function requestSuggestions(query, options) {
     latestQuery = query;
     const immediate = options && options.immediate;
@@ -8584,7 +8588,6 @@
       chrome.runtime.sendMessage({
         action: 'getSearchSuggestions',
         query: requestQuery,
-        mode: aiSearchModeEnabled ? 'ai' : 'classic',
         context: 'newtab'
       }, function(response) {
         if (suggestionRequestWatchdogTimer) {
@@ -9059,6 +9062,20 @@
     return true;
   }
 
+  if (chrome && chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (!message || message.action !== 'lumno:newtab-focus-input') {
+        return;
+      }
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      const focused = activateNewtabShortcutFocus();
+      sendResponse({ ok: focused });
+      return;
+    });
+  }
+
   function scheduleAutoFocusRecovery() {
     const hasExplicitFocusHint = window.location.search.includes('focus=1') ||
       window.location.hash.includes('focus');
@@ -9160,9 +9177,6 @@
       return false;
     }
     if (rightIcon && (target === rightIcon || rightIcon.contains(target))) {
-      return false;
-    }
-    if (aiModeButton && (target === aiModeButton || aiModeButton.contains(target))) {
       return false;
     }
     if (suggestionsContainer && suggestionsContainer.contains(target)) {
@@ -9302,68 +9316,7 @@
       window.open(chrome.runtime.getURL('options.html'), '_blank');
     });
   }
-  aiModeButton = document.createElement('button');
-  aiModeButton.type = 'button';
-  aiModeButton.id = '_x_extension_newtab_ai_mode_button_2026_unique_';
-  aiModeButton.textContent = 'AI';
-  aiModeButton.setAttribute('aria-label', t('ai_search_toggle', 'AI 搜索'));
-  aiModeButton.style.cssText = `
-    all: unset !important;
-    position: absolute !important;
-    right: 50px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    min-width: 34px !important;
-    height: 24px !important;
-    padding: 0 8px !important;
-    border-radius: 999px !important;
-    border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06)) !important;
-    color: var(--x-nt-subtext, #6B7280) !important;
-    background: transparent !important;
-    z-index: 2 !important;
-    box-sizing: border-box !important;
-    margin: 0 !important;
-    line-height: 1 !important;
-    text-decoration: none !important;
-    list-style: none !important;
-    outline: none !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 10px !important;
-    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-    font-weight: 700 !important;
-    cursor: pointer !important;
-    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 160ms ease !important;
-  `;
-  aiModeButton.addEventListener('mouseenter', () => {
-    aiModeButton.style.setProperty('transform', 'translateY(-50%) scale(1.04)', 'important');
-  });
-  aiModeButton.addEventListener('mouseleave', () => {
-    aiModeButton.style.setProperty('transform', 'translateY(-50%)', 'important');
-    updateAiModeButtonVisualState();
-  });
-  aiModeButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setAiSearchModeEnabled(!aiSearchModeEnabled);
-    if (inputParts && inputParts.input) {
-      try {
-        inputParts.input.focus({ preventScroll: true });
-      } catch (e) {
-        inputParts.input.focus();
-      }
-    }
-  });
-  inputContainer.appendChild(aiModeButton);
-  updateAiModeButtonVisualState();
   if (storageArea) {
-    storageArea.get([AI_SEARCH_MODE_STORAGE_KEY], (result) => {
-      setAiSearchModeEnabled(Boolean(result && result[AI_SEARCH_MODE_STORAGE_KEY]), {
-        silent: true,
-        skipPersist: true
-      });
-    });
     storageArea.get([SEARCH_RESULT_PRIORITY_STORAGE_KEY], (result) => {
       const raw = result ? result[SEARCH_RESULT_PRIORITY_STORAGE_KEY] : null;
       const nextMode = normalizeSearchResultPriority(raw);

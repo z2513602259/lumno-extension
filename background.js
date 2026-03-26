@@ -6,6 +6,268 @@ function isBrowserExtensionProtocol(protocol) {
     normalized === 'ms-browser-extension:';
 }
 
+const GLOBAL_PIP_OWNER_STORAGE_KEY = '_x_lumno_global_pip_owner_2026_';
+let globalPipOwnerCache = null;
+let globalPipOwnerCacheLoaded = false;
+
+function getSessionStorageArea() {
+  if (!chrome || !chrome.storage) {
+    return null;
+  }
+  return chrome.storage.session || chrome.storage.local || null;
+}
+
+function normalizePipOwnerRecord(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const kind = value.kind === 'document' ? 'document' : (value.kind === 'video' ? 'video' : '');
+  const tabId = Number(value.tabId);
+  if (!kind || !Number.isInteger(tabId) || tabId < 0) {
+    return null;
+  }
+  const frameId = Number.isInteger(Number(value.frameId)) ? Number(value.frameId) : 0;
+  const token = typeof value.token === 'string' && value.token
+    ? value.token
+    : '';
+  if (!token) {
+    return null;
+  }
+  return {
+    kind: kind,
+    tabId: tabId,
+    frameId: frameId,
+    token: token,
+    url: typeof value.url === 'string' ? value.url : '',
+    updatedAt: Number.isFinite(Number(value.updatedAt)) ? Number(value.updatedAt) : Date.now()
+  };
+}
+
+function getGlobalPipOwnerRecord() {
+  if (globalPipOwnerCacheLoaded) {
+    return Promise.resolve(globalPipOwnerCache);
+  }
+  const storageArea = getSessionStorageArea();
+  if (!storageArea || typeof storageArea.get !== 'function') {
+    globalPipOwnerCacheLoaded = true;
+    globalPipOwnerCache = null;
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    storageArea.get([GLOBAL_PIP_OWNER_STORAGE_KEY], (result) => {
+      const normalized = normalizePipOwnerRecord(
+        result ? result[GLOBAL_PIP_OWNER_STORAGE_KEY] : null
+      );
+      globalPipOwnerCacheLoaded = true;
+      globalPipOwnerCache = normalized;
+      resolve(normalized);
+    });
+  });
+}
+
+function setGlobalPipOwnerRecord(record) {
+  const normalized = normalizePipOwnerRecord(record);
+  globalPipOwnerCacheLoaded = true;
+  globalPipOwnerCache = normalized;
+  const storageArea = getSessionStorageArea();
+  if (!storageArea || typeof storageArea.set !== 'function') {
+    return Promise.resolve(normalized);
+  }
+  return new Promise((resolve) => {
+    storageArea.set({ [GLOBAL_PIP_OWNER_STORAGE_KEY]: normalized }, () => {
+      resolve(normalized);
+    });
+  });
+}
+
+function clearGlobalPipOwnerRecord(expectedToken) {
+  const shouldClear = !expectedToken ||
+    !globalPipOwnerCache ||
+    globalPipOwnerCache.token === expectedToken;
+  if (!shouldClear) {
+    return Promise.resolve(false);
+  }
+  globalPipOwnerCacheLoaded = true;
+  globalPipOwnerCache = null;
+  const storageArea = getSessionStorageArea();
+  if (!storageArea || typeof storageArea.remove !== 'function') {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    storageArea.remove(GLOBAL_PIP_OWNER_STORAGE_KEY, () => {
+      resolve(true);
+    });
+  });
+}
+
+function createGlobalPipOwnerToken() {
+  if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `pip-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getPipSenderContext(sender) {
+  const senderTab = sender && sender.tab ? sender.tab : null;
+  const tabId = senderTab && typeof senderTab.id === 'number' ? senderTab.id : null;
+  if (typeof tabId !== 'number') {
+    return null;
+  }
+  return {
+    tabId: tabId,
+    frameId: sender && typeof sender.frameId === 'number' ? sender.frameId : 0,
+    url: getResolvedTabUrl(senderTab)
+  };
+}
+
+function isSameGlobalPipOwner(owner, context, kind) {
+  if (!owner || !context) {
+    return false;
+  }
+  return owner.kind === kind &&
+    owner.tabId === context.tabId &&
+    owner.frameId === context.frameId;
+}
+
+function sendMessageToTab(tabId, message) {
+  return new Promise((resolve) => {
+    if (!chrome || !chrome.tabs || typeof chrome.tabs.sendMessage !== 'function') {
+      resolve({ ok: false, reason: 'tabs-sendMessage-unavailable' });
+      return;
+    }
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          resolve({
+            ok: false,
+            reason: chrome.runtime.lastError.message || 'sendMessage-failed'
+          });
+          return;
+        }
+        resolve(response && typeof response === 'object'
+          ? response
+          : { ok: false, reason: 'empty-response' });
+      });
+    } catch (error) {
+      resolve({ ok: false, reason: String(error) });
+    }
+  });
+}
+
+async function forceSurrenderGlobalPipOwner(owner, requestedKind) {
+  if (!owner) {
+    return { ok: true, cleared: false };
+  }
+  const result = await sendMessageToTab(owner.tabId, {
+    action: 'lumno:pip-force-surrender',
+    reason: requestedKind === 'document' ? 'document-owner-takeover' : 'video-owner-takeover',
+    ownerKind: owner.kind
+  });
+  if (result && result.ok) {
+    await clearGlobalPipOwnerRecord(owner.token);
+    return { ok: true, cleared: true };
+  }
+  const errorReason = String(result && result.reason ? result.reason : '');
+  const isStaleOwner = errorReason.includes('Receiving end does not exist') ||
+    errorReason.includes('No tab with id') ||
+    errorReason.includes('message port closed');
+  if (isStaleOwner) {
+    await clearGlobalPipOwnerRecord(owner.token);
+    return { ok: true, cleared: true };
+  }
+  return {
+    ok: false,
+    reason: result && result.reason ? result.reason : 'surrender-failed'
+  };
+}
+
+async function requestGlobalPipOwnership(sender, kind) {
+  const context = getPipSenderContext(sender);
+  if (!context) {
+    return { ok: false, granted: false, reason: 'no-tab' };
+  }
+  if (kind !== 'video' && kind !== 'document') {
+    return { ok: false, granted: false, reason: 'invalid-kind' };
+  }
+
+  const currentOwner = await getGlobalPipOwnerRecord();
+  if (currentOwner && isSameGlobalPipOwner(currentOwner, context, kind)) {
+    return {
+      ok: true,
+      granted: true,
+      token: currentOwner.token,
+      owner: currentOwner
+    };
+  }
+
+  if (currentOwner) {
+    if (currentOwner.kind === 'document' && kind === 'video') {
+      return {
+        ok: false,
+        granted: false,
+        reason: 'document-owner-active',
+        owner: currentOwner
+      };
+    }
+    const surrenderResult = await forceSurrenderGlobalPipOwner(currentOwner, kind);
+    if (!surrenderResult.ok) {
+      return {
+        ok: false,
+        granted: false,
+        reason: surrenderResult.reason || 'owner-busy',
+        owner: currentOwner
+      };
+    }
+  }
+
+  const nextOwner = {
+    kind: kind,
+    tabId: context.tabId,
+    frameId: context.frameId,
+    token: createGlobalPipOwnerToken(),
+    url: context.url,
+    updatedAt: Date.now()
+  };
+  await setGlobalPipOwnerRecord(nextOwner);
+  return {
+    ok: true,
+    granted: true,
+    token: nextOwner.token,
+    owner: nextOwner
+  };
+}
+
+async function releaseGlobalPipOwnership(sender, token) {
+  const context = getPipSenderContext(sender);
+  if (!context) {
+    return { ok: false, released: false, reason: 'no-tab' };
+  }
+  const currentOwner = await getGlobalPipOwnerRecord();
+  if (!currentOwner) {
+    return { ok: true, released: true, reason: 'no-owner' };
+  }
+  const matchesToken = typeof token === 'string' && token && currentOwner.token === token;
+  const matchesSender = currentOwner.tabId === context.tabId &&
+    currentOwner.frameId === context.frameId;
+  if (!matchesToken && !matchesSender) {
+    return { ok: true, released: false, reason: 'owner-mismatch' };
+  }
+  await clearGlobalPipOwnerRecord(currentOwner.token);
+  return { ok: true, released: true };
+}
+
+function clearGlobalPipOwnerForTabId(tabId) {
+  if (typeof tabId !== 'number') {
+    return;
+  }
+  getGlobalPipOwnerRecord().then((owner) => {
+    if (!owner || owner.tabId !== tabId) {
+      return;
+    }
+    clearGlobalPipOwnerRecord(owner.token).catch(() => {});
+  }).catch(() => {});
+}
+
 function isRestrictedUrl(url) {
   if (!url) {
     return true;
@@ -178,6 +440,41 @@ function recoverOverlayTargetFromCommandNewtab(activeTab, tabs, source) {
   return true;
 }
 
+function isSearchCommandSource(source) {
+  return source === 'commands' || source === 'commands-prefill';
+}
+
+function requestFocusVisibleNewtabInput(source, tabId) {
+  const payload = {
+    action: 'lumno:newtab-focus-input',
+    source: source || '',
+    tabId: typeof tabId === 'number' ? tabId : null
+  };
+  try {
+    chrome.runtime.sendMessage(payload, (response) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        logHotkeyDebug('command-newtab-focus-send-failed', {
+          source: source || '',
+          tabId: typeof tabId === 'number' ? tabId : null,
+          error: chrome.runtime.lastError.message || 'unknown'
+        });
+        return;
+      }
+      logHotkeyDebug('command-newtab-focus-send-done', {
+        source: source || '',
+        tabId: typeof tabId === 'number' ? tabId : null,
+        ok: Boolean(response && response.ok)
+      });
+    });
+  } catch (e) {
+    logHotkeyDebug('command-newtab-focus-send-error', {
+      source: source || '',
+      tabId: typeof tabId === 'number' ? tabId : null,
+      error: e && e.message ? e.message : String(e || '')
+    });
+  }
+}
+
 function openExtensionOptionsPage(callback) {
   const done = typeof callback === 'function' ? callback : () => {};
   const fallbackOpen = () => {
@@ -318,14 +615,19 @@ const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026
 const DOCUMENT_PIP_ENABLED_STORAGE_KEY = '_x_extension_document_pip_enabled_2026_unique_';
 const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
 const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
-const AI_SEARCH_MODE_STORAGE_KEY = '_x_extension_ai_search_mode_2026_unique_';
-const AI_PROVIDER_STORAGE_KEY = '_x_extension_ai_provider_2026_unique_';
-const AI_ENTITLEMENT_CACHE_KEY = '_x_extension_ai_entitlement_cache_2026_unique_';
-const AI_API_KEY_STORAGE_KEY = '_x_extension_ai_api_key_2026_unique_';
 const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
 const PINNED_TAB_SNAPSHOT_STORAGE_KEY = '_x_extension_pinned_tab_snapshot_2026_unique_';
+const REMOVED_AI_SYNC_STORAGE_KEYS = [
+  '_x_extension_ai_search_mode_2026_unique_',
+  '_x_extension_ai_provider_2026_unique_',
+  '_x_extension_ai_entitlement_cache_2026_unique_'
+];
+const REMOVED_AI_LOCAL_STORAGE_KEYS = [
+  '_x_extension_ai_api_key_2026_unique_'
+];
 const SHOW_SEARCH_COMMAND_NAME = 'show-search';
 const SHOW_SEARCH_PREFILL_COMMAND_NAME = 'show-search-prefill';
+const SHOW_SEARCH_PREFILL_V_COMMAND_NAME = 'show-search-prefill-v';
 const HOTKEY_DUP_GUARD_MS = 180;
 const PAGE_HOTKEY_NEWTAB_RECOVER_MS = 1200;
 const TAB_SWITCH_WINDOW_SHORT_MS = 30 * 60 * 1000;
@@ -350,57 +652,18 @@ let tabSwitchStatsLoadPromise = null;
 let pinnedTabSnapshotTimer = null;
 let pinnedTabRestoreAttempted = false;
 
-function getAiEntitlementStatus() {
-  const syncReadPromise = new Promise((resolve) => {
-    if (!storageArea) {
-      resolve({});
-      return;
-    }
-    storageArea.get([
-      AI_SEARCH_MODE_STORAGE_KEY,
-      AI_PROVIDER_STORAGE_KEY,
-      AI_ENTITLEMENT_CACHE_KEY
-    ], (result) => {
-      resolve(result || {});
-    });
-  });
-  const localReadPromise = new Promise((resolve) => {
-    if (!localStorageArea) {
-      resolve({});
-      return;
-    }
-    localStorageArea.get([AI_API_KEY_STORAGE_KEY], (result) => {
-      resolve(result || {});
-    });
-  });
-  return Promise.all([syncReadPromise, localReadPromise]).then(([syncResult, localResult]) => {
-    const aiEnabled = Boolean(syncResult[AI_SEARCH_MODE_STORAGE_KEY]);
-    const providerRaw = String(syncResult[AI_PROVIDER_STORAGE_KEY] || 'openai').trim();
-    const provider = providerRaw || 'openai';
-    const apiKeyRaw = String(localResult[AI_API_KEY_STORAGE_KEY] || '').trim();
-    const entitlementRaw = syncResult[AI_ENTITLEMENT_CACHE_KEY];
-    const entitlement = entitlementRaw && typeof entitlementRaw === 'object' ? entitlementRaw : null;
-    const defaultPlan = apiKeyRaw ? 'byok' : 'free';
-    return {
-      ok: true,
-      aiEnabled: aiEnabled,
-      provider: provider,
-      hasApiKey: Boolean(apiKeyRaw),
-      plan: entitlement && entitlement.plan ? String(entitlement.plan) : defaultPlan,
-      status: entitlement && entitlement.status ? String(entitlement.status) : 'inactive',
-      updatedAt: entitlement && Number.isFinite(Number(entitlement.updatedAt))
-        ? Number(entitlement.updatedAt)
-        : 0
-    };
-  }).catch(() => ({
-    ok: false,
-    aiEnabled: false,
-    provider: 'openai',
-    hasApiKey: false,
-    plan: 'free',
-    status: 'error',
-    updatedAt: 0
-  }));
+function cleanupRemovedAiStorageKeys() {
+  if (!chrome || !chrome.storage) {
+    return;
+  }
+  const syncArea = chrome.storage.sync;
+  const localArea = chrome.storage.local;
+  if (syncArea && typeof syncArea.remove === 'function') {
+    syncArea.remove(REMOVED_AI_SYNC_STORAGE_KEYS, () => {});
+  }
+  if (localArea && typeof localArea.remove === 'function') {
+    localArea.remove(REMOVED_AI_LOCAL_STORAGE_KEYS, () => {});
+  }
 }
 
 function getTabSwitchStorageArea() {
@@ -1091,6 +1354,10 @@ function openOverlayOnTab(activeTab, tabs, source) {
     source: source || ''
   });
   if (restricted) {
+    if (isSearchCommandSource(source) && (isLumnoNewtabUrl(activeUrl) || isBrowserNewtabUrl(activeUrl))) {
+      requestFocusVisibleNewtabInput(source, activeTab.id);
+      return;
+    }
     if (recoverOverlayTargetFromCommandNewtab(activeTab, tabs, source)) {
       return;
     }
@@ -1363,48 +1630,6 @@ function getDefaultFallbackShortcut(callback) {
 }
 
 function getConfiguredFallbackShortcut(callback) {
-  function normalizeShortcutFromCommandsValue(value) {
-    const text = String(value || '').trim();
-    if (!text || text.includes('%')) {
-      return '';
-    }
-    const parts = text.split('+').map((item) => String(item || '').trim()).filter(Boolean);
-    if (parts.length < 2) {
-      return '';
-    }
-    const keyToken = parts[parts.length - 1];
-    if (!/^[A-Za-z0-9]$/.test(keyToken) && !/^F\d{1,2}$/i.test(keyToken)) {
-      const specialKeys = new Set([
-        'Tab', 'Enter', 'Return', 'Escape', 'Esc', 'Space', 'Spacebar',
-        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-        ',', '.', '/', ';', '\'', '-', '+', '\\', '`', '[', ']'
-      ]);
-      if (!specialKeys.has(keyToken)) {
-        return '';
-      }
-    }
-    let hasModifier = false;
-    for (let i = 0; i < parts.length - 1; i += 1) {
-      const token = parts[i].toLowerCase();
-      const isModifier =
-        token === 'ctrl' ||
-        token === 'control' ||
-        token === 'macctrl' ||
-        token === 'alt' ||
-        token === 'option' ||
-        token === 'shift' ||
-        token === 'command' ||
-        token === 'cmd' ||
-        token === 'meta' ||
-        token === 'super';
-      if (!isModifier) {
-        return '';
-      }
-      hasModifier = true;
-    }
-    return hasModifier ? text : '';
-  }
-
   getDefaultFallbackShortcut((defaultShortcut) => {
     if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
       callback(defaultShortcut);
@@ -1425,6 +1650,67 @@ function getConfiguredFallbackShortcut(callback) {
   });
 }
 
+function normalizeShortcutFromCommandsValue(value) {
+  const text = String(value || '').trim();
+  if (!text || text.includes('%')) {
+    return '';
+  }
+  const parts = text.split('+').map((item) => String(item || '').trim()).filter(Boolean);
+  if (parts.length < 2) {
+    return '';
+  }
+  const keyToken = parts[parts.length - 1];
+  if (!/^[A-Za-z0-9]$/.test(keyToken) && !/^F\d{1,2}$/i.test(keyToken)) {
+    const specialKeys = new Set([
+      'Tab', 'Enter', 'Return', 'Escape', 'Esc', 'Space', 'Spacebar',
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+      ',', '.', '/', ';', '\'', '-', '+', '\\', '`', '[', ']'
+    ]);
+    if (!specialKeys.has(keyToken)) {
+      return '';
+    }
+  }
+  let hasModifier = false;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const token = parts[i].toLowerCase();
+    const isModifier =
+      token === 'ctrl' ||
+      token === 'control' ||
+      token === 'macctrl' ||
+      token === 'alt' ||
+      token === 'option' ||
+      token === 'shift' ||
+      token === 'command' ||
+      token === 'cmd' ||
+      token === 'meta' ||
+      token === 'super';
+    if (!isModifier) {
+      return '';
+    }
+    hasModifier = true;
+  }
+  return hasModifier ? text : '';
+}
+
+function getConfiguredCopyUrlCommandShortcut(callback) {
+  if (!chrome || !chrome.commands || typeof chrome.commands.getAll !== 'function') {
+    callback('');
+    return;
+  }
+  chrome.commands.getAll((commands) => {
+    if (chrome.runtime && chrome.runtime.lastError) {
+      callback('');
+      return;
+    }
+    const items = Array.isArray(commands) ? commands : [];
+    const command = items.find((item) => item && item.name === SHOW_SEARCH_PREFILL_V_COMMAND_NAME);
+    const shortcut = command && typeof command.shortcut === 'string'
+      ? normalizeShortcutFromCommandsValue(command.shortcut)
+      : '';
+    callback(shortcut || '');
+  });
+}
+
 function openExtensionShortcutsPage(callback) {
   const done = typeof callback === 'function' ? callback : () => {};
   chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }, () => {
@@ -1432,13 +1718,45 @@ function openExtensionShortcutsPage(callback) {
   });
 }
 
-chrome.commands.onCommand.addListener(function(command) {
-  if (command !== SHOW_SEARCH_COMMAND_NAME && command !== SHOW_SEARCH_PREFILL_COMMAND_NAME) {
+function triggerCopyCurrentUrlForTab(activeTab, source) {
+  if (!activeTab || typeof activeTab.id !== 'number') {
+    logHotkeyDebug('copy-url-no-active-tab', { source: source || '' });
     return;
   }
-  const source = command === SHOW_SEARCH_PREFILL_COMMAND_NAME ? 'commands-prefill' : 'commands';
+  chrome.tabs.sendMessage(activeTab.id, { action: 'copyCurrentPageUrlFromCommand' }, (response) => {
+    if (chrome.runtime && chrome.runtime.lastError) {
+      logHotkeyDebug('copy-url-send-message-failed', {
+        tabId: activeTab.id,
+        source: source || '',
+        error: chrome.runtime.lastError.message || 'unknown'
+      });
+      return;
+    }
+    logHotkeyDebug('copy-url-triggered', {
+      tabId: activeTab.id,
+      source: source || '',
+      ok: Boolean(response && response.ok)
+    });
+  });
+}
+
+chrome.commands.onCommand.addListener(function(command) {
+  if (
+    command !== SHOW_SEARCH_COMMAND_NAME &&
+    command !== SHOW_SEARCH_PREFILL_COMMAND_NAME &&
+    command !== SHOW_SEARCH_PREFILL_V_COMMAND_NAME
+  ) {
+    return;
+  }
+  const source = command === SHOW_SEARCH_COMMAND_NAME
+    ? 'commands'
+    : (command === SHOW_SEARCH_PREFILL_COMMAND_NAME ? 'commands-prefill' : 'commands-copy-url');
   logHotkeyDebug('received', { command: command, source: source });
   chrome.tabs.query({active: true, currentWindow: true}, function(activeTabs) {
+    if (command === SHOW_SEARCH_PREFILL_V_COMMAND_NAME) {
+      triggerCopyCurrentUrlForTab(activeTabs[0], source);
+      return;
+    }
     triggerShowSearchForTab(activeTabs[0], source);
   });
 });
@@ -1480,6 +1798,7 @@ if (chrome && chrome.runtime && chrome.runtime.onStartup) {
 }
 schedulePersistPinnedTabSnapshot();
 ensureTabSwitchStatsLoaded().catch(() => {});
+cleanupRemovedAiStorageKeys();
 
 if (chrome.action && chrome.action.onClicked) {
   chrome.action.onClicked.addListener((tab) => {
@@ -1500,6 +1819,7 @@ if (chrome && chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     clearTabSwitchStat(tabId);
     schedulePersistPinnedTabSnapshot();
+    clearGlobalPipOwnerForTabId(tabId);
   });
 }
 
@@ -1511,6 +1831,7 @@ if (chrome && chrome.tabs && chrome.tabs.onUpdated) {
     if (typeof changeInfo.url === 'string') {
       // URL changed means the tab semantic target changed; reset historical switch stats.
       clearTabSwitchStat(tabId);
+      clearGlobalPipOwnerForTabId(tabId);
     }
     if (changeInfo.pinned !== undefined || typeof changeInfo.url === 'string' || changeInfo.status === 'complete') {
       schedulePersistPinnedTabSnapshot();
@@ -1541,8 +1862,39 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
     sendResponse({ ok: true });
     return;
+  } else if (request.action === 'pipRequestOwnership') {
+    requestGlobalPipOwnership(sender, request && request.kind ? String(request.kind) : '')
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          granted: false,
+          reason: error && error.message ? error.message : String(error || 'ownership-request-failed')
+        });
+      });
+    return true;
+  } else if (request.action === 'pipReleaseOwnership') {
+    releaseGlobalPipOwnership(sender, request && request.token ? String(request.token) : '')
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          released: false,
+          reason: error && error.message ? error.message : String(error || 'ownership-release-failed')
+        });
+      });
+    return true;
   } else if (request.action === 'getShowSearchShortcut') {
     getConfiguredFallbackShortcut((shortcut) => {
+      sendResponse({ shortcut: shortcut || '' });
+    });
+    return true;
+  } else if (request.action === 'getCopyCurrentUrlCommandShortcut') {
+    getConfiguredCopyUrlCommandShortcut((shortcut) => {
       sendResponse({ shortcut: shortcut || '' });
     });
     return true;
@@ -1603,6 +1955,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         ];
 
         const host = String(location.hostname || '').toLowerCase();
+        const isDouyinHost = host.endsWith('.douyin.com') || host === 'douyin.com';
+        const isIqiyiHost = host.endsWith('.iqiyi.com') || host === 'iqiyi.com' || host.includes('.iqiyi.');
         const candidateVideos = [];
         const seen = new WeakSet();
         const pushVideo = (video) => {
@@ -1695,7 +2049,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
               video.removeAttribute('disablepictureinpicture');
             }
           } catch (e) {}
-          if (video.paused && !video.ended) {
+          if (isIqiyiHost && video.paused && !video.ended) {
             try {
               await video.play();
             } catch (e) {}
@@ -2309,8 +2663,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     return true;
   } else if (request.action === 'getSearchSuggestions') {
     const query = request.query;
-    const mode = request && typeof request.mode === 'string' ? request.mode : 'classic';
-    getSearchSuggestions(query, { mode: mode }).then(suggestions => {
+    getSearchSuggestions(query).then(suggestions => {
       sendResponse({ suggestions: suggestions });
     }).catch(() => {
       sendResponse({ suggestions: [] });
@@ -2355,21 +2708,6 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === 'getShortcutRules') {
     loadShortcutRules().then((items) => {
       sendResponse({ items: items });
-    });
-    return true;
-  } else if (request.action === 'getAiEntitlementStatus') {
-    getAiEntitlementStatus().then((payload) => {
-      sendResponse(payload);
-    }).catch(() => {
-      sendResponse({
-        ok: false,
-        aiEnabled: false,
-        provider: 'openai',
-        hasApiKey: false,
-        plan: 'free',
-        status: 'error',
-        updatedAt: 0
-      });
     });
     return true;
   } else if (request.action === 'trackSearchTab') {
@@ -2546,9 +2884,6 @@ migrateStorageIfNeeded([
   TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
   RESTRICTED_ACTION_STORAGE_KEY,
   FALLBACK_SHORTCUT_STORAGE_KEY,
-  AI_SEARCH_MODE_STORAGE_KEY,
-  AI_PROVIDER_STORAGE_KEY,
-  AI_ENTITLEMENT_CACHE_KEY,
   SEARCH_RESULT_PRIORITY_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
   SITE_SEARCH_DISABLED_STORAGE_KEY
@@ -4110,203 +4445,13 @@ function getFallbackHistoryItemsCached() {
   }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => []);
 }
 
-const AI_QUERY_STOP_WORDS = new Set([
-  '我',
-  '想',
-  '找',
-  '搜索',
-  '搜',
-  '查看',
-  '看',
-  '看过',
-  '访问',
-  '访问过',
-  '打开',
-  '打开过',
-  '网页',
-  '网站',
-  '页面',
-  '的',
-  '了',
-  '和',
-  '与',
-  '及',
-  '在',
-  '最近',
-  'last',
-  'recent',
-  'visited',
-  'visit',
-  'site',
-  'sites',
-  'website',
-  'websites'
-]);
-
-const AI_TOPIC_HINTS = [
-  { topic: 'portfolio', keywords: ['作品集', 'portfolio', 'case study', 'behance', 'dribbble'] },
-  { topic: 'docs', keywords: ['文档', 'docs', 'documentation', 'api', 'reference', 'guide'] },
-  { topic: 'video', keywords: ['视频', 'video', 'watch', '播放'] },
-  { topic: 'devtool', keywords: ['开发', 'github', 'gitlab', 'console', 'dashboard', 'deploy'] },
-  { topic: 'design', keywords: ['设计', 'inspiration', '灵感', 'showcase'] },
-  { topic: 'ecommerce', keywords: ['电商', '商品', 'shop', 'store', 'taobao', 'jd', 'amazon'] },
-  { topic: 'community', keywords: ['社区', 'forum', 'reddit', '掘金', '知乎', 'discussion'] }
-];
-
-function getStartOfDayTime(timestamp) {
-  const date = new Date(timestamp);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-}
-
-function getNaturalLanguageTimeRange(rawQuery) {
-  const text = String(rawQuery || '').toLowerCase();
-  if (!text) {
-    return null;
-  }
-  const now = Date.now();
-  const todayStart = getStartOfDayTime(now);
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  if (text.includes('今天') || text.includes('今日') || text.includes('today')) {
-    return { label: 'today', start: todayStart, end: now };
-  }
-  if (text.includes('昨天') || text.includes('yesterday')) {
-    return { label: 'yesterday', start: todayStart - oneDayMs, end: todayStart - 1 };
-  }
-  if (text.includes('前天')) {
-    return { label: 'day_before_yesterday', start: todayStart - (2 * oneDayMs), end: todayStart - oneDayMs - 1 };
-  }
-  const recentDaysMatch = text.match(/(?:最近|last|recent)\s*(\d{1,2})\s*(?:天|day|days)/i);
-  if (recentDaysMatch && recentDaysMatch[1]) {
-    const days = Math.max(1, Math.min(30, Number.parseInt(recentDaysMatch[1], 10) || 0));
-    return {
-      label: `recent_${days}_days`,
-      start: todayStart - ((days - 1) * oneDayMs),
-      end: now
-    };
-  }
-  if (text.includes('上周') || text.includes('last week')) {
-    const date = new Date(todayStart);
-    const dayOfWeek = date.getDay();
-    const mondayOffset = (dayOfWeek + 6) % 7;
-    const thisWeekStart = todayStart - (mondayOffset * oneDayMs);
-    return {
-      label: 'last_week',
-      start: thisWeekStart - (7 * oneDayMs),
-      end: thisWeekStart - 1
-    };
-  }
-  if (text.includes('这周') || text.includes('本周') || text.includes('this week')) {
-    const date = new Date(todayStart);
-    const dayOfWeek = date.getDay();
-    const mondayOffset = (dayOfWeek + 6) % 7;
-    return {
-      label: 'this_week',
-      start: todayStart - (mondayOffset * oneDayMs),
-      end: now
-    };
-  }
-  if (text.includes('上个月') || text.includes('last month')) {
-    const date = new Date(todayStart);
-    date.setDate(1);
-    const thisMonthStart = date.getTime();
-    const lastMonthEnd = thisMonthStart - 1;
-    date.setMonth(date.getMonth() - 1);
-    const lastMonthStart = date.getTime();
-    return {
-      label: 'last_month',
-      start: lastMonthStart,
-      end: lastMonthEnd
-    };
-  }
-  if (text.includes('本月') || text.includes('这个月') || text.includes('this month')) {
-    const date = new Date(todayStart);
-    date.setDate(1);
-    return {
-      label: 'this_month',
-      start: date.getTime(),
-      end: now
-    };
-  }
-  return null;
-}
-
-function getAiTopicHints(rawQuery) {
-  const text = String(rawQuery || '').toLowerCase();
-  if (!text) {
-    return [];
-  }
-  const matched = [];
-  AI_TOPIC_HINTS.forEach((hint) => {
-    const hasMatch = hint.keywords.some((word) => text.includes(String(word).toLowerCase()));
-    if (hasMatch) {
-      matched.push(hint);
-    }
-  });
-  return matched;
-}
-
-function tokenizeAiKeywords(rawQuery) {
-  const text = String(rawQuery || '').toLowerCase();
-  if (!text) {
-    return [];
-  }
-  const normalized = text
-    .replace(/[\u3002\uff0c,.;!?()[\]{}"'`~@#$%^&*_+=<>|\\/:-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!normalized) {
-    return [];
-  }
-  return normalized
-    .split(' ')
-    .map((token) => token.trim())
-    .filter((token) => token && token.length > 1 && !AI_QUERY_STOP_WORDS.has(token));
-}
-
-function buildAiSearchContext(query) {
-  const raw = String(query || '').trim();
-  if (!raw) {
-    return {
-      normalizedQuery: '',
-      keywordQuery: '',
-      keywords: [],
-      timeRange: null,
-      topicHints: []
-    };
-  }
-  const timeRange = getNaturalLanguageTimeRange(raw);
-  const topicHints = getAiTopicHints(raw);
-  const keywords = tokenizeAiKeywords(raw);
-  topicHints.forEach((hint) => {
-    (hint.keywords || []).forEach((word) => {
-      const normalized = String(word || '').toLowerCase().trim();
-      if (normalized && !keywords.includes(normalized)) {
-        keywords.push(normalized);
-      }
-    });
-  });
-  const keywordQuery = keywords.slice(0, 8).join(' ');
-  return {
-    normalizedQuery: raw,
-    keywordQuery: keywordQuery || raw,
-    keywords: keywords,
-    timeRange: timeRange,
-    topicHints: topicHints
-  };
-}
-
 // Function to get search suggestions from history and top sites
-async function getSearchSuggestions(query, options) {
+async function getSearchSuggestions(query) {
   const suggestions = [];
-  const mode = options && String(options.mode || '').toLowerCase() === 'ai' ? 'ai' : 'classic';
-  const aiContext = mode === 'ai' ? buildAiSearchContext(query) : null;
-  const lookupQuery = aiContext ? (aiContext.keywordQuery || String(query || '')) : String(query || '');
-  const lookupStartTime = aiContext && aiContext.timeRange
-    ? aiContext.timeRange.start
-    : Date.now() - (30 * 24 * 60 * 60 * 1000);
-  const lookupEndTime = aiContext && aiContext.timeRange ? aiContext.timeRange.end : Date.now();
-  const lookupMaxResults = mode === 'ai' ? 90 : 50;
+  const lookupQuery = String(query || '');
+  const lookupStartTime = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  const lookupEndTime = Date.now();
+  const lookupMaxResults = 50;
 
   try {
     const [
@@ -4336,14 +4481,6 @@ async function getSearchSuggestions(query, options) {
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS)
     ]);
     let historyItems = Array.isArray(historyItemsRaw) ? historyItemsRaw : [];
-    if (aiContext && aiContext.timeRange) {
-      const rangeStart = Number(aiContext.timeRange.start) || 0;
-      const rangeEnd = Number(aiContext.timeRange.end) || Date.now();
-      historyItems = historyItems.filter((item) => {
-        const lastVisit = Number(item && item.lastVisitTime) || 0;
-        return lastVisit >= rangeStart && lastVisit <= rangeEnd;
-      });
-    }
     if (historyItems.length === 0 && lookupQuery && lookupQuery.trim().length > 0) {
       const fallbackHistoryItems = await getFallbackHistoryItemsCached();
       const queryLower = lookupQuery.toLowerCase();
@@ -4355,27 +4492,6 @@ async function getSearchSuggestions(query, options) {
           const titleLower = item.title ? item.title.toLowerCase() : '';
           const urlLower = item.url.toLowerCase();
           return titleLower.includes(queryLower) || urlLower.includes(queryLower);
-        })
-        : [];
-    }
-    if (mode === 'ai' && historyItems.length === 0) {
-      const broadHistoryItems = await callChromeApiWithTimeout((done) => {
-        chrome.history.search({
-          text: '',
-          maxResults: 160,
-          startTime: aiContext && aiContext.timeRange ? aiContext.timeRange.start : 0,
-          endTime: aiContext && aiContext.timeRange ? aiContext.timeRange.end : Date.now()
-        }, done);
-      }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => []);
-      const rawQueryLower = String(query || '').toLowerCase();
-      historyItems = Array.isArray(broadHistoryItems)
-        ? broadHistoryItems.filter((item) => {
-          if (!item || !item.url) {
-            return false;
-          }
-          const titleLower = item.title ? item.title.toLowerCase() : '';
-          const urlLower = item.url.toLowerCase();
-          return titleLower.includes(rawQueryLower) || urlLower.includes(rawQueryLower);
         })
         : [];
     }
@@ -4400,9 +4516,7 @@ async function getSearchSuggestions(query, options) {
       : new Map();
     
     const queryLower = String(lookupQuery || '').toLowerCase();
-    const queryWords = aiContext && Array.isArray(aiContext.keywords) && aiContext.keywords.length > 0
-      ? aiContext.keywords
-      : queryLower.split(/\s+/).filter((word) => word.length > 0);
+    const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
     const rootFolderTitles = new Set([
       'Bookmarks bar',
       'Other bookmarks',
@@ -4516,22 +4630,6 @@ async function getSearchSuggestions(query, options) {
         else if (hoursSinceVisit < 24) score += 18;
         else if (hoursSinceVisit < 72) score += 10;
       }
-      if (aiContext && Array.isArray(aiContext.topicHints) && aiContext.topicHints.length > 0) {
-        const aiText = `${titleLower} ${urlLower}`;
-        aiContext.topicHints.forEach((hint) => {
-          const hitCount = (hint.keywords || []).reduce((count, word) => {
-            const normalized = String(word || '').toLowerCase();
-            if (!normalized) {
-              return count;
-            }
-            return aiText.includes(normalized) ? count + 1 : count;
-          }, 0);
-          if (hitCount > 0) {
-            score += Math.min(24, 8 * hitCount);
-          }
-        });
-      }
-      
       return score;
     }
 
@@ -4555,18 +4653,6 @@ async function getSearchSuggestions(query, options) {
       const visitCount = Number(item && item.visitCount) || 0;
       if (visitCount > 1) {
         reasons.push(`访问 ${visitCount} 次`);
-      }
-      if (aiContext && aiContext.timeRange && aiContext.timeRange.label) {
-        reasons.push(`时间命中：${aiContext.timeRange.label}`);
-      }
-      if (aiContext && Array.isArray(aiContext.topicHints) && aiContext.topicHints.length > 0) {
-        const haystack = `${String(item && item.title || '').toLowerCase()} ${String(item && item.url || '').toLowerCase()}`;
-        const matchedTopics = aiContext.topicHints
-          .filter((hint) => (hint.keywords || []).some((word) => haystack.includes(String(word || '').toLowerCase())))
-          .map((hint) => hint.topic);
-        if (matchedTopics.length > 0) {
-          reasons.push(`语义命中：${matchedTopics.slice(0, 2).join('/')}`);
-        }
       }
       return reasons.slice(0, 3);
     }
@@ -5864,6 +5950,12 @@ async function getSearchSuggestions(query, options) {
         font-variant: normal !important;
         text-transform: none !important;
       }
+      #_x_extension_overlay_2024_unique_ button .ri-icon,
+      #_x_extension_overlay_2024_unique_ [role="button"] .ri-icon,
+      #_x_extension_overlay_2024_unique_ a .ri-icon {
+        cursor: inherit !important;
+        pointer-events: none !important;
+      }
       #_x_extension_overlay_2024_unique_ .ri-icon::before {
         font-style: normal !important;
         font-variant: normal !important;
@@ -5932,101 +6024,11 @@ async function getSearchSuggestions(query, options) {
       searchInput.style.setProperty('line-height', '1.3', 'important');
       searchInput.style.setProperty('padding-top', '0', 'important');
       searchInput.style.setProperty('padding-bottom', '0', 'important');
-      searchInput.style.setProperty('padding-right', '144px', 'important');
+      searchInput.style.setProperty('padding-right', '116px', 'important');
     }
     if (rightIcon) {
       rightIcon.style.setProperty('right', '50px', 'important');
     }
-    let overlayAiSearchModeEnabled = false;
-    const aiModeButton = document.createElement('button');
-    applyNoTranslate(aiModeButton);
-    aiModeButton.id = '_x_extension_search_ai_mode_button_2026_unique_';
-    aiModeButton.type = 'button';
-    aiModeButton.textContent = 'AI';
-    aiModeButton.setAttribute('aria-label', 'AI 搜索');
-    aiModeButton.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      right: 86px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      min-width: 34px !important;
-      height: 24px !important;
-      padding: 0 8px !important;
-      border-radius: 999px !important;
-      border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08)) !important;
-      background: transparent !important;
-      color: var(--x-ov-subtext, #6B7280) !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      font-size: 10px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      font-weight: 700 !important;
-      cursor: pointer !important;
-      transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 160ms ease !important;
-      z-index: 2 !important;
-    `;
-    const updateOverlayAiModeButton = () => {
-      if (overlayAiSearchModeEnabled) {
-        aiModeButton.style.setProperty('background', 'var(--x-ov-link, #2563EB)', 'important');
-        aiModeButton.style.setProperty('color', '#FFFFFF', 'important');
-        aiModeButton.style.setProperty('border-color', 'var(--x-ov-link, #2563EB)', 'important');
-      } else {
-        aiModeButton.style.setProperty('background', 'transparent', 'important');
-        aiModeButton.style.setProperty('color', 'var(--x-ov-subtext, #6B7280)', 'important');
-        aiModeButton.style.setProperty('border-color', 'var(--x-ov-border, rgba(0, 0, 0, 0.08))', 'important');
-      }
-    };
-    const setOverlayAiSearchModeEnabled = (enabled, options) => {
-      overlayAiSearchModeEnabled = Boolean(enabled);
-      updateOverlayAiModeButton();
-      const silent = options && options.silent;
-      if (silent) {
-        return;
-      }
-      if (searchInput) {
-        try {
-          searchInput.focus({ preventScroll: true });
-        } catch (e) {
-          searchInput.focus();
-        }
-      }
-      const liveQuery = searchInput ? String(searchInput.value || '').trim() : '';
-      if (!liveQuery) {
-        return;
-      }
-      chrome.runtime.sendMessage({
-        action: 'getSearchSuggestions',
-        query: liveQuery,
-        mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
-        context: 'overlay'
-      }, function(response) {
-        if (response && response.suggestions) {
-          updateSearchSuggestions(response.suggestions, liveQuery);
-        }
-      });
-    };
-    aiModeButton.addEventListener('mouseenter', () => {
-      aiModeButton.style.setProperty('transform', 'translateY(-50%) scale(1.04)', 'important');
-    });
-    aiModeButton.addEventListener('mouseleave', () => {
-      aiModeButton.style.setProperty('transform', 'translateY(-50%)', 'important');
-      updateOverlayAiModeButton();
-    });
-    aiModeButton.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setOverlayAiSearchModeEnabled(!overlayAiSearchModeEnabled);
-    });
-    updateOverlayAiModeButton();
-    inputContainer.appendChild(aiModeButton);
     const topActionTooltip = document.createElement('div');
     applyNoTranslate(topActionTooltip);
     topActionTooltip.id = '_x_extension_top_action_tooltip_2026_unique_';
@@ -6123,7 +6125,7 @@ async function getSearchSuggestions(query, options) {
       font-size: 0 !important;
       color: var(--x-ext-input-icon, #9CA3AF) !important;
       cursor: pointer !important;
-      transition: background-color 140ms ease, color 140ms ease !important;
+      transition: background-color 140ms ease, color 140ms ease, transform 160ms ease !important;
     `;
     const closeOtherTabsIcon = closeOtherTabsButton.querySelector('.ri-icon');
     if (closeOtherTabsIcon) {
@@ -6132,15 +6134,19 @@ async function getSearchSuggestions(query, options) {
       closeOtherTabsIcon.style.setProperty('justify-content', 'center', 'important');
       closeOtherTabsIcon.style.setProperty('line-height', '1', 'important');
       closeOtherTabsIcon.style.setProperty('transform', 'none', 'important');
+      closeOtherTabsIcon.style.setProperty('pointer-events', 'none', 'important');
+      closeOtherTabsIcon.style.setProperty('cursor', 'pointer', 'important');
     }
     const resetCloseOtherTabsButtonVisualState = () => {
       closeOtherTabsButton.style.setProperty('background', 'transparent', 'important');
       closeOtherTabsButton.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');
+      closeOtherTabsButton.style.setProperty('transform', 'translateY(-50%)', 'important');
     };
     resetCloseOtherTabsButtonVisualState();
     closeOtherTabsButton.addEventListener('mouseenter', () => {
       closeOtherTabsButton.style.setProperty('background', 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))', 'important');
       closeOtherTabsButton.style.setProperty('color', 'var(--x-ext-input-icon-hover, #4B5563)', 'important');
+      closeOtherTabsButton.style.setProperty('transform', 'translateY(-50%) scale(1.06)', 'important');
     });
     closeOtherTabsButton.addEventListener('mouseleave', resetCloseOtherTabsButtonVisualState);
     closeOtherTabsButton.addEventListener('blur', resetCloseOtherTabsButtonVisualState);
@@ -6193,10 +6199,6 @@ async function getSearchSuggestions(query, options) {
       }
       if (closeOtherTabsButton) {
         closeOtherTabsButton.setAttribute('aria-label', closeOtherTooltipText);
-      }
-      if (aiModeButton) {
-        aiModeButton.setAttribute('aria-label', t('ai_search_toggle', 'AI 搜索'));
-        updateOverlayAiModeButton();
       }
       if (modeBadge) {
         updateModeBadge(searchInput ? searchInput.value : '');
@@ -6421,7 +6423,6 @@ async function getSearchSuggestions(query, options) {
             chrome.runtime.sendMessage({
               action: 'getSearchSuggestions',
               query: latestOverlayQuery,
-              mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
               context: 'overlay'
             }, (refreshResponse) => {
               const suggestions = refreshResponse && Array.isArray(refreshResponse.suggestions)
@@ -6904,6 +6905,8 @@ async function getSearchSuggestions(query, options) {
       target.style.setProperty('--x-ext-input-text', tokens.text, 'important');
       target.style.setProperty('--x-ext-input-caret', tokens.link, 'important');
       target.style.setProperty('--x-ext-input-icon', tokens.subtext, 'important');
+      target.style.setProperty('--x-ext-input-icon-hover-bg', tokens.hoverBg, 'important');
+      target.style.setProperty('--x-ext-input-icon-hover', tokens.text, 'important');
       target.style.setProperty('--x-ext-input-underline', tokens.underline, 'important');
       target.style.setProperty('--x-ext-input-divider-inset', tokens.dividerInset, 'important');
       target.style.setProperty('--x-ext-input-divider-opacity', tokens.dividerOpacity, 'important');
@@ -8216,9 +8219,6 @@ async function getSearchSuggestions(query, options) {
       if (!query) {
         return false;
       }
-      if (!/[A-Za-z]/.test(query)) {
-        return false;
-      }
       return /^[A-Za-z0-9\s._/-]+$/.test(query);
     }
 
@@ -8612,6 +8612,10 @@ async function getSearchSuggestions(query, options) {
         clearAutocomplete();
         return;
       }
+      if (candidate.type === 'title') {
+        clearAutocomplete();
+        return;
+      }
       if (candidate.completion.length <= rawQuery.length) {
         clearAutocomplete();
         return;
@@ -8620,10 +8624,7 @@ async function getSearchSuggestions(query, options) {
         clearAutocomplete();
         return;
       }
-      let displayText = candidate.completion;
-      if (candidate.type === 'url' && candidate.title) {
-        displayText = `${candidate.completion} - ${candidate.title}`;
-      }
+      const displayText = candidate.completion;
       searchInput.value = displayText;
       searchInput.setSelectionRange(rawQuery.length, displayText.length);
       autocompleteState = {
@@ -8763,7 +8764,6 @@ async function getSearchSuggestions(query, options) {
           chrome.runtime.sendMessage({
             action: 'getSearchSuggestions',
             query: latestOverlayQuery,
-            mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
             context: 'overlay'
           }, function(response) {
             if (response && response.suggestions) {
@@ -9170,7 +9170,6 @@ async function getSearchSuggestions(query, options) {
       chrome.runtime.sendMessage({
         action: 'getSearchSuggestions',
         query: query,
-        mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
         context: 'overlay'
       }, function(response) {
         if (response && response.suggestions) {
@@ -9209,7 +9208,6 @@ async function getSearchSuggestions(query, options) {
         chrome.runtime.sendMessage({
           action: 'getSearchSuggestions',
           query: query,
-          mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
           context: 'overlay'
         }, function(response) {
           if (response && response.suggestions) {
@@ -9270,7 +9268,6 @@ async function getSearchSuggestions(query, options) {
         chrome.runtime.sendMessage({
           action: 'getSearchSuggestions',
           query: query,
-          mode: overlayAiSearchModeEnabled ? 'ai' : 'classic',
           context: 'overlay'
         }, function(response) {
           if (response && response.suggestions) {

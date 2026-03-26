@@ -1,0 +1,9 @@
+{
+  "release": {
+    "tag_name": "0.9.4",
+    "name": "Bug Fixes & Improvements",
+    "body": "修复了若干体验问题。喝了很多美式，熬了很多夜，撸了很多猫。\n\n⚠️注意：由于快捷键机制做了调整，旧版插件的快捷键可能失效，烦请访问 `chrome://extensions/shortcuts` 重新设置下。如有不便，敬请谅解！\n## Features\n\n* 优化了自动补全的交互逻辑，新增了对数字 url 的补全支持\n* 聚焦搜索浮窗现在尺寸固定，不受网页缩放影响。Lumno 内置三种尺寸，可在 `设置/外观` 中切换\n\n* * *\n\nFixed a handful of experience hiccups. This update was fueled by countless Americanos, late-night coding sessions, and extensive cat-petting.\n\n⚠️ Important Update: We've made some changes to how shortcuts work, which might have reset your current settings. Kindly head over to `chrome://extensions/shortcuts` to set them up again. Thanks for your understanding!\n## Features\n\n* Smarter Autocomplete: Refined interaction logic and added support for numeric URLs.\n* Consistent Focus Search: The Command Bar now maintains a fixed size regardless of page zoom.",
+    "html_url": "https://github.com/kubai087/lumno-extension/releases/tag/0.9.4",
+    "published_at": "2026-03-26T10:00:00Z"
+  }
+}
