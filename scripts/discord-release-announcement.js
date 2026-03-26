@@ -131,6 +131,10 @@ function splitByDivider(body) {
   const firstScore = languageScore(parts[0]);
   const secondScore = languageScore(parts[1]);
 
+  if (secondScore.latin >= 40 && secondScore.latin > secondScore.cjk) {
+    return { zh: parts[0], en: parts[1] };
+  }
+
   if (firstScore.cjk > firstScore.latin && secondScore.latin >= secondScore.cjk) {
     return { zh: parts[0], en: parts[1] };
   }
@@ -197,10 +201,10 @@ function truncate(text, maxLength) {
 
 function buildEmbedDescription(parsed) {
   if (parsed.zh && parsed.en) {
-    return truncate(parsed.en, 4000);
+    return truncate(parsed.en.replace(/^Tags:\s.*$/gim, '').trim(), 4000);
   }
 
-  return truncate(parsed.raw || 'No release notes provided.', 4000);
+  return truncate((parsed.raw || 'No release notes provided.').replace(/^Tags:\s.*$/gim, '').trim(), 4000);
 }
 
 function buildPayload() {
