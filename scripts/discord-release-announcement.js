@@ -156,18 +156,7 @@ function truncate(text, maxLength) {
 
 function buildEmbedDescription(parsed) {
   if (parsed.zh && parsed.en) {
-    const headerBudget = 32;
-    const totalBudget = 4000;
-    const remaining = totalBudget - headerBudget;
-    const zhBudget = Math.max(800, Math.floor(remaining / 2));
-    const enBudget = Math.max(800, remaining - zhBudget);
-    return [
-      '**中文**',
-      truncate(parsed.zh, zhBudget),
-      '',
-      '**English**',
-      truncate(parsed.en, enBudget),
-    ].join('\n');
+    return truncate(parsed.en, 4000);
   }
 
   return truncate(parsed.raw || 'No release notes provided.', 4000);
