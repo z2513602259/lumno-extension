@@ -1,0 +1,9 @@
+{
+  "release": {
+    "tag_name": "0.9.3",
+    "name": "Dia Supported, Bookmarks on New Tab, Auto PiP",
+    "body": "从 0.9.3 版本开始，更新后会显示 [更新日志](https://lumno.kubai.design/release/).\n⚠️注意：由于快捷键机制做了调整，旧版插件的快捷键可能失效，烦请访问 `chrome://extensions/shortcuts` 重新设置下。如有不便，敬请谅解！\n\n## Features\n\n* 新标签页支持添加收藏夹。感谢 ChisakaKanako/jiahao_jayden\n* 支持自动画中画功能。当从播放着视频的网页切走时，会自动触发视频画中画，保证播放不断流\n* 适配网页深色模式 favicon\n\n## Bug Fixes\n\n* 支持了 Dia 浏览器，需要在 `chrome://extensions/shortcuts` 中将 In Dia 改为 In Global\n* 修复了部分情况下会请求 `访问本地网络上其他设备` 权限的问题\n\nFrom version 0.9.3 onward, updates will show the [changelog](https://lumno.kubai.design/release/).\n⚠️ Important Update: We've made some changes to how shortcuts work, which might have reset your current settings. Kindly head over to `chrome://extensions/shortcuts` to set them up again. Thanks for your understanding!\n\n## Features\n\n* New Tab now supports adding bookmarks. Thanks to ChisakaKanako/jiahao_jayden.\n* Added Auto Picture-in-Picture.\n* Added favicon adaptation for websites in dark mode.\n\n## Bug Fixes\n\n* Added support for Dia Browser.\n* Fixed an issue where local network permission could be requested in some cases.",
+    "html_url": "https://github.com/kubai087/lumno-extension/releases/tag/0.9.3",
+    "published_at": "2026-03-05T07:32:00Z"
+  }
+}

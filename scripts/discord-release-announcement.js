@@ -142,8 +142,49 @@ function splitByDivider(body) {
   return null;
 }
 
+function splitByLanguageTransition(body) {
+  const lines = normalizeText(body).split('\n');
+  let seenChineseContent = false;
+  let splitIndex = -1;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const score = languageScore(trimmed);
+    if (score.cjk >= 2) {
+      seenChineseContent = true;
+      continue;
+    }
+
+    const isHeading = /^#{1,6}\s+/.test(trimmed);
+    const looksEnglishParagraph = score.cjk === 0 && score.latin >= 12 && !isHeading;
+
+    if (seenChineseContent && looksEnglishParagraph) {
+      splitIndex = index;
+      break;
+    }
+  }
+
+  if (splitIndex <= 0) {
+    return null;
+  }
+
+  const zh = trimSection(lines.slice(0, splitIndex).join('\n'));
+  const en = trimSection(lines.slice(splitIndex).join('\n'));
+  return zh && en ? { zh, en } : null;
+}
+
 function extractBilingualSections(body) {
-  return splitByExplicitSections(body) || splitByDivider(body) || { raw: trimSection(body) };
+  return (
+    splitByExplicitSections(body) ||
+    splitByDivider(body) ||
+    splitByLanguageTransition(body) ||
+    { raw: trimSection(body) }
+  );
 }
 
 function truncate(text, maxLength) {
@@ -245,6 +286,10 @@ async function crosspostMessage(message) {
 
   if (!response.ok) {
     const errorBody = await response.text();
+    if (response.status === 403) {
+      console.warn(`Discord crosspost skipped (${response.status}): ${errorBody}`);
+      return;
+    }
     throw new Error(`Discord crosspost failed (${response.status}): ${errorBody}`);
   }
 }
