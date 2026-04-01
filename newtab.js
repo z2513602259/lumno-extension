@@ -2869,13 +2869,13 @@
       }
       return value.replace(/^\[|\]$/g, '').split(':')[0];
     })();
-    if (hostCandidate && isLocalNetworkHost(hostCandidate)) {
+    if (hostCandidate && shouldBlockFaviconForHost(hostCandidate)) {
       return true;
     }
     try {
       const parsed = new URL(raw);
       const protocol = String(parsed.protocol || '').toLowerCase();
-      if ((protocol === 'http:' || protocol === 'https:') && isLocalNetworkHost(parsed.hostname)) {
+      if ((protocol === 'http:' || protocol === 'https:') && shouldBlockFaviconForHost(parsed.hostname)) {
         return true;
       }
       if (protocol === 'chrome:' && parsed.hostname === 'favicon2') {
@@ -2883,7 +2883,7 @@
         if (nested) {
           try {
             const nestedUrl = new URL(nested);
-            if (isLocalNetworkHost(nestedUrl.hostname)) {
+            if (shouldBlockFaviconForHost(nestedUrl.hostname)) {
               return true;
             }
           } catch (e) {
@@ -3543,7 +3543,7 @@
       return;
     }
     const host = getHostFromUrl(url);
-    if (host && isLocalNetworkHost(host)) {
+    if (host && shouldBlockFaviconForHost(host)) {
       return;
     }
     const img = new Image();
@@ -4945,6 +4945,42 @@
     return false;
   }
 
+  function isSuspiciousLocalFaviconHost(hostname) {
+    const host = String(hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+    if (!host) {
+      return false;
+    }
+    const ipv6 = host.split('%')[0];
+    if (host.includes(':') || ipv6.includes(':')) {
+      return false;
+    }
+    if (/^\d{1,3}(?:\.\d{1,3}){0,3}$/.test(host)) {
+      return false;
+    }
+    if (!host.includes('.')) {
+      return /^[a-z0-9-]+$/i.test(host);
+    }
+    const labels = host.split('.').filter(Boolean);
+    if (labels.length < 2) {
+      return false;
+    }
+    const suffix = labels[labels.length - 1];
+    return [
+      'internal',
+      'intern',
+      'test',
+      'localdev',
+      'lan',
+      'home',
+      'corp',
+      'localdomain'
+    ].includes(suffix);
+  }
+
+  function shouldBlockFaviconForHost(hostname) {
+    return isLocalNetworkHost(hostname) || isSuspiciousLocalFaviconHost(hostname);
+  }
+
   function attachFaviconWithFallbacks(img, url, host, options) {
     if (!img || !url) {
       return;
@@ -4959,7 +4995,7 @@
     const session = img._xThemeFaviconSession;
     const isSessionActive = () => Boolean(img && img.isConnected && img._xThemeFaviconSession === session);
     const hostKey = host || getHostFromUrl(url);
-    if (isLocalNetworkHost(hostKey)) {
+    if (shouldBlockFaviconForHost(hostKey)) {
       applyFallbackIcon(img);
       return;
     }
@@ -7501,7 +7537,7 @@
       } catch (e) {
         hostForTab = '';
       }
-      const useFallback = !tab.favIconUrl || isLocalNetworkHost(hostForTab);
+      const useFallback = !tab.favIconUrl || shouldBlockFaviconForHost(hostForTab);
       favicon.decoding = 'async';
       favicon.loading = 'eager';
       favicon.referrerPolicy = 'no-referrer';
@@ -8121,7 +8157,7 @@
           iconNode = searchIcon;
         } else if (suggestion.favicon) {
           const suggestionHost = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
-          const isLocalSuggestion = suggestionHost && isLocalNetworkHost(suggestionHost);
+          const isLocalSuggestion = suggestionHost && shouldBlockFaviconForHost(suggestionHost);
           if (isLocalSuggestion) {
             iconNode = createLinkIcon();
           } else {
@@ -8160,7 +8196,7 @@
           }
         } else {
           const suggestionHost = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
-          if (suggestionHost && isLocalNetworkHost(suggestionHost)) {
+          if (suggestionHost && shouldBlockFaviconForHost(suggestionHost)) {
             const linkIcon = createLinkIcon();
             linkIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
             iconNode = linkIcon;
