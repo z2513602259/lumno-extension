@@ -751,5 +751,17 @@
   },
   "copy_page_url_failed_permission": {
     "message": "复制失败，请检查剪贴板权限"
+  },
+  "recent_pin_add": {
+    "message": "置顶"
+  },
+  "recent_pin_remove": {
+    "message": "取消置顶"
+  },
+  "recent_pin_limit": {
+    "message": "最多置顶 3 个"
+  },
+  "recent_pin_limit_toast": {
+    "message": "最多只能置顶 3 个卡片"
   }
 }

@@ -751,5 +751,17 @@
   },
   "copy_page_url_failed_permission": {
     "message": "Copy failed. Check clipboard permission."
+  },
+  "recent_pin_add": {
+    "message": "Pin"
+  },
+  "recent_pin_remove": {
+    "message": "Unpin"
+  },
+  "recent_pin_limit": {
+    "message": "You can pin up to 3 cards"
+  },
+  "recent_pin_limit_toast": {
+    "message": "Pin up to 3 cards"
   }
 }

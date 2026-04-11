@@ -45,6 +45,8 @@
   const FAVICON_DATA_PERSIST_MAX_LENGTH = 24000;
   const NEWTAB_RECENT_CACHE_STORAGE_KEY = '_x_extension_newtab_recent_cache_2024_unique_';
   const NEWTAB_BOOKMARK_CACHE_STORAGE_KEY = '_x_extension_newtab_bookmark_cache_2024_unique_';
+  const PINNED_RECENT_SITES_STORAGE_KEY = '_x_extension_newtab_pinned_recent_sites_2026_unique_';
+  const MAX_PINNED_RECENT_SITES = 3;
   const NEWTAB_SECTION_CACHE_TTL_MS = 1000 * 60 * 5;
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let mediaListenerAttached = false;
@@ -65,9 +67,13 @@
   const recentCards = [];
   const bookmarkCards = [];
   const bookmarkCardElementCache = new Map();
+  let recentSourceItems = [];
+  let pinnedRecentSites = [];
   let currentMessages = null;
   let currentLanguageMode = 'system';
   let defaultPlaceholderText = '搜索或输入网址...';
+  let toastElement = null;
+  let toastTimer = null;
   let currentRecentMode = 'most';
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
@@ -133,6 +139,7 @@
   const RECENT_GRID_GAP_PX = 12;
   let currentNewtabWidthMode = 'wide';
   let currentRecentGridColumns = 4;
+  toastElement = document.getElementById('_x_extension_toast_2024_unique_');
 
   function normalizeRecentCount(value) {
     const parsed = Number.parseInt(value, 10);
@@ -1642,6 +1649,11 @@
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const isPrimaryArea = Boolean(storageAreaName) && areaName === storageAreaName;
     if (!isPrimaryArea) {
+      if (areaName === 'local' && changes[PINNED_RECENT_SITES_STORAGE_KEY]) {
+        pinnedRecentSites = normalizePinnedRecentSites(changes[PINNED_RECENT_SITES_STORAGE_KEY].newValue);
+        recentRenderSignature = '';
+        renderRecentSites(recentSourceItems);
+      }
       return;
     }
     if (changes[THEME_STORAGE_KEY]) {
@@ -1734,6 +1746,11 @@
         forceReloadRecentSitesForI18n();
       }
     }
+    if (changes[PINNED_RECENT_SITES_STORAGE_KEY]) {
+      pinnedRecentSites = normalizePinnedRecentSites(changes[PINNED_RECENT_SITES_STORAGE_KEY].newValue);
+      recentRenderSignature = '';
+      renderRecentSites(recentSourceItems);
+    }
   });
 
   if (chrome && chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
@@ -1755,6 +1772,13 @@
 
   if (storageArea) {
     bootstrapInitialLanguageMode();
+    readPinnedRecentSites().then((items) => {
+      pinnedRecentSites = items;
+      if (recentSourceItems.length > 0) {
+        recentRenderSignature = '';
+        renderRecentSites(recentSourceItems);
+      }
+    });
 
     storageArea.get([RECENT_COUNT_STORAGE_KEY], (result) => {
       const stored = result[RECENT_COUNT_STORAGE_KEY];
@@ -4439,14 +4463,16 @@
   }
 
   function renderRecentSites(items) {
-    const normalizedItems = (Array.isArray(items) ? items : [])
+    const normalizedSourceItems = (Array.isArray(items) ? items : [])
       .filter((item) => {
         const url = item && item.url ? String(item.url) : '';
         return !shouldExcludeFromRecentSites(url);
       });
-    const nextSignature = getRecentSitesSignature(normalizedItems);
+    recentSourceItems = normalizedSourceItems.slice();
+    const mergedItems = mergeRecentSitesWithPinned(normalizedSourceItems, getRecentLimit());
+    const nextSignature = getRecentSitesSignature(mergedItems);
     if (nextSignature === recentRenderSignature) {
-      if (normalizedItems.length === 0) {
+      if (mergedItems.length === 0) {
         recentSection.style.setProperty('display', 'none', 'important');
       } else {
         recentSection.style.setProperty('display', 'flex', 'important');
@@ -4457,12 +4483,12 @@
     recentRenderSignature = nextSignature;
     recentGrid.innerHTML = '';
     recentCards.length = 0;
-    if (normalizedItems.length === 0) {
+    if (mergedItems.length === 0) {
       recentSection.style.setProperty('display', 'none', 'important');
       updateBookmarkSectionPosition();
       return;
     }
-    normalizedItems.forEach((item, index) => {
+    mergedItems.forEach((item, index) => {
       const card = buildRecentSiteCard(item, index);
       if (card) {
         recentGrid.appendChild(card);
@@ -4536,7 +4562,7 @@
       if (!recentLimit || recentLimit <= 0) {
         return;
       }
-      const cachedItems = items.slice(0, Math.max(0, recentLimit));
+      const cachedItems = items.slice(0, Math.max(0, recentLimit + MAX_PINNED_RECENT_SITES));
       renderRecentSites(cachedItems);
       recentLoadedOnce = true;
     });
@@ -4650,6 +4676,7 @@
     const recentLimit = getRecentLimit();
     if (!recentLimit || recentLimit <= 0) {
       recentRenderSignature = '';
+      recentSourceItems = [];
       recentCards.length = 0;
       recentGrid.innerHTML = '';
       recentSection.style.setProperty('display', 'none', 'important');
@@ -4658,13 +4685,16 @@
       updateBookmarkSectionPosition();
       return;
     }
-    getRecentSites(recentLimit, currentRecentMode).then((items) => {
+    getRecentSites(recentLimit + MAX_PINNED_RECENT_SITES, currentRecentMode).then((items) => {
       if (requestToken !== recentLoadToken) {
         return;
       }
       const normalizedItems = Array.isArray(items) ? items : [];
       renderRecentSites(normalizedItems);
-      writeSectionCache(NEWTAB_RECENT_CACHE_STORAGE_KEY, normalizedItems.slice(0, Math.max(0, recentLimit)));
+      writeSectionCache(
+        NEWTAB_RECENT_CACHE_STORAGE_KEY,
+        normalizedItems.slice(0, Math.max(0, recentLimit + MAX_PINNED_RECENT_SITES))
+      );
       recentDataDirty = false;
       recentLoadedOnce = true;
     });
@@ -4685,6 +4715,205 @@
     markBookmarkDataDirty();
     loadRecentSites();
     loadBookmarks();
+  }
+
+  function getRecentSiteUrlKey(item) {
+    if (!item || !item.url) {
+      return '';
+    }
+    return String(item.url).trim();
+  }
+
+  function getRecentSiteHostKey(item) {
+    if (!item) {
+      return '';
+    }
+    const rawHost = item.host || getHostFromUrl(item.url || '');
+    return normalizeHost(rawHost || '');
+  }
+
+  function normalizeRecentSiteRecord(item) {
+    if (!item || !item.url) {
+      return null;
+    }
+    const url = String(item.url).trim();
+    if (!url || shouldExcludeFromRecentSites(url)) {
+      return null;
+    }
+    const host = getRecentSiteHostKey(item);
+    const title = sanitizeDisplayText(item.title || item.siteName || host || url);
+    const siteName = sanitizeDisplayText(item.siteName || getSiteDisplayName(host, title) || host || title || url);
+    return {
+      title,
+      url,
+      host,
+      siteName,
+      lastVisitTime: Number(item.lastVisitTime) || 0,
+      visitCount: Number(item.visitCount) || 0,
+      pinnedAt: Number(item.pinnedAt) || 0
+    };
+  }
+
+  function isSameRecentSite(a, b) {
+    const aUrlKey = getRecentSiteUrlKey(a);
+    const bUrlKey = getRecentSiteUrlKey(b);
+    if (aUrlKey && bUrlKey && aUrlKey === bUrlKey) {
+      return true;
+    }
+    const aHostKey = getRecentSiteHostKey(a);
+    const bHostKey = getRecentSiteHostKey(b);
+    return Boolean(aHostKey && bHostKey && aHostKey === bHostKey);
+  }
+
+  function normalizePinnedRecentSites(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    const normalized = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const nextItem = normalizeRecentSiteRecord(items[i]);
+      if (!nextItem) {
+        continue;
+      }
+      const duplicated = normalized.some((existingItem) => isSameRecentSite(existingItem, nextItem));
+      if (duplicated) {
+        continue;
+      }
+      normalized.push(nextItem);
+      if (normalized.length >= MAX_PINNED_RECENT_SITES) {
+        break;
+      }
+    }
+    return normalized;
+  }
+
+  function readPinnedRecentSites() {
+    return new Promise((resolve) => {
+      if (!localStorageArea) {
+        resolve([]);
+        return;
+      }
+      localStorageArea.get([PINNED_RECENT_SITES_STORAGE_KEY], (result) => {
+        resolve(normalizePinnedRecentSites(result && result[PINNED_RECENT_SITES_STORAGE_KEY]));
+      });
+    });
+  }
+
+  function writePinnedRecentSites(items) {
+    const normalized = normalizePinnedRecentSites(items);
+    pinnedRecentSites = normalized;
+    if (!localStorageArea) {
+      return Promise.resolve(normalized);
+    }
+    return new Promise((resolve) => {
+      localStorageArea.set({ [PINNED_RECENT_SITES_STORAGE_KEY]: normalized }, () => {
+        resolve(normalized);
+      });
+    });
+  }
+
+  function isRecentSitePinned(item) {
+    return pinnedRecentSites.some((pinnedItem) => isSameRecentSite(pinnedItem, item));
+  }
+
+  function mergeRecentSitesWithPinned(items, limit) {
+    const maxItems = Math.max(0, Number(limit) || 0);
+    if (maxItems <= 0) {
+      return [];
+    }
+    const merged = [];
+    const appendUnique = (item, isPinned) => {
+      const normalized = normalizeRecentSiteRecord(item);
+      if (!normalized) {
+        return;
+      }
+      const duplicated = merged.some((existingItem) => isSameRecentSite(existingItem, normalized));
+      if (duplicated) {
+        return;
+      }
+      normalized._xPinned = Boolean(isPinned);
+      merged.push(normalized);
+    };
+    pinnedRecentSites.forEach((item) => appendUnique(item, true));
+    (Array.isArray(items) ? items : []).forEach((item) => appendUnique(item, false));
+    return merged.slice(0, maxItems);
+  }
+
+  function togglePinnedRecentSite(item) {
+    const normalizedItem = normalizeRecentSiteRecord(item);
+    if (!normalizedItem) {
+      return Promise.resolve({ pinned: false, limitReached: false });
+    }
+    const existingIndex = pinnedRecentSites.findIndex((pinnedItem) => isSameRecentSite(pinnedItem, normalizedItem));
+    if (existingIndex >= 0) {
+      const nextItems = pinnedRecentSites.filter((_, index) => index !== existingIndex);
+      return writePinnedRecentSites(nextItems).then((savedItems) => {
+        recentRenderSignature = '';
+        renderRecentSites(recentSourceItems);
+        return {
+          pinned: false,
+          limitReached: false,
+          items: savedItems
+        };
+      });
+    }
+    if (pinnedRecentSites.length >= MAX_PINNED_RECENT_SITES) {
+      return Promise.resolve({ pinned: false, limitReached: true, items: pinnedRecentSites.slice() });
+    }
+    const nextItems = [{
+      ...normalizedItem,
+      pinnedAt: Date.now()
+    }].concat(pinnedRecentSites);
+    return writePinnedRecentSites(nextItems).then((savedItems) => {
+      recentRenderSignature = '';
+      renderRecentSites(recentSourceItems);
+      return {
+        pinned: true,
+        limitReached: false,
+        items: savedItems
+      };
+    });
+  }
+
+  function updateRecentPinButton(button, isPinned, limitReached) {
+    if (!button) {
+      return;
+    }
+    button.classList.toggle('x-nt-recent-pin--active', Boolean(isPinned));
+    button.disabled = false;
+    button.classList.toggle('x-nt-recent-pin--limit', Boolean(!isPinned && limitReached));
+    button.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+    const label = isPinned
+      ? t('recent_pin_remove', '取消置顶')
+      : (limitReached
+        ? t('recent_pin_limit', '最多置顶 3 个')
+        : t('recent_pin_add', '置顶'));
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.innerHTML = getRiSvg(
+      isPinned ? 'ri-pushpin-fill' : 'ri-pushpin-line',
+      'ri-size-16'
+    );
+  }
+
+  function showToast(message, isError) {
+    if (!toastElement || !message) {
+      return;
+    }
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+    }
+    toastElement.textContent = message;
+    if (isError) {
+      toastElement.style.setProperty('background', 'rgba(153, 27, 27, 0.92)');
+    } else {
+      toastElement.style.removeProperty('background');
+    }
+    toastElement.setAttribute('data-show', 'true');
+    toastTimer = setTimeout(() => {
+      toastElement.setAttribute('data-show', 'false');
+    }, 2200);
   }
 
   function setSuggestionsVisible(visible) {
@@ -5913,6 +6142,7 @@
     const resolvedTheme = getThemeForMode(fallbackTheme);
     const accentRgb = resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent) || defaultAccentColor;
     const isDark = document.body && document.body.getAttribute('data-theme') === 'dark';
+    const accentEmphasis = mixColor(accentRgb, [0, 0, 0], isDark ? 0.1 : 0.18);
     const baseTarget = isDark ? [22, 22, 22] : [255, 255, 255];
     const base = mixColor(accentRgb, baseTarget, isDark ? 0.72 : 0.82);
     const border = mixColor(base, isDark ? [255, 255, 255] : [0, 0, 0], isDark ? 0.12 : 0.1);
@@ -5920,7 +6150,10 @@
     return {
       base: rgbToCss(base),
       border: rgbToCss(border),
-      innerTint: rgbToCssParts(innerTint)
+      innerTint: rgbToCssParts(innerTint),
+      accent: rgbToCss(accentEmphasis),
+      accentSoft: rgbToCssAlpha(accentRgb, isDark ? 0.14 : 0.12),
+      accentBorder: rgbToCssAlpha(accentRgb, isDark ? 0.24 : 0.18)
     };
   }
 
@@ -5932,6 +6165,9 @@
     card.style.setProperty('--x-nt-recent-card-color', colors.base);
     card.style.setProperty('--x-nt-recent-card-border-color', colors.border);
     card.style.setProperty('--x-nt-recent-inner-tint-rgb', colors.innerTint);
+    card.style.setProperty('--x-nt-recent-accent-color', colors.accent);
+    card.style.setProperty('--x-nt-recent-accent-soft', colors.accentSoft);
+    card.style.setProperty('--x-nt-recent-accent-border', colors.accentBorder);
   }
 
   function getBookmarkCardColors(theme, host) {
@@ -6025,9 +6261,10 @@
     const titleText = ownExtensionDisplay
       ? ownExtensionDisplay.titleText
       : (item.title || siteName || item.url);
-    const card = document.createElement('button');
-    card.type = 'button';
+    const card = document.createElement('div');
     card.className = 'x-nt-recent-card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
     card.setAttribute('aria-label', formatMessage('open_prefix', '打开 {title}', {
       title: titleText
     }));
@@ -6072,8 +6309,10 @@
 
     const urlLine = document.createElement('div');
     urlLine.className = 'x-nt-recent-url';
-    urlLine.textContent = ownExtensionDisplay ? ownExtensionDisplay.urlText : getUrlDisplay(item.url);
     urlLine.title = item.url;
+    const urlText = document.createElement('span');
+    urlText.className = 'x-nt-recent-url-text';
+    urlText.textContent = ownExtensionDisplay ? ownExtensionDisplay.urlText : getUrlDisplay(item.url);
 
     const actionLine = document.createElement('div');
     actionLine.className = 'x-nt-recent-action';
@@ -6085,6 +6324,15 @@
     actionLine.appendChild(actionIcon);
     card._xActionText = actionText;
     card._xTitleText = safeTitleText;
+
+    const pinButton = document.createElement('button');
+    pinButton.type = 'button';
+    pinButton.className = 'x-nt-recent-pin';
+    const pinned = isRecentSitePinned(item);
+    updateRecentPinButton(pinButton, pinned, !pinned && pinnedRecentSites.length >= MAX_PINNED_RECENT_SITES);
+    card._xPinButton = pinButton;
+    urlLine.appendChild(urlText);
+    urlLine.appendChild(pinButton);
 
     inner.appendChild(header);
     inner.appendChild(title);
@@ -6150,6 +6398,13 @@
       navigateToUrl(item.url);
       scheduleRollbackIfPending();
     };
+    const swallowPinEvent = (event) => {
+      if (!event) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
     card.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) {
         return;
@@ -6194,6 +6449,35 @@
         event.preventDefault();
         navigateFromCard();
       }
+    });
+    pinButton.addEventListener('pointerdown', swallowPinEvent);
+    pinButton.addEventListener('click', (event) => {
+      swallowPinEvent(event);
+      if (!pinned && pinnedRecentSites.length >= MAX_PINNED_RECENT_SITES) {
+        showToast(t('recent_pin_limit_toast', '最多只能置顶 3 个卡片'), false);
+        updateRecentPinButton(pinButton, false, true);
+        return;
+      }
+      togglePinnedRecentSite(item).then((result) => {
+        if (!result || !card.isConnected) {
+          return;
+        }
+        if (result.limitReached) {
+          showToast(t('recent_pin_limit_toast', '最多只能置顶 3 个卡片'), false);
+        }
+        updateRecentPinButton(
+          pinButton,
+          Boolean(result.pinned),
+          Boolean(!result.pinned && result.limitReached)
+        );
+      });
+    });
+    pinButton.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+      swallowPinEvent(event);
+      pinButton.click();
     });
 
     return card;

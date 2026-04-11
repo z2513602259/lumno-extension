@@ -673,24 +673,32 @@
         padding-bottom: 0;
       }
       .x-nt-recent-url {
-        margin: 0 10px;
+        margin: 0 5px 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         font-size: 14px;
         color: var(--x-nt-recent-url);
         font-family: "Open Sans", "PingFang SC", "PingFang SC Regular", "PingFangSC-Regular",
           -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         font-weight: 400;
         line-height: 1.2;
+        min-width: 0;
+      }
+      .x-nt-recent-url-text {
+        flex: 1 1 auto;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         padding-left: 0;
         transition: padding-left 220ms ease;
+        min-width: 0;
       }
-      .x-nt-recent-card:hover .x-nt-recent-url {
+      .x-nt-recent-card:hover .x-nt-recent-url-text {
         padding-left: var(--x-nt-recent-action-offset);
       }
-      .x-nt-recent-card.x-nt-recent-card--rollback .x-nt-recent-url,
-      .x-nt-recent-card.x-nt-recent-card--rollback:hover .x-nt-recent-url {
+      .x-nt-recent-card.x-nt-recent-card--rollback .x-nt-recent-url-text,
+      .x-nt-recent-card.x-nt-recent-card--rollback:hover .x-nt-recent-url-text {
         padding-left: 0;
       }
       .x-nt-recent-action {
@@ -710,6 +718,86 @@
         transform: translateY(-4px);
         transition: opacity 220ms ease, transform 220ms ease;
         pointer-events: none;
+      }
+      .x-nt-recent-pin {
+        all: unset;
+        flex: 0 0 auto;
+        box-sizing: border-box;
+        align-self: stretch;
+        min-height: calc(1.2em + 4px);
+        padding: 0 6px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--x-nt-recent-action-text, rgba(0, 0, 0, 0.5));
+        cursor: pointer;
+        line-height: 1;
+        background: transparent;
+        border: 1px solid transparent;
+        opacity: 0;
+        transform: translateY(2px);
+        transition: opacity 220ms ease, transform 220ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+        pointer-events: none;
+      }
+      .x-nt-recent-card:hover .x-nt-recent-pin,
+      .x-nt-recent-card:focus-within .x-nt-recent-pin,
+      .x-nt-recent-pin.x-nt-recent-pin--active {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+      .x-nt-recent-pin:hover,
+      .x-nt-recent-pin:focus-visible {
+        background: rgba(0, 0, 0, 0.08);
+      }
+      .x-nt-recent-pin:focus-visible {
+        outline: 2px solid var(--x-nt-recent-focus);
+        outline-offset: 2px;
+      }
+      .x-nt-recent-pin.x-nt-recent-pin--active {
+        color: var(--x-nt-recent-accent-color, #4389ff);
+        background: var(--x-nt-recent-accent-soft, rgba(0, 0, 0, 0.04));
+      }
+      .x-nt-recent-pin:disabled {
+        opacity: 0.42;
+        cursor: default;
+        transform: none;
+        pointer-events: none;
+      }
+      body[data-theme="dark"] .x-nt-recent-pin:hover,
+      body[data-theme="dark"] .x-nt-recent-pin:focus-visible {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      body[data-theme="dark"] .x-nt-recent-pin.x-nt-recent-pin--active {
+        color: var(--x-nt-recent-accent-color, #8ab4ff);
+        background: var(--x-nt-recent-accent-soft, rgba(255, 255, 255, 0.07));
+      }
+      ._x_extension_toast_2024_unique_ {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-10px);
+        background: rgba(17, 24, 39, 0.92);
+        color: #f9fafb;
+        padding: 10px 16px;
+        border-radius: 999px;
+        font-size: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 160ms ease, transform 200ms ease;
+        z-index: 9999;
+      }
+      ._x_extension_toast_2024_unique_[data-show="true"] {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+      body[data-theme="dark"] ._x_extension_toast_2024_unique_ {
+        background: rgba(2, 6, 23, 0.97);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
       }
       .ri-icon {
         width: var(--ri-size, 16px);
@@ -778,6 +866,7 @@
   </head>
   <body>
     <div id="_x_extension_newtab_root_2024_unique_"></div>
+    <div id="_x_extension_toast_2024_unique_" class="_x_extension_toast_2024_unique_" data-show="false"></div>
     <script src="input-ui.js"></script>
     <script src="newtab.js"></script>
   </body>

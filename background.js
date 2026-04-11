@@ -5067,6 +5067,8 @@ async function getSearchSuggestions(query) {
   let clickOutsideHandler = null;
   let overlayEnterAnimationRafA = null;
   let overlayEnterAnimationRafB = null;
+  let overlayScrollPauseResumeTimer = null;
+  let overlayScrollPauseHandler = null;
   let overlayViewportResizeHandler = null;
   let overlayVisualViewportTarget = null;
   let overlayBaseDevicePixelRatio = null;
@@ -5312,11 +5314,16 @@ async function getSearchSuggestions(query) {
   const OVERLAY_ANTI_TRANSLATE_MAX_MUTATIONS_PER_WINDOW = 120;
   const OVERLAY_ANTI_TRANSLATE_MAX_CALLBACKS_PER_WINDOW = 12;
   const OVERLAY_ANTI_TRANSLATE_BACKOFF_MS = 900;
+  const OVERLAY_ANTI_TRANSLATE_SCROLL_PAUSE_MS = 180;
 
   let overlayAntiTranslateObserver = null;
   let overlayAntiTranslateObserverState = null;
 
   function stopOverlayAntiTranslateObserver() {
+    if (overlayScrollPauseResumeTimer !== null) {
+      clearTimeout(overlayScrollPauseResumeTimer);
+      overlayScrollPauseResumeTimer = null;
+    }
     if (overlayAntiTranslateObserverState && overlayAntiTranslateObserverState.flushTimer) {
       clearTimeout(overlayAntiTranslateObserverState.flushTimer);
     }
@@ -5354,6 +5361,41 @@ async function getSearchSuggestions(query) {
     nodes.forEach((node) => {
       restoreProtectedNode(node);
     });
+  }
+
+  function pauseOverlayAntiTranslateObserverForScroll() {
+    const state = overlayAntiTranslateObserverState;
+    if (!state || state.paused) {
+      return;
+    }
+    state.paused = true;
+    if (state.flushTimer) {
+      clearTimeout(state.flushTimer);
+      state.flushTimer = null;
+    }
+    if (overlayAntiTranslateObserver) {
+      overlayAntiTranslateObserver.disconnect();
+    }
+    if (overlayScrollPauseResumeTimer !== null) {
+      clearTimeout(overlayScrollPauseResumeTimer);
+    }
+    overlayScrollPauseResumeTimer = setTimeout(() => {
+      overlayScrollPauseResumeTimer = null;
+      const activeState = overlayAntiTranslateObserverState;
+      if (!activeState || activeState !== state || activeState.resumeTimer) {
+        return;
+      }
+      if (!state.root || !state.root.isConnected) {
+        return;
+      }
+      state.guardWindowStartedAt = 0;
+      state.mutationCountInWindow = 0;
+      state.callbackCountInWindow = 0;
+      state.pendingProtectedNodes.clear();
+      state.pendingNoTranslateRoots.clear();
+      state.paused = false;
+      observeOverlayAntiTranslateRoot(state.root);
+    }, OVERLAY_ANTI_TRANSLATE_SCROLL_PAUSE_MS);
   }
 
   function backoffOverlayAntiTranslateObserver(reason, detail) {
@@ -5514,7 +5556,7 @@ async function getSearchSuggestions(query) {
           overlayAntiTranslateObserver.disconnect();
         }
         noTranslateRoots.forEach((node) => {
-          applyNoTranslateDeep(node);
+          applyNoTranslate(node);
         });
         protectedNodes.forEach((node) => {
           restoreProtectedNode(node);
@@ -6107,6 +6149,12 @@ async function getSearchSuggestions(query) {
       overlayMediaQuery.removeEventListener('change', overlayThemeMediaListener);
       overlayThemeMediaListener = null;
     }
+    if (overlayScrollPauseHandler) {
+      window.removeEventListener('scroll', overlayScrollPauseHandler, true);
+      window.removeEventListener('wheel', overlayScrollPauseHandler, true);
+      window.removeEventListener('touchmove', overlayScrollPauseHandler, true);
+      overlayScrollPauseHandler = null;
+    }
     stopOverlayPageThemeObserver();
     if (siteSearchStorageListener) {
       chrome.storage.onChanged.removeListener(siteSearchStorageListener);
@@ -6148,6 +6196,7 @@ async function getSearchSuggestions(query) {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
+      contain: layout paint style !important;
       box-sizing: border-box !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -12260,5 +12309,11 @@ async function getSearchSuggestions(query) {
     requestAnimationFrame(() => {
       requestAnimationFrame(queueInitialOverlayRender);
     });
+    overlayScrollPauseHandler = () => {
+      pauseOverlayAntiTranslateObserverForScroll();
+    };
+    window.addEventListener('scroll', overlayScrollPauseHandler, true);
+    window.addEventListener('wheel', overlayScrollPauseHandler, { passive: true, capture: true });
+    window.addEventListener('touchmove', overlayScrollPauseHandler, { passive: true, capture: true });
   }
 }
