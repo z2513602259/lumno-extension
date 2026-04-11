@@ -11,6 +11,7 @@
   const PICKER_HIGHLIGHT_PADDING = 4;
   const PIP_DOCK_CLEARANCE = 56;
   const PICKER_Z_INDEX = '2147483646';
+  const DOCUMENT_PIP_BOUNDS_STORAGE_KEY = '__lumno_document_pip_bounds_2026__';
   const state = {
     active: false,
     root: null,
@@ -26,6 +27,85 @@
     ownerToken: '',
     runtimeMessageHandlerBound: false
   };
+
+  function getStorageArea() {
+    if (!chrome || !chrome.storage) {
+      return null;
+    }
+    return chrome.storage.local || chrome.storage.sync || null;
+  }
+
+  function loadSavedDocumentPiPBounds() {
+    return new Promise((resolve) => {
+      const storageArea = getStorageArea();
+      if (!storageArea || typeof storageArea.get !== 'function') {
+        resolve(null);
+        return;
+      }
+      storageArea.get([DOCUMENT_PIP_BOUNDS_STORAGE_KEY], (result) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        const raw = result ? result[DOCUMENT_PIP_BOUNDS_STORAGE_KEY] : null;
+        if (!raw || typeof raw !== 'object') {
+          resolve(null);
+          return;
+        }
+        const left = Number(raw.left);
+        const top = Number(raw.top);
+        resolve({
+          left: Number.isFinite(left) ? Math.round(left) : null,
+          top: Number.isFinite(top) ? Math.round(top) : null
+        });
+      });
+    });
+  }
+
+  function saveDocumentPiPBounds(bounds) {
+    const storageArea = getStorageArea();
+    if (!storageArea || typeof storageArea.set !== 'function' || !bounds) {
+      return;
+    }
+    const payload = {};
+    payload[DOCUMENT_PIP_BOUNDS_STORAGE_KEY] = bounds;
+    try {
+      storageArea.set(payload, () => {
+        // Ignore storage write failures.
+      });
+    } catch (error) {
+      // Ignore storage write failures.
+    }
+  }
+
+  function getWindowScreenPosition(targetWindow) {
+    if (!targetWindow) {
+      return null;
+    }
+    const leftCandidates = [targetWindow.screenX, targetWindow.screenLeft];
+    const topCandidates = [targetWindow.screenY, targetWindow.screenTop];
+    const left = leftCandidates.find((value) => Number.isFinite(Number(value)));
+    const top = topCandidates.find((value) => Number.isFinite(Number(value)));
+    if (!Number.isFinite(Number(left)) || !Number.isFinite(Number(top))) {
+      return null;
+    }
+    return {
+      left: Math.round(Number(left)),
+      top: Math.round(Number(top))
+    };
+  }
+
+  function persistDocumentPiPBoundsFromWindow(targetWindow) {
+    const position = getWindowScreenPosition(targetWindow);
+    if (!position) {
+      return;
+    }
+    saveDocumentPiPBounds({
+      left: position.left,
+      top: position.top,
+      updatedAt: Date.now()
+    });
+  }
 
   function getMessage(name, fallback) {
     try {
@@ -1090,10 +1170,26 @@
 
   async function createPiPScaffold(element, visualTheme, snapshot) {
     const selection = snapshot || getSelectionSnapshot(element);
-    const pipWindow = await window.documentPictureInPicture.requestWindow({
+    const savedBounds = await loadSavedDocumentPiPBounds();
+    const requestOptions = {
       width: selection.requestedWidth,
       height: selection.requestedHeight
-    });
+    };
+    if (savedBounds && Number.isFinite(savedBounds.left) && Number.isFinite(savedBounds.top)) {
+      requestOptions.left = savedBounds.left;
+      requestOptions.top = savedBounds.top;
+    }
+    const pipWindow = await window.documentPictureInPicture.requestWindow(requestOptions);
+    if (savedBounds &&
+      Number.isFinite(savedBounds.left) &&
+      Number.isFinite(savedBounds.top) &&
+      typeof pipWindow.moveTo === 'function') {
+      try {
+        pipWindow.moveTo(savedBounds.left, savedBounds.top);
+      } catch (error) {
+        // Ignore browsers that do not allow repositioning after opening.
+      }
+    }
     copyStylesToPiP(pipWindow);
     ensurePiPDockAssets(pipWindow.document);
 
@@ -1105,6 +1201,8 @@
       'min-height: 100vh',
       `background: ${visualTheme.pageBackground}`
     ].join(';');
+
+    persistDocumentPiPBoundsFromWindow(pipWindow);
 
     const shell = pipDocument.createElement('div');
     shell.style.cssText = [
@@ -1406,13 +1504,21 @@
     }
 
     const onPiPPageHide = () => {
+      persistDocumentPiPBoundsFromWindow(pipWindow);
       restoreSession({ closeWindow: false });
     };
     const onMainPageHide = () => {
+      persistDocumentPiPBoundsFromWindow(pipWindow);
       restoreSession({ closeWindow: true });
     };
     pipWindow.addEventListener('pagehide', onPiPPageHide, { once: true });
     window.addEventListener('pagehide', onMainPageHide, true);
+    pipWindow.addEventListener('resize', () => {
+      persistDocumentPiPBoundsFromWindow(pipWindow);
+    });
+    pipWindow.addEventListener('beforeunload', () => {
+      persistDocumentPiPBoundsFromWindow(pipWindow);
+    });
 
     state.session = {
       element: element,

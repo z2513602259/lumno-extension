@@ -304,6 +304,45 @@ function isRestrictedUrl(url) {
   return false;
 }
 
+function canOpenOverlayOnUrl(url) {
+  if (!url) {
+    return false;
+  }
+  const lower = String(url).toLowerCase();
+  if (lower.startsWith('chrome://') ||
+    lower.startsWith('edge://') ||
+    lower.startsWith('brave://') ||
+    lower.startsWith('vivaldi://') ||
+    lower.startsWith('opera://') ||
+    lower.startsWith('about:')) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    const protocol = String(parsed.protocol || '').toLowerCase();
+    if (isBrowserExtensionProtocol(protocol)) {
+      return false;
+    }
+    if (protocol === 'file:') {
+      return true;
+    }
+    if (protocol !== 'http:' && protocol !== 'https:') {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    if ((host === 'chrome.google.com' && path.startsWith('/webstore')) ||
+        host === 'chromewebstore.google.com' ||
+        (host === 'microsoftedge.microsoft.com' && path.startsWith('/addons')) ||
+        host === 'addons.opera.com') {
+      return false;
+    }
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+
 function openNewtabFallback() {
   const newtabUrl = chrome.runtime.getURL('newtab.html?focus=1');
   chrome.tabs.create({ url: newtabUrl });
@@ -378,7 +417,7 @@ function pickRecoveryTargetTab(activeTab, tabs) {
     const openerTab = tabList.find((item) =>
       item &&
       item.id === openerTabId &&
-      !isRestrictedUrl(item.url || '')
+      canOpenOverlayOnUrl(item.url || '')
     );
     if (openerTab) {
       return openerTab;
@@ -389,7 +428,7 @@ function pickRecoveryTargetTab(activeTab, tabs) {
       item &&
       typeof item.id === 'number' &&
       item.id !== activeTab.id &&
-      !isRestrictedUrl(item.url || '')
+      canOpenOverlayOnUrl(item.url || '')
     )
     .sort((a, b) => Number(b.lastAccessed || 0) - Number(a.lastAccessed || 0));
   return candidates[0] || null;
@@ -1297,7 +1336,7 @@ function recoverFromPageHotkeyNewtab(newTabId, windowId) {
     if (!newTab || (!isLumnoNewtabUrl(newTabUrl) && !isBrowserNewtabUrl(newTabUrl))) {
       return;
     }
-    if (!sourceTab || isRestrictedUrl(getResolvedTabUrl(sourceTab))) {
+    if (!sourceTab || !canOpenOverlayOnUrl(getResolvedTabUrl(sourceTab))) {
       clearRecentPageHotkeyContext();
       return;
     }
@@ -1343,7 +1382,7 @@ function openOverlayOnTab(activeTab, tabs, source) {
   const activeUrl = getResolvedTabUrl(activeTab);
   const rawUrl = typeof activeTab.url === 'string' ? activeTab.url : '';
   const rawPendingUrl = typeof activeTab.pendingUrl === 'string' ? activeTab.pendingUrl : '';
-  const restricted = isRestrictedUrl(activeUrl);
+  const restricted = !canOpenOverlayOnUrl(activeUrl);
   logHotkeyDebug('active-tab', {
     tabId: activeTab.id,
     resolvedUrl: activeUrl,
@@ -5045,6 +5084,42 @@ async function getSearchSuggestions(query) {
   const initialContextTabUrl = typeof normalizedOverlayContext.currentTabUrl === 'string'
     ? String(normalizedOverlayContext.currentTabUrl).trim()
     : '';
+  function isLocalFileLikeOverlayUrl(url) {
+    if (!url) {
+      return false;
+    }
+    try {
+      const parsed = new URL(url);
+      const protocol = String(parsed.protocol || '').toLowerCase();
+      if (protocol === 'file:') {
+        return true;
+      }
+      const pathname = String(parsed.pathname || '').toLowerCase();
+      const srcParam = parsed.searchParams ? parsed.searchParams.get('src') : '';
+      if (pathname.endsWith('.pdf')) {
+        return true;
+      }
+      if (srcParam) {
+        try {
+          const nested = new URL(srcParam);
+          if (String(nested.protocol || '').toLowerCase() === 'file:') {
+            return true;
+          }
+          if (String(nested.pathname || '').toLowerCase().endsWith('.pdf')) {
+            return true;
+          }
+        } catch (e) {
+          if (String(srcParam).toLowerCase().startsWith('file://') || String(srcParam).toLowerCase().includes('.pdf')) {
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      return String(url).toLowerCase().startsWith('file://') || String(url).toLowerCase().includes('.pdf');
+    }
+    return false;
+  }
+  const shouldIgnoreTabZoomCompensation = isLocalFileLikeOverlayUrl(initialContextTabUrl);
   const initialOverlayTabs = Array.isArray(tabs)
     ? tabs.map((tab) => ({
       ...tab,
@@ -5233,12 +5308,96 @@ async function getSearchSuggestions(query) {
     return false;
   }
 
+  const OVERLAY_ANTI_TRANSLATE_GUARD_WINDOW_MS = 1500;
+  const OVERLAY_ANTI_TRANSLATE_MAX_MUTATIONS_PER_WINDOW = 120;
+  const OVERLAY_ANTI_TRANSLATE_MAX_CALLBACKS_PER_WINDOW = 12;
+  const OVERLAY_ANTI_TRANSLATE_BACKOFF_MS = 900;
+
   let overlayAntiTranslateObserver = null;
+  let overlayAntiTranslateObserverState = null;
 
   function stopOverlayAntiTranslateObserver() {
+    if (overlayAntiTranslateObserverState && overlayAntiTranslateObserverState.flushTimer) {
+      clearTimeout(overlayAntiTranslateObserverState.flushTimer);
+    }
+    if (overlayAntiTranslateObserverState && overlayAntiTranslateObserverState.resumeTimer) {
+      clearTimeout(overlayAntiTranslateObserverState.resumeTimer);
+    }
+    overlayAntiTranslateObserverState = null;
     if (overlayAntiTranslateObserver) {
       overlayAntiTranslateObserver.disconnect();
       overlayAntiTranslateObserver = null;
+    }
+  }
+
+  function observeOverlayAntiTranslateRoot(root) {
+    if (!overlayAntiTranslateObserver || !root || !root.isConnected) {
+      return;
+    }
+    overlayAntiTranslateObserver.observe(root, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+  }
+
+  function restoreProtectedSubtree(root) {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+    const nodes = [root];
+    if (typeof root.querySelectorAll === 'function') {
+      root.querySelectorAll('*').forEach((node) => {
+        nodes.push(node);
+      });
+    }
+    nodes.forEach((node) => {
+      restoreProtectedNode(node);
+    });
+  }
+
+  function backoffOverlayAntiTranslateObserver(reason, detail) {
+    const state = overlayAntiTranslateObserverState;
+    if (!state || state.paused) {
+      return;
+    }
+    state.paused = true;
+    if (state.flushTimer) {
+      clearTimeout(state.flushTimer);
+      state.flushTimer = null;
+    }
+    if (overlayAntiTranslateObserver) {
+      overlayAntiTranslateObserver.disconnect();
+    }
+    state.pendingProtectedNodes.clear();
+    state.pendingNoTranslateRoots.clear();
+    if (state.resumeTimer) {
+      clearTimeout(state.resumeTimer);
+    }
+    state.resumeTimer = setTimeout(() => {
+      const activeState = overlayAntiTranslateObserverState;
+      if (!activeState || activeState !== state) {
+        return;
+      }
+      state.resumeTimer = null;
+      if (!state.root || !state.root.isConnected) {
+        return;
+      }
+      applyNoTranslateDeep(state.root);
+      restoreProtectedSubtree(state.root);
+      state.guardWindowStartedAt = 0;
+      state.mutationCountInWindow = 0;
+      state.callbackCountInWindow = 0;
+      state.paused = false;
+      observeOverlayAntiTranslateRoot(state.root);
+    }, OVERLAY_ANTI_TRANSLATE_BACKOFF_MS);
+    try {
+      console.warn('[Lumno] Backing off overlay anti-translate observer to avoid DOM churn', {
+        reason: reason || 'unknown',
+        detail: detail || null
+      });
+    } catch (error) {
+      // Ignore console serialization failures.
     }
   }
 
@@ -5274,21 +5433,48 @@ async function getSearchSuggestions(query) {
       return;
     }
     let isRestoring = false;
+    overlayAntiTranslateObserverState = {
+      root: root,
+      flushTimer: null,
+      pendingProtectedNodes: new Set(),
+      pendingNoTranslateRoots: new Set(),
+      guardWindowStartedAt: 0,
+      mutationCountInWindow: 0,
+      callbackCountInWindow: 0,
+      paused: false,
+      resumeTimer: null
+    };
     overlayAntiTranslateObserver = new MutationObserver((mutations) => {
-      if (isRestoring) {
+      const state = overlayAntiTranslateObserverState;
+      if (isRestoring || !state || state.paused) {
         return;
       }
-      const protectedNodes = new Set();
+      const now = Date.now();
+      if (!state.guardWindowStartedAt || now - state.guardWindowStartedAt > OVERLAY_ANTI_TRANSLATE_GUARD_WINDOW_MS) {
+        state.guardWindowStartedAt = now;
+        state.mutationCountInWindow = 0;
+        state.callbackCountInWindow = 0;
+      }
+      state.mutationCountInWindow += mutations.length;
+      state.callbackCountInWindow += 1;
+      if (state.mutationCountInWindow > OVERLAY_ANTI_TRANSLATE_MAX_MUTATIONS_PER_WINDOW ||
+          state.callbackCountInWindow > OVERLAY_ANTI_TRANSLATE_MAX_CALLBACKS_PER_WINDOW) {
+        backoffOverlayAntiTranslateObserver('mutation-budget-exceeded', {
+          mutationCountInWindow: state.mutationCountInWindow,
+          callbackCountInWindow: state.callbackCountInWindow
+        });
+        return;
+      }
       mutations.forEach((mutation) => {
         if (mutation.target) {
           const restored = restoreProtectedAncestors(mutation.target, root);
           if (!restored && mutation.target.nodeType === Node.ELEMENT_NODE) {
-            applyNoTranslateDeep(mutation.target);
+            state.pendingNoTranslateRoots.add(mutation.target);
           }
         }
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            applyNoTranslateDeep(node);
+            state.pendingNoTranslateRoots.add(node);
           }
           let current = node && node.nodeType === Node.ELEMENT_NODE
             ? node
@@ -5297,7 +5483,7 @@ async function getSearchSuggestions(query) {
               : null;
           while (current) {
             if (typeof current._xProtectedRender === 'function') {
-              protectedNodes.add(current);
+              state.pendingProtectedNodes.add(current);
               break;
             }
             if (current === root) {
@@ -5307,20 +5493,37 @@ async function getSearchSuggestions(query) {
           }
         });
       });
-      if (protectedNodes.size <= 0) {
+      if (state.pendingProtectedNodes.size <= 0 && state.pendingNoTranslateRoots.size <= 0) {
         return;
       }
-      isRestoring = true;
-      protectedNodes.forEach((node) => {
-        restoreProtectedNode(node);
-      });
-      isRestoring = false;
+      if (state.flushTimer) {
+        return;
+      }
+      state.flushTimer = setTimeout(() => {
+        const activeState = overlayAntiTranslateObserverState;
+        if (!activeState || activeState !== state || activeState.paused) {
+          return;
+        }
+        state.flushTimer = null;
+        const noTranslateRoots = Array.from(state.pendingNoTranslateRoots);
+        const protectedNodes = Array.from(state.pendingProtectedNodes);
+        state.pendingNoTranslateRoots.clear();
+        state.pendingProtectedNodes.clear();
+        isRestoring = true;
+        if (overlayAntiTranslateObserver) {
+          overlayAntiTranslateObserver.disconnect();
+        }
+        noTranslateRoots.forEach((node) => {
+          applyNoTranslateDeep(node);
+        });
+        protectedNodes.forEach((node) => {
+          restoreProtectedNode(node);
+        });
+        isRestoring = false;
+        observeOverlayAntiTranslateRoot(root);
+      }, 0);
     });
-    overlayAntiTranslateObserver.observe(root, {
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
+    observeOverlayAntiTranslateRoot(root);
   }
 
   let modeBadge = null;
@@ -5822,7 +6025,7 @@ async function getSearchSuggestions(query) {
     overlayBaseDevicePixelRatio = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
       ? window.devicePixelRatio
       : 1;
-    overlayInitialTabZoomFactor = requestedTabZoomFactor;
+    overlayInitialTabZoomFactor = shouldIgnoreTabZoomCompensation ? 1 : requestedTabZoomFactor;
     const visualViewport = window.visualViewport;
     const viewportHeight = visualViewport && Number.isFinite(visualViewport.height) && visualViewport.height > 0
       ? visualViewport.height
@@ -9555,16 +9758,14 @@ async function getSearchSuggestions(query) {
           return;
         }
         if (selectedIndex === 0) {
-          // Move from first suggestion back to input
-          selectedIndex = -1;
-          searchInput.focus();
+          // Wrap from first suggestion to the last suggestion
+          selectedIndex = suggestionItems.length - 1;
         } else if (selectedIndex === -1) {
           const autoIndex = getAutoHighlightIndex();
           if (autoIndex > 0) {
             selectedIndex = autoIndex - 1;
           } else if (autoIndex === 0) {
-            selectedIndex = -1;
-            searchInput.focus();
+            selectedIndex = suggestionItems.length - 1;
           } else {
             // Move from input to last suggestion
             selectedIndex = suggestionItems.length - 1;

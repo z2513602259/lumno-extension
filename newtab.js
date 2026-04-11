@@ -8772,13 +8772,13 @@
           }
         } else {
           if (selectedIndex === 0) {
-            selectedIndex = -1;
+            selectedIndex = suggestionItems.length - 1;
           } else if (selectedIndex === -1) {
             const autoIndex = getAutoHighlightIndex();
             if (autoIndex > 0) {
               selectedIndex = autoIndex - 1;
             } else if (autoIndex === 0) {
-              selectedIndex = -1;
+              selectedIndex = suggestionItems.length - 1;
             } else {
               selectedIndex = suggestionItems.length - 1;
             }
