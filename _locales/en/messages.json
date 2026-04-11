@@ -512,6 +512,12 @@
   "search_tag_history": {
     "message": "History"
   },
+  "search_remove_history": {
+    "message": "Remove from history"
+  },
+  "search_remove_history_tooltip": {
+    "message": "Remove this history entry"
+  },
   "search_tag_top_site": {
     "message": "Frequent"
   },

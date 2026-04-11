@@ -512,6 +512,12 @@
   "search_tag_history": {
     "message": "历史"
   },
+  "search_remove_history": {
+    "message": "从历史中移除"
+  },
+  "search_remove_history_tooltip": {
+    "message": "移除该历史"
+  },
   "search_tag_top_site": {
     "message": "常用"
   },

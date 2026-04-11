@@ -2825,6 +2825,20 @@
     };
   }
 
+  function getNeutralHoverActionColors() {
+    return isNewtabDarkMode()
+      ? {
+        bg: 'rgba(255, 255, 255, 0.10)',
+        border: 'rgba(255, 255, 255, 0.18)',
+        text: '#E5E7EB'
+      }
+      : {
+        bg: 'rgba(200, 208, 218, 0.45)',
+        border: 'rgba(148, 163, 184, 0.28)',
+        text: '#4B5563'
+      };
+  }
+
   function applyThemeVariables(target, theme) {
     if (!target || !theme) {
       return;
@@ -3379,9 +3393,6 @@
       img.style.setProperty('display', 'none', 'important');
     });
   }
-  const recentActionOffsetUpdaters = new Set();
-  let recentActionResizeBound = false;
-  const recentActionObservers = new WeakMap();
 
   function requestFaviconData(url) {
     if (!url || url.startsWith('data:') || isBlockedLocalFaviconUrl(url)) {
@@ -3869,6 +3880,106 @@
     font: inherit !important;
     vertical-align: baseline !important;
   `;
+  const topActionTooltip = document.createElement('div');
+  topActionTooltip.id = '_x_extension_newtab_top_action_tooltip_2026_unique_';
+  topActionTooltip.style.cssText = `
+    all: unset !important;
+    position: fixed !important;
+    left: 8px !important;
+    top: 8px !important;
+    display: block !important;
+    visibility: hidden !important;
+    width: max-content !important;
+    max-width: 420px !important;
+    padding: 8px 12px !important;
+    border-radius: 10px !important;
+    background: #0F172A !important;
+    color: #F8FAFC !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    font-size: 12px !important;
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-weight: 500 !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    pointer-events: none !important;
+    z-index: 4 !important;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18) !important;
+    opacity: 0 !important;
+    transform: translateY(4px) !important;
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease !important;
+  `;
+  document.body.appendChild(topActionTooltip);
+  let topActionTooltipHideTimer = null;
+
+  function showTopActionTooltip(button, text) {
+    if (!button || !text || !topActionTooltip) {
+      return;
+    }
+    if (topActionTooltipHideTimer) {
+      clearTimeout(topActionTooltipHideTimer);
+      topActionTooltipHideTimer = null;
+    }
+    topActionTooltip.textContent = text;
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    topActionTooltip.style.setProperty('background', isDark ? '#020617' : '#0F172A', 'important');
+    topActionTooltip.style.setProperty('color', '#F8FAFC', 'important');
+    topActionTooltip.style.setProperty(
+      'border',
+      isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(15, 23, 42, 0.12)',
+      'important'
+    );
+    topActionTooltip.style.setProperty(
+      'box-shadow',
+      isDark ? '0 14px 30px rgba(0, 0, 0, 0.45)' : '0 10px 22px rgba(0, 0, 0, 0.18)',
+      'important'
+    );
+    const availableWidth = Math.max(180, Math.floor(window.innerWidth - 16));
+    const resolvedMaxWidth = Math.min(420, availableWidth);
+    topActionTooltip.style.setProperty('max-width', `${resolvedMaxWidth}px`, 'important');
+    topActionTooltip.style.setProperty('width', 'max-content', 'important');
+    topActionTooltip.style.setProperty('visibility', 'hidden', 'important');
+    topActionTooltip.style.setProperty('opacity', '0', 'important');
+    topActionTooltip.style.setProperty('transform', 'translateY(4px)', 'important');
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipRect = topActionTooltip.getBoundingClientRect();
+    const spacing = 10;
+    let top = buttonRect.top - tooltipRect.height - spacing;
+    let left = buttonRect.left + (buttonRect.width - tooltipRect.width) / 2;
+    if (top < 8) {
+      top = buttonRect.bottom + spacing;
+    }
+    if (left < 8) {
+      left = 8;
+    }
+    const maxLeft = window.innerWidth - tooltipRect.width - 8;
+    if (left > maxLeft) {
+      left = Math.max(8, maxLeft);
+    }
+    topActionTooltip.style.setProperty('top', `${Math.round(top)}px`, 'important');
+    topActionTooltip.style.setProperty('left', `${Math.round(left)}px`, 'important');
+    topActionTooltip.style.setProperty('visibility', 'visible', 'important');
+    requestAnimationFrame(() => {
+      topActionTooltip.style.setProperty('opacity', '1', 'important');
+      topActionTooltip.style.setProperty('transform', 'translateY(0)', 'important');
+    });
+  }
+
+  function hideTopActionTooltip() {
+    if (!topActionTooltip) {
+      return;
+    }
+    topActionTooltip.style.setProperty('opacity', '0', 'important');
+    topActionTooltip.style.setProperty('transform', 'translateY(4px)', 'important');
+    if (topActionTooltipHideTimer) {
+      clearTimeout(topActionTooltipHideTimer);
+    }
+    topActionTooltipHideTimer = setTimeout(() => {
+      topActionTooltip.style.setProperty('visibility', 'hidden', 'important');
+    }, 120);
+  }
 
   const bookmarkSection = document.createElement('section');
   bookmarkSection.id = '_x_extension_newtab_bookmarks_2024_unique_';
@@ -6213,44 +6324,6 @@
     card.style.setProperty('--x-nt-bookmark-shadow-rgb', colors.shadowRgb);
   }
 
-  function updateRecentActionOffset(card, actionLine) {
-    if (!card || !actionLine) {
-      return;
-    }
-    const update = () => {
-      if (!card.isConnected) {
-        return;
-      }
-      const width = Math.ceil(actionLine.getBoundingClientRect().width);
-      card.style.setProperty('--x-nt-recent-action-offset', `${width}px`);
-    };
-    requestAnimationFrame(update);
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(update).catch(() => {});
-    }
-    recentActionOffsetUpdaters.add(update);
-    if (!recentActionResizeBound) {
-      recentActionResizeBound = true;
-      window.addEventListener('resize', () => {
-        recentActionOffsetUpdaters.forEach((handler) => handler());
-      });
-    }
-    if (!recentActionObservers.has(actionLine)) {
-      const mutationObserver = new MutationObserver(() => update());
-      mutationObserver.observe(actionLine, {
-        childList: true,
-        characterData: true,
-        subtree: true
-      });
-      let resizeObserver = null;
-      if (typeof ResizeObserver === 'function') {
-        resizeObserver = new ResizeObserver(() => update());
-        resizeObserver.observe(actionLine);
-      }
-      recentActionObservers.set(actionLine, { mutationObserver, resizeObserver });
-    }
-  }
-
   function buildRecentSiteCard(item, index) {
     if (!item || !item.url) {
       return null;
@@ -6331,6 +6404,7 @@
     const pinned = isRecentSitePinned(item);
     updateRecentPinButton(pinButton, pinned, !pinned && pinnedRecentSites.length >= MAX_PINNED_RECENT_SITES);
     card._xPinButton = pinButton;
+    urlLine.appendChild(actionLine);
     urlLine.appendChild(urlText);
     urlLine.appendChild(pinButton);
 
@@ -6338,8 +6412,6 @@
     inner.appendChild(title);
     card.appendChild(inner);
     card.appendChild(urlLine);
-    card.appendChild(actionLine);
-    updateRecentActionOffset(card, actionLine);
     recentCards.push(card);
 
     let isCardPointerActive = false;
@@ -7670,6 +7742,44 @@
         item._xTagContainer.style.setProperty('visibility', 'hidden', 'important');
       }
     }
+    if (item._xHistoryDeleteButton) {
+      const shouldShowHistoryDelete = Boolean(item._xHasHistoryDeleteButton && item._xIsHovering);
+      if (item._xHistoryDeleteSlot) {
+        item._xHistoryDeleteSlot.style.setProperty('width', shouldShowHistoryDelete ? '28px' : '0px', 'important');
+        item._xHistoryDeleteSlot.style.setProperty('margin-left', shouldShowHistoryDelete ? '6px' : '0px', 'important');
+        item._xHistoryDeleteSlot.style.setProperty('opacity', shouldShowHistoryDelete ? '1' : '0', 'important');
+        item._xHistoryDeleteSlot.style.setProperty('pointer-events', shouldShowHistoryDelete ? 'auto' : 'none', 'important');
+      }
+      item._xHistoryDeleteButton.style.setProperty('visibility', shouldShowHistoryDelete ? 'visible' : 'hidden', 'important');
+      item._xHistoryDeleteButton.style.setProperty('pointer-events', shouldShowHistoryDelete ? 'auto' : 'none', 'important');
+      item._xHistoryDeleteButton.style.setProperty('opacity', shouldShowHistoryDelete ? '1' : '0', 'important');
+      item._xHistoryDeleteButton.style.setProperty(
+        'transform',
+        shouldShowHistoryDelete ? 'translateX(0)' : 'translateX(4px)',
+        'important'
+      );
+      if (shouldShowHistoryDelete) {
+        item._xHistoryDeleteButton.style.setProperty(
+          'color',
+          isActive ? resolvedTheme.buttonText : 'var(--x-nt-subtext, #6B7280)',
+          'important'
+        );
+        item._xHistoryDeleteButton.style.setProperty(
+          'background',
+          isActive ? resolvedTheme.buttonBg : 'transparent',
+          'important'
+        );
+        item._xHistoryDeleteButton.style.setProperty(
+          'border',
+          isActive ? `1px solid ${resolvedTheme.buttonBorder}` : '1px solid transparent',
+          'important'
+        );
+      } else {
+        item._xHistoryDeleteButton.style.setProperty('background', 'transparent', 'important');
+        item._xHistoryDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
+        item._xHistoryDeleteButton.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+      }
+    }
     if (item._xTitle) {
       item._xTitle.style.setProperty('font-weight', isActive ? '600' : '400', 'important');
     }
@@ -7682,7 +7792,7 @@
       const isHighlighted = isSelected || shouldAutoHighlight;
       if (item._xIsSearchSuggestion) {
           const theme = item._xTheme || defaultTheme;
-          if (isHighlighted) {
+        if (isHighlighted) {
             applySearchSuggestionHighlight(item, theme);
           } else {
             resetSearchSuggestion(item);
@@ -8357,6 +8467,7 @@
           font-size: 100% !important;
           font: inherit !important;
           vertical-align: baseline !important;
+          transition: gap 160ms ease, transform 160ms ease !important;
         `;
 
         let iconNode = null;
@@ -8435,6 +8546,44 @@
             vertical-align: baseline !important;
           `;
           iconNode = gearIcon;
+        } else if (suggestion.type === 'modeSwitch' && suggestion.favicon) {
+          const favicon = document.createElement('img');
+          favicon.setAttribute('data-x-nt-suggestion-icon', '1');
+          favicon.decoding = 'async';
+          favicon.loading = 'eager';
+          favicon.referrerPolicy = 'no-referrer';
+          if (index < 4) {
+            favicon.fetchPriority = 'high';
+          }
+          favicon.style.cssText = `
+            all: unset !important;
+            width: 16px !important;
+            height: 16px !important;
+            border-radius: 2px !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+            list-style: none !important;
+            outline: none !important;
+            background: transparent !important;
+            color: inherit !important;
+            font-size: 100% !important;
+            font: inherit !important;
+            vertical-align: baseline !important;
+            display: block !important;
+          `;
+          applyFaviconOpticalAlignment(favicon);
+          favicon.src = suggestion.favicon || '';
+          favicon.onerror = function() {
+            const fallbackIcon = createSearchIcon();
+            fallbackIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            if (favicon.parentNode) {
+              favicon.parentNode.replaceChild(fallbackIcon, favicon);
+            }
+          };
+          iconNode = favicon;
         } else if (suggestion.type === 'newtab' || suggestion.type === 'googleSuggest') {
           const searchIcon = createSearchIcon();
           searchIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
@@ -8549,6 +8698,7 @@
           font-size: 100% !important;
           font: inherit !important;
           vertical-align: baseline !important;
+          transition: gap 160ms ease, transform 160ms ease !important;
         `;
 
         const title = document.createElement('span');
@@ -8804,9 +8954,10 @@
         suggestionItem._xHasActionTags = actionTags.childNodes.length > 0;
 
         suggestionItem.addEventListener('mouseenter', function() {
+          this._xIsHovering = true;
+          setNonFaviconIconBg(this, true);
+          updateSelection();
           if (suggestionItems.indexOf(this) !== selectedIndex) {
-            this._xIsHovering = true;
-            setNonFaviconIconBg(this, true);
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
@@ -8816,10 +8967,8 @@
         });
 
         suggestionItem.addEventListener('mouseleave', function() {
-          if (suggestionItems.indexOf(this) !== selectedIndex) {
-            this._xIsHovering = false;
-            updateSelection();
-          }
+          this._xIsHovering = false;
+          updateSelection();
         });
 
         suggestionItem.addEventListener('click', function() {
@@ -8852,10 +9001,155 @@
         leftSide.appendChild(textWrapper);
         suggestionItem.appendChild(leftSide);
         rightSide.appendChild(actionTags);
+        let historyDeleteButton = null;
+        let historyDeleteSlot = null;
+        if (suggestion.type === 'history' && !suggestion.isTopSite) {
+          historyDeleteSlot = document.createElement('div');
+          historyDeleteSlot.style.cssText = `
+            all: unset !important;
+            width: 0 !important;
+            height: 28px !important;
+            flex: 0 0 auto !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+            list-style: none !important;
+            outline: none !important;
+            background: transparent !important;
+            vertical-align: baseline !important;
+            opacity: 0 !important;
+            transition: width 180ms ease, margin-left 180ms ease, opacity 160ms ease !important;
+          `;
+          historyDeleteButton = document.createElement('button');
+          historyDeleteButton.type = 'button';
+          const removeHistoryTooltipText = t('search_remove_history_tooltip', '移除该历史');
+          historyDeleteButton.innerHTML = getRiSvg('ri-delete-bin-6-line', 'ri-size-14');
+          historyDeleteButton.setAttribute('aria-label', removeHistoryTooltipText);
+          historyDeleteButton.style.cssText = `
+            all: unset !important;
+            width: 24px !important;
+            height: 24px !important;
+            flex: 0 0 24px !important;
+            border-radius: 8px !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+            list-style: none !important;
+            outline: none !important;
+            background: transparent !important;
+            color: var(--x-nt-subtext, #6B7280) !important;
+            display: inline-flex !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 0 !important;
+            cursor: pointer !important;
+            transform: translateX(4px) !important;
+            transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 160ms ease, opacity 160ms ease, visibility 160ms ease !important;
+            vertical-align: baseline !important;
+          `;
+          const historyDeleteIcon = historyDeleteButton.querySelector('.ri-icon');
+          if (historyDeleteIcon) {
+            historyDeleteIcon.style.setProperty('display', 'inline-flex', 'important');
+            historyDeleteIcon.style.setProperty('align-items', 'center', 'important');
+            historyDeleteIcon.style.setProperty('justify-content', 'center', 'important');
+            historyDeleteIcon.style.setProperty('line-height', '1', 'important');
+            historyDeleteIcon.style.setProperty('transform', 'none', 'important');
+            historyDeleteIcon.style.setProperty('pointer-events', 'none', 'important');
+            historyDeleteIcon.style.setProperty('cursor', 'pointer', 'important');
+          }
+          historyDeleteButton.addEventListener('mouseenter', function() {
+            const itemIndex = suggestionItems.indexOf(suggestionItem);
+            const isSelected = itemIndex === selectedIndex;
+            const shouldAutoHighlight = selectedIndex === -1 && suggestionItem._xIsAutocompleteTop;
+            const shouldUseThemeHover = Boolean(isSelected || shouldAutoHighlight);
+            const buttonThemeSource = suggestionItem._xTheme || defaultTheme;
+            const resolvedTheme = getThemeForMode(buttonThemeSource);
+            const hoverColors = shouldUseThemeHover
+              ? getHoverColors(buttonThemeSource)
+              : getNeutralHoverActionColors();
+            showTopActionTooltip(historyDeleteButton, removeHistoryTooltipText);
+            historyDeleteButton.style.setProperty(
+              'background',
+              hoverColors.bg,
+              'important'
+            );
+            historyDeleteButton.style.setProperty(
+              'border',
+              `1px solid ${hoverColors.border}`,
+              'important'
+            );
+            historyDeleteButton.style.setProperty(
+              'color',
+              shouldUseThemeHover ? resolvedTheme.buttonText : hoverColors.text,
+              'important'
+            );
+            historyDeleteButton.style.setProperty('transform', 'scale(1.06)', 'important');
+          });
+          historyDeleteButton.addEventListener('mouseleave', function() {
+            hideTopActionTooltip();
+            historyDeleteButton.style.setProperty('background', 'transparent', 'important');
+            historyDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
+            historyDeleteButton.style.setProperty('transform', 'none', 'important');
+          });
+          historyDeleteButton.addEventListener('focus', function() {
+            showTopActionTooltip(historyDeleteButton, removeHistoryTooltipText);
+          });
+          historyDeleteButton.addEventListener('blur', function() {
+            hideTopActionTooltip();
+            historyDeleteButton.style.setProperty('background', 'transparent', 'important');
+            historyDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
+            historyDeleteButton.style.setProperty('transform', 'none', 'important');
+          });
+          historyDeleteButton.addEventListener('pointerup', function() {
+            historyDeleteButton.style.setProperty('transform', 'none', 'important');
+          });
+          historyDeleteButton.addEventListener('pointercancel', function() {
+            historyDeleteButton.style.setProperty('transform', 'none', 'important');
+          });
+          historyDeleteButton.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            chrome.runtime.sendMessage({
+              action: 'deleteHistoryUrl',
+              url: suggestion.url
+            }, function(response) {
+              if (chrome.runtime && chrome.runtime.lastError) {
+                return;
+              }
+              if (!response || response.ok !== true) {
+                return;
+              }
+              const refreshQuery = latestQuery || (inputParts && inputParts.input ? String(inputParts.input.value || '').trim() : '');
+              if (!refreshQuery) {
+                clearSearchSuggestions();
+                return;
+              }
+              requestSuggestions(refreshQuery, { immediate: true });
+            });
+          });
+          historyDeleteSlot.appendChild(historyDeleteButton);
+        }
+        if (historyDeleteSlot) {
+          rightSide.appendChild(historyDeleteSlot);
+        }
         suggestionItem.appendChild(rightSide);
         if (iconWrapper) {
           suggestionItem._xDirectIconWrap = iconWrapper;
         }
+        suggestionItem._xHistoryDeleteButton = historyDeleteButton;
+        suggestionItem._xHistoryDeleteSlot = historyDeleteSlot;
+        suggestionItem._xHasHistoryDeleteButton = Boolean(historyDeleteButton);
         suggestionsContainer.appendChild(suggestionItem);
 
         if (!shouldUseSearchEngineTheme &&
