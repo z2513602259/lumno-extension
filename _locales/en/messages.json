@@ -224,6 +224,21 @@
   "restricted_action_none": {
     "message": "No action"
   },
+  "newtab_file_access_notice_title": {
+    "message": "To use Lumno on local PDF or HTML pages, enable file URL access."
+  },
+  "newtab_file_access_notice_body": {
+    "message": "Lumno does not have file URL access yet. Open the extension details page, enable Allow access to file URLs, then return to that page and press the shortcut again."
+  },
+  "newtab_file_access_notice_open_cta": {
+    "message": "Enable access"
+  },
+  "newtab_file_access_notice_dismiss": {
+    "message": "Maybe later"
+  },
+  "newtab_file_access_notice_close": {
+    "message": "Close notice"
+  },
   "recent_count_4": {
     "message": "Show 1 row"
   },

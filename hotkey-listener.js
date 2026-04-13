@@ -19,9 +19,7 @@
     : null;
   let shortcutRaw = '';
   let shortcutSpec = null;
-  let copyCommandShortcutRaw = '';
   let lastRefreshAt = 0;
-  let lastCopyCommandRefreshAt = 0;
   let lastVisibleReportAt = 0;
   let pageToastTimer = null;
   let currentMessages = null;
@@ -575,38 +573,6 @@
     }
   }
 
-  function refreshCopyCommandShortcut(force) {
-    const now = Date.now();
-    if (!force && (now - lastCopyCommandRefreshAt) < REFRESH_SHORTCUT_MS) {
-      return;
-    }
-    lastCopyCommandRefreshAt = now;
-    try {
-      chrome.runtime.sendMessage({ action: 'getCopyCurrentUrlCommandShortcut' }, (response) => {
-        if (chrome.runtime && chrome.runtime.lastError) {
-          logHotkeyListenerDebug('copy-command-shortcut-refresh-error', {
-            error: chrome.runtime.lastError.message || 'unknown'
-          });
-          return;
-        }
-        const nextShortcut = response && typeof response.shortcut === 'string'
-          ? String(response.shortcut).trim()
-          : '';
-        if (nextShortcut === copyCommandShortcutRaw) {
-          return;
-        }
-        copyCommandShortcutRaw = nextShortcut;
-        logHotkeyListenerDebug('copy-command-shortcut-refresh', {
-          shortcut: copyCommandShortcutRaw
-        });
-      });
-    } catch (e) {
-      logHotkeyListenerDebug('copy-command-shortcut-refresh-failed', {
-        error: e && e.message ? e.message : String(e || '')
-      });
-    }
-  }
-
   hydrateLocaleMessages();
   if (chrome && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -630,17 +596,14 @@
   }
 
   refreshShortcut(true);
-  refreshCopyCommandShortcut(true);
   logHotkeyListenerDebug('listener-ready', {
     href: location && location.href ? location.href : ''
   });
   window.addEventListener('focus', () => refreshShortcut(true), true);
-  window.addEventListener('focus', () => refreshCopyCommandShortcut(true), true);
   window.addEventListener('focus', () => reportTabVisible('focus'), true);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshShortcut(false);
-      refreshCopyCommandShortcut(false);
       reportTabVisible('visibility');
     }
   }, true);
@@ -667,7 +630,6 @@
       return;
     }
     refreshShortcut(false);
-    refreshCopyCommandShortcut(false);
     const editableTarget = isEditableTarget(event.target);
     const matchedConfiguredShortcut = Boolean(shortcutSpec && shortcutMatchesEvent(event, shortcutSpec));
     if (matchedConfiguredShortcut) {
@@ -686,22 +648,6 @@
       return;
     }
     if (event.defaultPrevented) {
-      return;
-    }
-    const isCopyCurrentUrlHotkey = (
-      !copyCommandShortcutRaw &&
-      !event.altKey &&
-      event.shiftKey &&
-      String(event.key || '').toLowerCase() === 'c' &&
-      (
-        (event.metaKey && !event.ctrlKey) ||
-        (event.ctrlKey && !event.metaKey)
-      )
-    );
-    if (isCopyCurrentUrlHotkey) {
-      event.preventDefault();
-      event.stopPropagation();
-      copyCurrentPageUrlWithToast();
       return;
     }
     if (isEditableTarget(event.target)) {

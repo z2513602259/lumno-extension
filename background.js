@@ -343,9 +343,104 @@ function canOpenOverlayOnUrl(url) {
   return true;
 }
 
-function openNewtabFallback() {
-  const newtabUrl = chrome.runtime.getURL('newtab.html?focus=1');
+function isLocalFileLikeTargetUrl(url) {
+  if (!url) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    const protocol = String(parsed.protocol || '').toLowerCase();
+    if (protocol === 'file:') {
+      return true;
+    }
+    const pathname = String(parsed.pathname || '').toLowerCase();
+    if (pathname.endsWith('.pdf') || pathname.endsWith('.htm') || pathname.endsWith('.html')) {
+      return true;
+    }
+    const srcParam = parsed.searchParams ? parsed.searchParams.get('src') : '';
+    if (srcParam) {
+      try {
+        const nested = new URL(srcParam);
+        const nestedProtocol = String(nested.protocol || '').toLowerCase();
+        const nestedPath = String(nested.pathname || '').toLowerCase();
+        if (nestedProtocol === 'file:' ||
+          nestedPath.endsWith('.pdf') ||
+          nestedPath.endsWith('.htm') ||
+          nestedPath.endsWith('.html')) {
+          return true;
+        }
+      } catch (e) {
+        const lowerSrc = String(srcParam).toLowerCase();
+        if (lowerSrc.startsWith('file://') ||
+          lowerSrc.includes('.pdf') ||
+          lowerSrc.includes('.htm') ||
+          lowerSrc.includes('.html')) {
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+    const lower = String(url).toLowerCase();
+    return lower.startsWith('file://') ||
+      lower.includes('.pdf') ||
+      lower.includes('.htm') ||
+      lower.includes('.html');
+  }
+  return false;
+}
+
+function checkFileSchemeAccess(callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  if (!chrome || !chrome.extension || typeof chrome.extension.isAllowedFileSchemeAccess !== 'function') {
+    done(null);
+    return;
+  }
+  try {
+    chrome.extension.isAllowedFileSchemeAccess((isAllowed) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        done(null);
+        return;
+      }
+      done(Boolean(isAllowed));
+    });
+  } catch (e) {
+    done(null);
+  }
+}
+
+function getExtensionDetailsUrl() {
+  if (!chrome || !chrome.runtime || !chrome.runtime.id) {
+    return 'chrome://extensions/';
+  }
+  return `chrome://extensions/?id=${encodeURIComponent(chrome.runtime.id)}`;
+}
+
+function buildNewtabFallbackUrl(options) {
+  const newtabUrl = new URL(chrome.runtime.getURL('newtab.html'));
+  newtabUrl.searchParams.set('focus', '1');
+  if (options && options.notice === 'file-access') {
+    newtabUrl.searchParams.set('notice', 'file-access');
+  }
+  return newtabUrl.toString();
+}
+
+function openNewtabFallback(options) {
+  const newtabUrl = buildNewtabFallbackUrl(options);
   chrome.tabs.create({ url: newtabUrl });
+}
+
+function openNewtabFallbackForUrl(url) {
+  if (!isLocalFileLikeTargetUrl(url)) {
+    openNewtabFallback();
+    return;
+  }
+  checkFileSchemeAccess((isAllowed) => {
+    if (isAllowed === false) {
+      openNewtabFallback({ notice: 'file-access' });
+      return;
+    }
+    openNewtabFallback();
+  });
 }
 
 function getResolvedTabUrl(tab) {
@@ -1412,11 +1507,11 @@ function openOverlayOnTab(activeTab, tabs, source) {
     }
     if (action === 'default') {
       logHotkeyDebug('fallback-open-create-newtab', { reason: 'restricted_url', source: source || '' });
-      openNewtabFallback();
+      openNewtabFallbackForUrl(activeUrl);
       return;
     }
     logHotkeyDebug('fallback-open-lumno-newtab', { reason: 'restricted_url', source: source || '' });
-    openNewtabFallback();
+    openNewtabFallbackForUrl(activeUrl);
     return;
   }
   logHotkeyDebug('inject-start', { tabId: activeTab.id, file: 'input-ui.js', source: source || '' });
@@ -1431,7 +1526,7 @@ function openOverlayOnTab(activeTab, tabs, source) {
         error: chrome.runtime.lastError.message || 'unknown',
         source: source || ''
       });
-      openNewtabFallback();
+      openNewtabFallbackForUrl(activeUrl);
       return;
     }
     const runOverlayScript = (tabZoomFactor) => {
@@ -2787,6 +2882,16 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         sendResponse({ messages: {} });
       });
     return true;
+  } else if (request.action === 'getFileSchemeAccessStatus') {
+    checkFileSchemeAccess((isAllowed) => {
+      sendResponse({
+        ok: true,
+        allowed: isAllowed === true,
+        supported: isAllowed !== null,
+        detailsUrl: getExtensionDetailsUrl()
+      });
+    });
+    return true;
   } else if (request.action === 'openOptionsPage') {
     openExtensionOptionsPage((ok) => {
       sendResponse({ ok: ok !== false });
@@ -2862,6 +2967,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     const newtabUrl = chrome.runtime.getURL('newtab.html?focus=1');
     chrome.tabs.create({ url: newtabUrl }, () => {
       sendResponse({ ok: !(chrome.runtime && chrome.runtime.lastError) });
+    });
+    return true;
+  } else if (request.action === 'openExtensionDetailsPage') {
+    const detailsUrl = getExtensionDetailsUrl();
+    chrome.tabs.create({ url: detailsUrl }, () => {
+      sendResponse({ ok: !(chrome.runtime && chrome.runtime.lastError), url: detailsUrl });
     });
     return true;
   } else if (request.action === 'resolveFaviconCandidates') {

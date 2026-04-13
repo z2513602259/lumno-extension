@@ -224,6 +224,21 @@
   "restricted_action_none": {
     "message": "無操作"
   },
+  "newtab_file_access_notice_title": {
+    "message": "由於瀏覽器限制，若要在本機檔案頁面（如 PDF、HTML）中喚起聚焦搜尋，請手動開啟「允許存取檔案網址」"
+  },
+  "newtab_file_access_notice_body": {
+    "message": "目前未授予 file URL 存取權限。請喺擴充功能詳情頁開啟「允許存取檔案網址」，之後返去啱啱個頁面再按一次快捷鍵。"
+  },
+  "newtab_file_access_notice_open_cta": {
+    "message": "前往開啟"
+  },
+  "newtab_file_access_notice_dismiss": {
+    "message": "稍後再講"
+  },
+  "newtab_file_access_notice_close": {
+    "message": "關閉提示"
+  },
   "recent_count_4": {
     "message": "顯示 1 行"
   },

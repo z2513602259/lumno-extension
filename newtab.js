@@ -48,6 +48,7 @@
   const PINNED_RECENT_SITES_STORAGE_KEY = '_x_extension_newtab_pinned_recent_sites_2026_unique_';
   const MAX_PINNED_RECENT_SITES = 3;
   const NEWTAB_SECTION_CACHE_TTL_MS = 1000 * 60 * 5;
+  const pageSearchParams = new URLSearchParams(window.location.search || '');
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   let mediaListenerAttached = false;
   let currentThemeMode = 'system';
@@ -83,6 +84,7 @@
   let searchLayer = null;
   let wordmarkContainer = null;
   let wordmarkImageEl = null;
+  let pageNoticeBanner = null;
   let newtabWordmarkVisible = true;
   let bookmarkCurrentPage = 0;
   let bookmarkAllItems = [];
@@ -267,6 +269,192 @@
     const containerWidth = Math.max(0, Math.min(Math.floor(window.innerWidth * 0.96), contentMaxWidth));
     const idealColumns = Math.floor((containerWidth + RECENT_GRID_GAP_PX) / (RECENT_CARD_TARGET_WIDTH_PX + RECENT_GRID_GAP_PX));
     return Math.max(4, Math.min(maxColumns, idealColumns || 4));
+  }
+
+  function clearPageNoticeQueryParam() {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('notice')) {
+        return;
+      }
+      url.searchParams.delete('notice');
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {
+      // Ignore URL rewrite failures.
+    }
+  }
+
+  function dismissPageNoticeBanner() {
+    if (pageNoticeBanner && pageNoticeBanner.parentNode) {
+      pageNoticeBanner.parentNode.removeChild(pageNoticeBanner);
+    }
+    pageNoticeBanner = null;
+    clearPageNoticeQueryParam();
+  }
+
+  function ensurePageNoticeBanner() {
+    if (pageNoticeBanner) {
+      return pageNoticeBanner;
+    }
+    pageNoticeBanner = document.createElement('div');
+    pageNoticeBanner.id = '_x_extension_newtab_notice_banner_2026_unique_';
+    pageNoticeBanner.style.cssText = `
+      all: unset !important;
+      width: min(82vw, calc(var(--x-nt-search-max-width, 720px) - 84px)) !important;
+      margin: 12px auto 0 !important;
+      padding: 7px 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 10px !important;
+      box-sizing: border-box !important;
+      border-radius: 999px !important;
+      background: rgba(17, 24, 39, 0.92) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18) !important;
+      color: #f9fafb !important;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      backdrop-filter: blur(12px) !important;
+    `;
+    return pageNoticeBanner;
+  }
+
+  function showFileAccessNotice(detailsUrl) {
+    const banner = ensurePageNoticeBanner();
+    banner.textContent = '';
+
+    const content = document.createElement('div');
+    content.style.cssText = `
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+    `;
+
+    const icon = document.createElement('div');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = getRiSvg('ri-error-warning-line', 'ri-size-20');
+    icon.style.cssText = `
+      flex: 0 0 auto !important;
+      width: 20px !important;
+      height: 20px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      color: #fbbf24 !important;
+      opacity: 0.96 !important;
+    `;
+
+    const message = document.createElement('div');
+    message.textContent = t('newtab_file_access_notice_title', '由于浏览器限制，若要在本地文件页面（如 PDF、HTML）中唤起聚焦搜索，请手动开启“允许访问文件网址”');
+    message.style.cssText = `
+      min-width: 0 !important;
+      font-size: 13px !important;
+      font-weight: 400 !important;
+      line-height: 1.45 !important;
+      color: rgba(249, 250, 251, 0.96) !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    `;
+
+    const primaryButton = document.createElement('button');
+    primaryButton.type = 'button';
+    primaryButton.textContent = t('newtab_file_access_notice_open_cta', '前往开启');
+    primaryButton.style.cssText = `
+      all: unset !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 5px 10px !important;
+      border-radius: 999px !important;
+      background: rgba(255, 255, 255, 0.12) !important;
+      color: #ffffff !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      white-space: nowrap !important;
+    `;
+    primaryButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+        chrome.runtime.sendMessage({ action: 'openExtensionDetailsPage' }, (response) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            if (detailsUrl) {
+              window.open(detailsUrl, '_blank');
+            }
+            return;
+          }
+          if (!response || response.ok !== true) {
+            const fallbackUrl = response && response.url ? response.url : detailsUrl;
+            if (fallbackUrl) {
+              window.open(fallbackUrl, '_blank');
+            }
+          }
+        });
+        return;
+      }
+      if (detailsUrl) {
+        window.open(detailsUrl, '_blank');
+      }
+    });
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', t('newtab_file_access_notice_close', '关闭提示'));
+    closeButton.innerHTML = getRiSvg('ri-close-line', 'ri-size-16');
+    closeButton.style.cssText = `
+      all: unset !important;
+      flex: 0 0 auto !important;
+      width: 24px !important;
+      height: 24px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      border-radius: 999px !important;
+      color: rgba(249, 250, 251, 0.72) !important;
+      cursor: pointer !important;
+    `;
+    closeButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissPageNoticeBanner();
+    });
+
+    content.appendChild(icon);
+    content.appendChild(message);
+    banner.appendChild(content);
+    banner.appendChild(primaryButton);
+    banner.appendChild(closeButton);
+
+    if (document.body && !banner.parentNode) {
+      const referenceNode = bottomDock && bottomDock.parentNode === document.body ? bottomDock : null;
+      document.body.insertBefore(banner, referenceNode);
+    }
+  }
+
+  function maybeShowFileAccessNotice() {
+    const notice = String(pageSearchParams.get('notice') || '').trim();
+    if (notice !== 'file-access') {
+      return;
+    }
+    if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+      clearPageNoticeQueryParam();
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'getFileSchemeAccessStatus' }, (response) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        clearPageNoticeQueryParam();
+        return;
+      }
+      if (!response || response.supported === false || response.allowed === true) {
+        clearPageNoticeQueryParam();
+        return;
+      }
+      showFileAccessNotice(response.detailsUrl || '');
+    });
   }
 
   function getRecentLimit() {
@@ -10201,6 +10389,7 @@
     hydrateSectionsFromCache();
     loadRecentSites();
     loadBookmarks();
+    maybeShowFileAccessNotice();
     markNewtabReady();
   });
   updateBookmarkSectionPosition();
