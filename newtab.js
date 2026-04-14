@@ -34,6 +34,7 @@
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
   const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
+  const BLACKLIST_UTILS = globalThis.LumnoBlacklistUtils || {};
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const NEWTAB_OPEN_TAB_SUGGESTION_LIMIT = 8;
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
@@ -6258,72 +6259,18 @@
     }, 700);
   }
 
-  function normalizeSearchBlacklistPattern(value, matchModes) {
-    const raw = String(value || '').trim();
-    if (!raw) {
-      return '';
-    }
-    const modes = normalizeSearchBlacklistMatchModes(matchModes);
-    const requiresFullUrl = modes.includes('exact') || modes.includes('prefix');
-    if (!requiresFullUrl) {
-      if (/^https?:\/\//i.test(raw)) {
-        return '';
-      }
-      return raw;
-    }
-    try {
-      const parsed = new URL(raw);
-      if (!/^https?:$/i.test(parsed.protocol)) {
-        return '';
-      }
-      parsed.hash = '';
-      return parsed.toString();
-    } catch (error) {
-      return '';
-    }
-  }
-
   function normalizeSearchBlacklistMatchModes(value) {
-    const source = Array.isArray(value) ? value : [value];
-    const set = new Set();
-    source.forEach((item) => {
-      const mode = String(item || '').trim().toLowerCase();
-      if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
-        set.add(mode);
-      }
-    });
-    if (set.has('exact')) {
-      return ['exact'];
+    if (BLACKLIST_UTILS.normalizeMatchModes) {
+      return BLACKLIST_UTILS.normalizeMatchModes(value, 'prefix');
     }
-    const next = [];
-    if (set.has('prefix')) {
-      next.push('prefix');
-    }
-    if (set.has('suffix')) {
-      next.push('suffix');
-    }
-    return next.length > 0 ? next : ['prefix'];
+    return ['prefix'];
   }
 
   function normalizeSearchBlacklistItems(items) {
-    if (!Array.isArray(items)) {
-      return [];
+    if (BLACKLIST_UTILS.normalizeItems) {
+      return BLACKLIST_UTILS.normalizeItems(items, 'prefix');
     }
-    const normalized = [];
-    const seen = new Set();
-    items.forEach((entry) => {
-      const matchModes = normalizeSearchBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
-      const pattern = normalizeSearchBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
-      if (!pattern || seen.has(pattern)) {
-        return;
-      }
-      seen.add(pattern);
-      normalized.push({
-        pattern: pattern,
-        matchModes: matchModes
-      });
-    });
-    return normalized;
+    return [];
   }
 
   function loadSearchBlacklistItems() {
@@ -6349,24 +6296,9 @@
       if (isBrowserExtensionProtocol(parsed.protocol)) {
         return true;
       }
-      parsed.hash = '';
-      const normalizedUrl = parsed.toString();
-      return searchBlacklistItems.some((item) => {
-        if (!item || !item.pattern) {
-          return false;
-        }
-        const modes = normalizeSearchBlacklistMatchModes(item.matchModes);
-        if (modes.includes('exact') && normalizedUrl === item.pattern) {
-          return true;
-        }
-        if (modes.includes('prefix') && normalizedUrl.startsWith(item.pattern)) {
-          return true;
-        }
-        if (modes.includes('suffix') && normalizedUrl.endsWith(item.pattern)) {
-          return true;
-        }
-        return false;
-      });
+      return BLACKLIST_UTILS.isUrlBlocked
+        ? BLACKLIST_UTILS.isUrlBlocked(parsed.toString(), searchBlacklistItems)
+        : false;
     } catch (e) {
       return true;
     }

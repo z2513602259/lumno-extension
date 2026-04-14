@@ -1,5 +1,11 @@
 
 try {
+  importScripts('blacklist-utils.js');
+} catch (error) {
+  console.warn('Lumno: failed to load blacklist utils.', error);
+}
+
+try {
   importScripts('assets/vendor/pinyin-pro.js');
 } catch (error) {
   console.warn('Lumno: failed to load pinyin support.', error);
@@ -3171,6 +3177,7 @@ let bookmarkTreeCacheListenersBound = false;
 const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
 const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
 const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
+const BLACKLIST_UTILS = globalThis.LumnoBlacklistUtils || {};
 const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
 migrateStorageIfNeeded([
   DOCUMENT_PIP_ENABLED_STORAGE_KEY,
@@ -4409,72 +4416,18 @@ function loadDisabledSiteSearchKeys() {
   });
 }
 
-function normalizeSearchBlacklistPattern(value, matchModes) {
-  const raw = String(value || '').trim();
-  if (!raw) {
-    return '';
-  }
-  const modes = normalizeSearchBlacklistMatchModes(matchModes);
-  const requiresFullUrl = modes.includes('exact') || modes.includes('prefix');
-  if (!requiresFullUrl) {
-    if (/^https?:\/\//i.test(raw)) {
-      return '';
-    }
-    return raw;
-  }
-  try {
-    const parsed = new URL(raw);
-    if (!/^https?:$/i.test(parsed.protocol)) {
-      return '';
-    }
-    parsed.hash = '';
-    return parsed.toString();
-  } catch (error) {
-    return '';
-  }
-}
-
 function normalizeSearchBlacklistMatchModes(value) {
-  const source = Array.isArray(value) ? value : [value];
-  const set = new Set();
-  source.forEach((item) => {
-    const mode = String(item || '').trim().toLowerCase();
-    if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
-      set.add(mode);
-    }
-  });
-  if (set.has('exact')) {
-    return ['exact'];
+  if (BLACKLIST_UTILS.normalizeMatchModes) {
+    return BLACKLIST_UTILS.normalizeMatchModes(value, 'prefix');
   }
-  const next = [];
-  if (set.has('prefix')) {
-    next.push('prefix');
-  }
-  if (set.has('suffix')) {
-    next.push('suffix');
-  }
-  return next.length > 0 ? next : ['prefix'];
+  return ['prefix'];
 }
 
 function normalizeSearchBlacklistItems(items) {
-  if (!Array.isArray(items)) {
-    return [];
+  if (BLACKLIST_UTILS.normalizeItems) {
+    return BLACKLIST_UTILS.normalizeItems(items, 'prefix');
   }
-  const normalized = [];
-  const seen = new Set();
-  items.forEach((entry) => {
-    const matchModes = normalizeSearchBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
-    const pattern = normalizeSearchBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
-    if (!pattern || seen.has(pattern)) {
-      return;
-    }
-    seen.add(pattern);
-    normalized.push({
-      pattern: pattern,
-      matchModes: matchModes
-    });
-  });
-  return normalized;
+  return [];
 }
 
 function loadSearchBlacklistItems() {
@@ -4501,27 +4454,10 @@ function loadSearchBlacklistItems() {
 }
 
 function isUrlBlockedBySearchBlacklist(url, items) {
-  const target = normalizeSearchBlacklistPattern(url, ['exact', 'prefix']);
-  if (!target) {
-    return false;
+  if (BLACKLIST_UTILS.isUrlBlocked) {
+    return BLACKLIST_UTILS.isUrlBlocked(url, items);
   }
-  const rules = Array.isArray(items) ? items : [];
-  return rules.some((entry) => {
-    if (!entry || !entry.pattern) {
-      return false;
-    }
-    const modes = normalizeSearchBlacklistMatchModes(entry.matchModes);
-    if (modes.includes('exact') && target === entry.pattern) {
-      return true;
-    }
-    if (modes.includes('prefix') && target.startsWith(entry.pattern)) {
-      return true;
-    }
-    if (modes.includes('suffix') && target.endsWith(entry.pattern)) {
-      return true;
-    }
-    return false;
-  });
+  return false;
 }
 
 function mergeCustomProviders(baseItems, customItems) {

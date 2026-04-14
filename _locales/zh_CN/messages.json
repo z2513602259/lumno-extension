@@ -426,13 +426,13 @@
     "message": "后缀匹配"
   },
   "blacklist_match_exact_tooltip": {
-    "message": "只匹配这一条完整地址\n例：example.com/a"
+    "message": "只匹配这一条完整地址\n────────\n例如，\n输入：example.com/a\n屏蔽：example.com/a"
   },
   "blacklist_match_prefix_tooltip": {
-    "message": "匹配这个站点或路径下的页面\n例：example.com/docs/"
+    "message": "匹配这个站点或路径下的页面\n────────\n例如，\n输入：example.com/docs/\n屏蔽：https://example.com/docs/article"
   },
   "blacklist_match_suffix_tooltip": {
-    "message": "匹配以这段后缀结尾的页面\n例：settings"
+    "message": "匹配以这段后缀结尾的页面\n────────\n例如，\n输入：settings\n屏蔽：https://example.com/account/settings"
   },
   "blacklist_placeholder_url": {
     "message": "前缀模式填完整 URL；后缀模式填 /settings"
@@ -455,11 +455,17 @@
   "blacklist_error_url": {
     "message": "请输入站点域名或完整 URL"
   },
+  "blacklist_error_match_mode": {
+    "message": "请至少选择一种匹配方式"
+  },
   "blacklist_error_suffix": {
     "message": "请输入 URL 后缀，不要填写完整 URL"
   },
   "blacklist_match_mode_prefix": {
     "message": "匹配以该 URL 开头的页面"
+  },
+  "blacklist_match_unset": {
+    "message": "未设置匹配方式"
   },
   "blacklist_removed_toast": {
     "message": "已从黑名单移除"

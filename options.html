@@ -461,7 +461,7 @@
       ._x_extension_blacklist_match_modes_2026_unique_ {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px 14px;
+        gap: 12px 24px;
         align-items: center;
       }
       ._x_extension_blacklist_match_mode_2026_unique_ {
@@ -472,8 +472,65 @@
         font-size: 13px;
       }
       ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
         margin: 0;
-        accent-color: rgb(59, 130, 246);
+        width: 17px;
+        height: 17px;
+        border: 1.5px solid rgba(17, 17, 17, 0.4);
+        border-radius: 5px;
+        background: #ffffff;
+        display: inline-grid;
+        place-items: center;
+        cursor: pointer;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]::after {
+        content: "";
+        width: 8px;
+        height: 4px;
+        border-left: 1.75px solid #ffffff;
+        border-bottom: 1.75px solid #ffffff;
+        transform: rotate(-45deg) scale(0);
+        transform-origin: center;
+        transition: transform 120ms ease;
+        position: relative;
+        top: -1.5px;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:checked {
+        background: #111111;
+        border-color: #111111;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:checked::after {
+        transform: rotate(-45deg) scale(1);
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:hover,
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:focus-visible {
+        cursor: pointer;
+        border-color: #111111;
+        box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+        outline: none;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"] {
+        background: rgba(255, 255, 255, 0.02);
+        border-color: rgba(255, 255, 255, 0.38);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:checked {
+        background: #f3f4f6;
+        border-color: #f3f4f6;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:checked::after {
+        border-left-color: #111111;
+        border-bottom-color: #111111;
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:hover,
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"]:focus-visible {
+        border-color: #f3f4f6;
+        box-shadow: 0 0 0 3px rgba(243, 244, 246, 0.12);
       }
       ._x_extension_blacklist_match_mode_2026_unique_[data-disabled="true"] {
         opacity: 0.5;
@@ -1032,6 +1089,9 @@
         flex-direction: column;
         gap: 10px;
       }
+      #_x_extension_blacklist_list_2026_unique_ {
+        margin-top: 6px;
+      }
       ._x_extension_shortcut_group_2024_unique_ {
         display: flex;
         flex-direction: column;
@@ -1113,6 +1173,17 @@
         transform: translateY(4px);
         transition: opacity 120ms ease, transform 120ms ease;
       }
+      ._x_extension_tooltip_line_2026_unique_ {
+        display: block;
+        width: 100%;
+      }
+      ._x_extension_tooltip_divider_2026_unique_ {
+        display: block;
+        width: 100%;
+        height: 1px;
+        margin: 6px 0 5px;
+        background: rgba(255, 255, 255, 0.12);
+      }
       ._x_extension_tooltip_2024_unique_[data-show="true"] {
         opacity: 1;
         transform: translateY(0);
@@ -1128,6 +1199,9 @@
         color: #f8fafc;
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+      }
+      body[data-theme="dark"] ._x_extension_tooltip_divider_2026_unique_ {
+        background: rgba(255, 255, 255, 0.14);
       }
       ._x_extension_shortcut_group_action_2024_unique_[data-tooltip]:hover::after {
         opacity: 1;
@@ -1206,6 +1280,36 @@
         border: 1px solid var(--tab-border);
         color: var(--panel-subtext);
         background: var(--tab-bg);
+      }
+      ._x_extension_shortcut_badge_2024_unique_[data-tone="exact"] {
+        color: #9a3412;
+        background: rgba(251, 146, 60, 0.16);
+        border-color: rgba(251, 146, 60, 0.32);
+      }
+      ._x_extension_shortcut_badge_2024_unique_[data-tone="prefix"] {
+        color: #1d4ed8;
+        background: rgba(96, 165, 250, 0.16);
+        border-color: rgba(96, 165, 250, 0.32);
+      }
+      ._x_extension_shortcut_badge_2024_unique_[data-tone="suffix"] {
+        color: #047857;
+        background: rgba(52, 211, 153, 0.16);
+        border-color: rgba(52, 211, 153, 0.32);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_badge_2024_unique_[data-tone="exact"] {
+        color: #fdba74;
+        background: rgba(249, 115, 22, 0.16);
+        border-color: rgba(251, 146, 60, 0.34);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_badge_2024_unique_[data-tone="prefix"] {
+        color: #93c5fd;
+        background: rgba(59, 130, 246, 0.18);
+        border-color: rgba(96, 165, 250, 0.34);
+      }
+      #_x_extension_settings_panel_2024_unique_[data-theme="dark"] ._x_extension_shortcut_badge_2024_unique_[data-tone="suffix"] {
+        color: #6ee7b7;
+        background: rgba(16, 185, 129, 0.16);
+        border-color: rgba(52, 211, 153, 0.34);
       }
       ._x_extension_shortcuts_dia_badge_2026_unique_ {
         gap: 4px;
@@ -2618,21 +2722,21 @@
                     <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_exact_wrap_2026_unique_">
                       <input id="_x_extension_blacklist_match_exact_2026_unique_" type="checkbox" />
                       <span data-i18n="blacklist_match_exact">完全匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_exact_tooltip" data-tooltip="仅匹配完整相同的 URL&#10;例：只命中 https://example.com/a">
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_exact_tooltip" data-tooltip="只匹配这一条完整地址&#10;────────&#10;例如，&#10;输入：example.com/a&#10;屏蔽：example.com/a">
                         <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                       </span>
                     </label>
                     <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_prefix_wrap_2026_unique_">
                       <input id="_x_extension_blacklist_match_prefix_2026_unique_" type="checkbox" checked />
                       <span data-i18n="blacklist_match_prefix">前缀匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_prefix_tooltip" data-tooltip="匹配以这段 URL 开头的页面&#10;例：https://example.com/docs/ 会命中 /docs/ 下所有页面">
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_prefix_tooltip" data-tooltip="匹配这个站点或路径下的页面&#10;────────&#10;例如，&#10;输入：example.com/docs/&#10;屏蔽：https://example.com/docs/article">
                         <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                       </span>
                     </label>
                     <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_suffix_wrap_2026_unique_">
                       <input id="_x_extension_blacklist_match_suffix_2026_unique_" type="checkbox" />
                       <span data-i18n="blacklist_match_suffix">后缀匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_suffix_tooltip" data-tooltip="匹配以这段 URL 结尾的页面&#10;例：/settings 会命中所有以 /settings 结尾的页面">
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_suffix_tooltip" data-tooltip="匹配以这段后缀结尾的页面&#10;────────&#10;例如，&#10;输入：settings&#10;屏蔽：https://example.com/account/settings">
                         <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                       </span>
                     </label>
@@ -2714,6 +2818,7 @@
       </div>
     </div>
     -->
+    <script src="blacklist-utils.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

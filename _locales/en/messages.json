@@ -426,13 +426,13 @@
     "message": "Suffix"
   },
   "blacklist_match_exact_tooltip": {
-    "message": "Matches only this exact URL\nExample: example.com/a"
+    "message": "Matches only this exact URL\n────────\nFor example,\nInput: example.com/a\nBlocked: example.com/a"
   },
   "blacklist_match_prefix_tooltip": {
-    "message": "Matches pages under this site or path\nExample: example.com/docs/"
+    "message": "Matches pages under this site or path\n────────\nFor example,\nInput: example.com/docs/\nBlocked: https://example.com/docs/article"
   },
   "blacklist_match_suffix_tooltip": {
-    "message": "Matches pages that end with this suffix\nExample: settings"
+    "message": "Matches pages that end with this suffix\n────────\nFor example,\nInput: settings\nBlocked: https://example.com/account/settings"
   },
   "blacklist_placeholder_url": {
     "message": "Use a full URL for prefix mode, or /settings for suffix mode"
@@ -455,11 +455,17 @@
   "blacklist_error_url": {
     "message": "Enter a site domain or full URL"
   },
+  "blacklist_error_match_mode": {
+    "message": "Select at least one match type"
+  },
   "blacklist_error_suffix": {
     "message": "Enter a URL suffix, not a full URL"
   },
   "blacklist_match_mode_prefix": {
     "message": "Matches pages starting with this URL"
+  },
+  "blacklist_match_unset": {
+    "message": "No match type selected"
   },
   "blacklist_removed_toast": {
     "message": "Removed from blacklist"

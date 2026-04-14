@@ -141,6 +141,7 @@
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
   const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
+  const BLACKLIST_UTILS = globalThis.LumnoBlacklistUtils || {};
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SYNC_META_KEY = '_x_extension_sync_meta_2024_unique_';
   const SYNC_KEYS = [
@@ -218,6 +219,41 @@
   let currentLanguageMode = 'system';
   let openCustomSelect = null;
 
+  function normalizeBlacklistMatchModes(value, fallbackMode) {
+    if (BLACKLIST_UTILS.normalizeMatchModes) {
+      return BLACKLIST_UTILS.normalizeMatchModes(
+        value,
+        fallbackMode === undefined ? 'prefix' : fallbackMode
+      );
+    }
+    return fallbackMode ? [fallbackMode] : [];
+  }
+
+  function normalizeBlacklistPattern(value, matchModes, fallbackMode) {
+    if (BLACKLIST_UTILS.normalizePattern) {
+      return BLACKLIST_UTILS.normalizePattern(
+        value,
+        matchModes,
+        fallbackMode === undefined ? 'prefix' : fallbackMode
+      );
+    }
+    return '';
+  }
+
+  function normalizeSearchBlacklistItems(items) {
+    if (BLACKLIST_UTILS.normalizeItems) {
+      return BLACKLIST_UTILS.normalizeItems(items, 'prefix');
+    }
+    return [];
+  }
+
+  function buildBlacklistItemKey(item) {
+    if (BLACKLIST_UTILS.buildRuleKey) {
+      return BLACKLIST_UTILS.buildRuleKey(item, 'prefix');
+    }
+    return '';
+  }
+
   function migrateStorageIfNeeded(keys) {
     if (!storageArea || !chrome || !chrome.storage || !chrome.storage.local) {
       return;
@@ -293,6 +329,13 @@
     blacklistError.style.display = text ? 'block' : 'none';
   }
 
+  function getBlacklistPatternInputValue(item) {
+    if (BLACKLIST_UTILS.getPatternInputValue) {
+      return BLACKLIST_UTILS.getPatternInputValue(item);
+    }
+    return '';
+  }
+
   function setBlacklistFormExpanded(expanded) {
     blacklistFormExpanded = Boolean(expanded);
     if (blacklistForm) {
@@ -317,6 +360,10 @@
     if (blacklistUrlInput) {
       blacklistUrlInput.value = '';
     }
+    if (blacklistAddButton) {
+      blacklistAddButton.textContent = getMessage('blacklist_add', '添加到黑名单');
+      blacklistAddButton.classList.add('_x_extension_shortcut_save_2024_unique_');
+    }
     setBlacklistError('');
     if (blacklistMatchExactInput) {
       blacklistMatchExactInput.checked = false;
@@ -332,128 +379,41 @@
     setBlacklistFormExpanded(false);
   }
 
-  function normalizeBlacklistPattern(value, matchModes) {
-    const raw = String(value || '').trim();
-    if (!raw) {
-      return '';
-    }
-    const modes = normalizeBlacklistMatchModes(matchModes);
-    if (modes.includes('suffix')) {
-      if (/^https?:\/\//i.test(raw)) {
-        return '';
-      }
-      const suffix = raw.replace(/^\/+/, '');
-      return suffix ? `/${suffix}` : '';
-    }
-    const withoutScheme = raw.replace(/^https?:\/\//i, '').trim();
-    if (!withoutScheme) {
-      return '';
-    }
-    try {
-      const parsed = new URL(`https://${withoutScheme}`);
-      if (!parsed.hostname) {
-        return '';
-      }
-      parsed.hash = '';
-      const host = String(parsed.host || '').toLowerCase();
-      const path = String(parsed.pathname || '');
-      const search = String(parsed.search || '');
-      return `${host}${path}${search}`;
-    } catch (error) {
-      return '';
-    }
-  }
-
-  function normalizeBlacklistMatchModes(value) {
-    const source = Array.isArray(value) ? value : [value];
-    const set = new Set();
-    source.forEach((item) => {
-      const mode = String(item || '').trim().toLowerCase();
-      if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
-        set.add(mode);
-      }
-    });
-    if (set.has('exact')) {
-      return ['exact'];
-    }
-    const next = [];
-    if (set.has('prefix')) {
-      next.push('prefix');
-    }
-    if (set.has('suffix')) {
-      next.push('suffix');
-    }
-    return next.length > 0 ? next : ['prefix'];
-  }
-
-  function normalizeSearchBlacklistItems(items) {
-    if (!Array.isArray(items)) {
-      return [];
-    }
-    const normalized = [];
-    const seen = new Set();
-    for (let i = 0; i < items.length; i += 1) {
-      const entry = items[i];
-      const matchModes = normalizeBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
-      const pattern = normalizeBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
-      if (!pattern || seen.has(pattern)) {
-        continue;
-      }
-      seen.add(pattern);
-      normalized.push({
-        pattern: pattern,
-        matchModes: matchModes
-      });
-    }
-    return normalized;
-  }
-
   function getBlacklistMatchModesFromForm() {
     return normalizeBlacklistMatchModes([
       blacklistMatchExactInput && blacklistMatchExactInput.checked ? 'exact' : '',
       blacklistMatchPrefixInput && blacklistMatchPrefixInput.checked ? 'prefix' : '',
       blacklistMatchSuffixInput && blacklistMatchSuffixInput.checked ? 'suffix' : ''
-    ]);
+    ], null);
   }
 
   function syncBlacklistMatchModeAvailability(changedMode) {
-    const modes = getBlacklistMatchModesFromForm();
-    const hasExact = modes.includes('exact');
-    const hasFlexible = modes.includes('prefix') || modes.includes('suffix');
-    if (blacklistMatchExactInput) {
-      blacklistMatchExactInput.checked = hasExact;
-      blacklistMatchExactInput.disabled = hasFlexible;
-    }
-    if (blacklistMatchPrefixInput) {
-      blacklistMatchPrefixInput.checked = modes.includes('prefix');
-      blacklistMatchPrefixInput.disabled = hasExact;
-    }
-    if (blacklistMatchSuffixInput) {
-      blacklistMatchSuffixInput.checked = modes.includes('suffix');
-      blacklistMatchSuffixInput.disabled = hasExact;
-    }
-    if (changedMode === 'exact' && hasExact) {
-      if (blacklistMatchPrefixInput) blacklistMatchPrefixInput.checked = false;
-      if (blacklistMatchSuffixInput) blacklistMatchSuffixInput.checked = false;
-    }
-    if ((changedMode === 'prefix' || changedMode === 'suffix') && hasFlexible && blacklistMatchExactInput) {
-      blacklistMatchExactInput.checked = false;
-    }
-    [
-      [blacklistMatchExactWrap, blacklistMatchExactInput],
-      [blacklistMatchPrefixWrap, blacklistMatchPrefixInput],
-      [blacklistMatchSuffixWrap, blacklistMatchSuffixInput]
-    ].forEach(([wrap, input]) => {
-      if (!wrap || !input) {
-        return;
-      }
-      wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
-    });
-    updateBlacklistInputPresentation();
+    syncBlacklistModeSelection(
+      {
+        exact: blacklistMatchExactInput,
+        prefix: blacklistMatchPrefixInput,
+        suffix: blacklistMatchSuffixInput
+      },
+      changedMode,
+      {
+        exact: blacklistMatchExactWrap,
+        prefix: blacklistMatchPrefixWrap,
+        suffix: blacklistMatchSuffixWrap
+      },
+      (modes) => applyBlacklistInputPresentationToElements(
+        blacklistUrlLabel,
+        blacklistUrlPrefix,
+        blacklistUrlInput,
+        modes
+      )
+    );
   }
 
   function getBlacklistMatchModesSummary(modes) {
     const normalized = normalizeBlacklistMatchModes(modes);
+    if (normalized.length === 0) {
+      return getMessage('blacklist_match_unset', '未设置匹配方式');
+    }
     return normalized.map((mode) => {
       if (mode === 'exact') {
         return getMessage('blacklist_match_exact', '完全匹配');
@@ -465,13 +425,33 @@
     }).join(' / ');
   }
 
+  function getBlacklistMatchBadgeConfig(modes) {
+    const normalized = normalizeBlacklistMatchModes(modes);
+    if (normalized.includes('exact')) {
+      return {
+        tone: 'exact',
+        text: getMessage('blacklist_match_exact', '完全匹配')
+      };
+    }
+    if (normalized.includes('suffix')) {
+      return {
+        tone: 'suffix',
+        text: getMessage('blacklist_match_suffix', '后缀匹配')
+      };
+    }
+    return {
+      tone: 'prefix',
+      text: getMessage('blacklist_match_prefix', '前缀匹配')
+    };
+  }
+
   function formatBlacklistPatternForDisplay(item) {
     if (!item || !item.pattern) {
       return '';
     }
     const modes = normalizeBlacklistMatchModes(item.matchModes);
     if (modes.includes('suffix')) {
-      return `http(s)://example.com${item.pattern}`;
+      return item.pattern;
     }
     return `http(s)://${item.pattern}`;
   }
@@ -493,7 +473,7 @@
         labelFallback: '后缀',
         placeholderKey: 'blacklist_placeholder_suffix',
         placeholderFallback: 'settings',
-        prefixText: 'http(s)://example.com/'
+        prefixText: '/'
       };
     }
     return {
@@ -506,18 +486,148 @@
   }
 
   function updateBlacklistInputPresentation() {
+    applyBlacklistInputPresentationToElements(
+      blacklistUrlLabel,
+      blacklistUrlPrefix,
+      blacklistUrlInput,
+      getBlacklistMatchModesFromForm()
+    );
     const config = getBlacklistInputConfig(getBlacklistMatchModesFromForm());
     if (blacklistUrlLabel) {
       blacklistUrlLabel.setAttribute('data-i18n', config.labelKey);
-      blacklistUrlLabel.textContent = getMessage(config.labelKey, config.labelFallback);
-    }
-    if (blacklistUrlPrefix) {
-      blacklistUrlPrefix.textContent = config.prefixText;
     }
     if (blacklistUrlInput) {
       blacklistUrlInput.setAttribute('data-i18n-placeholder', config.placeholderKey);
-      blacklistUrlInput.setAttribute('placeholder', getMessage(config.placeholderKey, config.placeholderFallback));
     }
+  }
+
+  function applyBlacklistInputPresentationToElements(labelNode, prefixNode, inputNode, modes) {
+    const config = getBlacklistInputConfig(modes);
+    if (labelNode) {
+      labelNode.textContent = getMessage(config.labelKey, config.labelFallback);
+    }
+    if (prefixNode) {
+      prefixNode.textContent = config.prefixText;
+    }
+    if (inputNode) {
+      inputNode.placeholder = getMessage(config.placeholderKey, config.placeholderFallback);
+    }
+  }
+
+  function setInlineError(node, message) {
+    if (!node) {
+      return;
+    }
+    const text = String(message || '').trim();
+    node.textContent = text;
+    node.style.display = text ? 'block' : 'none';
+  }
+
+  function syncBlacklistModeSelection(modeInputs, changedMode, wrapMap, onAfterSync) {
+    const modes = normalizeBlacklistMatchModes([
+      modeInputs.exact && modeInputs.exact.checked ? 'exact' : '',
+      modeInputs.prefix && modeInputs.prefix.checked ? 'prefix' : '',
+      modeInputs.suffix && modeInputs.suffix.checked ? 'suffix' : ''
+    ], null);
+    const hasExact = modes.includes('exact');
+    const hasPrefix = modes.includes('prefix');
+    const hasSuffix = modes.includes('suffix');
+    if (modeInputs.exact) {
+      modeInputs.exact.checked = hasExact;
+      modeInputs.exact.disabled = hasPrefix || hasSuffix;
+    }
+    if (modeInputs.prefix) {
+      modeInputs.prefix.checked = hasPrefix;
+      modeInputs.prefix.disabled = hasExact || hasSuffix;
+    }
+    if (modeInputs.suffix) {
+      modeInputs.suffix.checked = hasSuffix;
+      modeInputs.suffix.disabled = hasExact || hasPrefix;
+    }
+    if (changedMode === 'exact' && hasExact) {
+      if (modeInputs.prefix) modeInputs.prefix.checked = false;
+      if (modeInputs.suffix) modeInputs.suffix.checked = false;
+    }
+    if (changedMode === 'prefix' && hasPrefix) {
+      if (modeInputs.exact) modeInputs.exact.checked = false;
+      if (modeInputs.suffix) modeInputs.suffix.checked = false;
+    }
+    if (changedMode === 'suffix' && hasSuffix) {
+      if (modeInputs.exact) modeInputs.exact.checked = false;
+      if (modeInputs.prefix) modeInputs.prefix.checked = false;
+    }
+    Object.keys(wrapMap || {}).forEach((key) => {
+      const wrap = wrapMap[key];
+      const input = modeInputs[key];
+      if (wrap && input) {
+        wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
+      }
+    });
+    if (typeof onAfterSync === 'function') {
+      onAfterSync(modes);
+    }
+    return modes;
+  }
+
+  function createBlacklistModeOption(textKey, fallback, tooltipKey, tooltipFallback) {
+    const wrap = document.createElement('label');
+    wrap.className = '_x_extension_blacklist_match_mode_2026_unique_';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    const text = document.createElement('span');
+    text.textContent = getMessage(textKey, fallback);
+    const hint = document.createElement('span');
+    hint.className = '_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_';
+    hint.setAttribute('data-tooltip', getMessage(tooltipKey, tooltipFallback));
+    hint.innerHTML = getRiSvg('ri-question-line', 'ri-size-14');
+    wrap.appendChild(input);
+    wrap.appendChild(text);
+    wrap.appendChild(hint);
+    return { wrap, input };
+  }
+
+  function buildBlacklistRuleDraft(inputValue, matchModes) {
+    if (!Array.isArray(matchModes) || matchModes.length === 0) {
+      return {
+        error: getMessage('blacklist_error_match_mode', '请选择至少一种匹配方式')
+      };
+    }
+    const pattern = normalizeBlacklistPattern(inputValue, matchModes, null);
+    if (!pattern) {
+      return {
+        error: matchModes.includes('suffix')
+          ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
+          : getMessage('blacklist_error_url', '请输入站点域名或完整 URL')
+      };
+    }
+    return {
+      item: {
+        pattern: pattern,
+        matchModes: matchModes
+      }
+    };
+  }
+
+  function upsertBlacklistItems(nextItem, replacedRuleKey) {
+    const nextKey = buildBlacklistItemKey(nextItem);
+    return [{ pattern: nextItem.pattern, matchModes: nextItem.matchModes }].concat(
+      searchBlacklistItems.filter((entry) => {
+        const entryKey = buildBlacklistItemKey(entry);
+        return entryKey !== replacedRuleKey && entryKey !== nextKey;
+      })
+    );
+  }
+
+  function persistBlacklistItems(nextItems, successMessage) {
+    return saveSearchBlacklistItems(nextItems).then((savedItems) => {
+      searchBlacklistItems = savedItems;
+      renderSearchBlacklistList();
+      notifyNewtabSectionsRefresh('recent');
+      if (successMessage) {
+        showToast(successMessage, false);
+      }
+      return savedItems;
+    });
   }
 
   function normalizeBookmarkColumns(value) {
@@ -867,7 +977,20 @@
       return;
     }
     const el = ensureTooltipElement();
-    el.textContent = text;
+    const lines = String(text)
+      .split('\n')
+      .map((line) => line.trimEnd());
+    el.replaceChildren();
+    lines.forEach((line) => {
+      const node = document.createElement('span');
+      if (line === '────────') {
+        node.className = '_x_extension_tooltip_divider_2026_unique_';
+      } else {
+        node.className = '_x_extension_tooltip_line_2026_unique_';
+        node.textContent = line;
+      }
+      el.appendChild(node);
+    });
     const rect = target.getBoundingClientRect();
     const tooltipRect = el.getBoundingClientRect();
     const spacing = 8;
@@ -2562,23 +2685,16 @@
         return;
       }
       const matchModes = getBlacklistMatchModesFromForm();
-      const pattern = normalizeBlacklistPattern(blacklistUrlInput && blacklistUrlInput.value, matchModes);
-      if (!pattern) {
-        const message = matchModes.includes('suffix') && !matchModes.includes('prefix') && !matchModes.includes('exact')
-          ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
-          : getMessage('blacklist_error_url', '请输入站点域名或完整 URL');
-        setBlacklistError(message);
+      const draft = buildBlacklistRuleDraft(blacklistUrlInput && blacklistUrlInput.value, matchModes);
+      if (!draft.item) {
+        setBlacklistError(draft.error || '');
         return;
       }
       setBlacklistError('');
-      const nextItems = [{ pattern: pattern, matchModes: matchModes }].concat(
-        searchBlacklistItems.filter((item) => item && item.pattern !== pattern)
-      );
-      saveSearchBlacklistItems(nextItems).then((savedItems) => {
-        searchBlacklistItems = savedItems;
-        renderSearchBlacklistList();
-        notifyNewtabSectionsRefresh('recent');
-        showToast(getMessage('toast_saved', '已保存'), false);
+      persistBlacklistItems(
+        upsertBlacklistItems(draft.item, ''),
+        getMessage('toast_saved', '已保存')
+      ).then(() => {
         resetBlacklistForm();
       }).catch(() => {
         showToast(getMessage('toast_error', '操作失败，请重试'), true);
@@ -3753,8 +3869,10 @@
       return;
     }
     searchBlacklistItems.forEach((item) => {
+      const itemKey = buildBlacklistItemKey(item);
       const row = document.createElement('div');
       row.className = '_x_extension_shortcut_item_2024_unique_';
+      row.setAttribute('data-expanded', 'false');
       const header = document.createElement('div');
       header.className = '_x_extension_shortcut_item_header_2024_unique_';
       const info = document.createElement('div');
@@ -3763,24 +3881,281 @@
       title.className = '_x_extension_shortcut_item_title_2024_unique_';
       const badge = document.createElement('div');
       badge.className = '_x_extension_shortcut_badge_2024_unique_';
-      badge.textContent = getMessage('settings_tab_blacklist', '黑名单');
+      const badgeConfig = getBlacklistMatchBadgeConfig(item.matchModes);
+      badge.setAttribute('data-tone', badgeConfig.tone);
+      badge.textContent = badgeConfig.text;
       const titleText = document.createElement('span');
       titleText.textContent = formatBlacklistPatternForDisplay(item);
       title.appendChild(badge);
       title.appendChild(titleText);
-      const meta = document.createElement('div');
-      meta.className = '_x_extension_shortcut_item_meta_2024_unique_';
-      meta.textContent = getBlacklistMatchModesSummary(item.matchModes);
       info.appendChild(title);
-      info.appendChild(meta);
       const actions = document.createElement('div');
       actions.className = '_x_extension_shortcut_item_actions_2024_unique_';
+      const editButton = document.createElement('button');
+      editButton.className = '_x_extension_shortcut_edit_2024_unique_';
+      editButton.innerHTML = getRiSvg('ri-edit-line', 'ri-size-14');
+      editButton.setAttribute('aria-label', getMessage('shortcuts_edit', '编辑'));
       const removeButton = document.createElement('button');
       removeButton.className = '_x_extension_shortcut_remove_2024_unique_';
       removeButton.innerHTML = getRiSvg('ri-delete-bin-4-line', 'ri-size-14');
       removeButton.setAttribute('aria-label', getMessage('shortcuts_remove', '移除'));
-      removeButton.addEventListener('click', () => {
-        const nextItems = searchBlacklistItems.filter((entry) => entry.pattern !== item.pattern);
+      const popconfirm = document.createElement('div');
+      popconfirm.className = '_x_extension_popconfirm_2024_unique_';
+      popconfirm.setAttribute('data-open', 'false');
+      const popText = document.createElement('div');
+      popText.className = '_x_extension_popconfirm_text_2024_unique_';
+      popText.textContent = getMessage('confirm_remove_item', '确认移除该项？');
+      const popActions = document.createElement('div');
+      popActions.className = '_x_extension_popconfirm_actions_2024_unique_';
+      const popCancel = document.createElement('button');
+      popCancel.className = '_x_extension_shortcut_secondary_2024_unique_';
+      popCancel.textContent = getMessage('confirm_cancel', '取消');
+      const popOk = document.createElement('button');
+      popOk.className = '_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_';
+      popOk.textContent = getMessage('confirm_ok', '确认');
+      popActions.appendChild(popCancel);
+      popActions.appendChild(popOk);
+      popconfirm.appendChild(popText);
+      popconfirm.appendChild(popActions);
+      const popWrap = document.createElement('div');
+      popWrap.className = '_x_extension_popconfirm_wrap_2024_unique_';
+      popWrap.appendChild(removeButton);
+      popWrap.appendChild(popconfirm);
+      actions.appendChild(editButton);
+      actions.appendChild(popWrap);
+      header.appendChild(info);
+      header.appendChild(actions);
+      row.appendChild(header);
+
+      const editor = document.createElement('div');
+      editor.className = '_x_extension_shortcut_editor_2024_unique_';
+
+      const urlField = document.createElement('div');
+      urlField.className = '_x_extension_shortcut_field_2024_unique_';
+      const urlLabel = document.createElement('div');
+      urlLabel.className = '_x_extension_shortcut_label_2024_unique_';
+      const urlLabelText = document.createElement('span');
+      const urlRequired = document.createElement('span');
+      urlRequired.className = '_x_extension_shortcut_required_2024_unique_';
+      urlRequired.textContent = '*';
+      urlLabel.appendChild(urlLabelText);
+      urlLabel.appendChild(urlRequired);
+      const urlAffix = document.createElement('div');
+      urlAffix.className = '_x_extension_shortcut_input_affix_2026_unique_';
+      const urlPrefix = document.createElement('span');
+      urlPrefix.className = '_x_extension_shortcut_input_prefix_2026_unique_';
+      const urlInput = document.createElement('input');
+      urlInput.className = '_x_extension_shortcut_input_2024_unique_';
+      urlInput.value = getBlacklistPatternInputValue(item);
+      urlAffix.appendChild(urlPrefix);
+      urlAffix.appendChild(urlInput);
+      urlField.appendChild(urlLabel);
+      urlField.appendChild(urlAffix);
+
+      const matchField = document.createElement('div');
+      matchField.className = '_x_extension_shortcut_field_2024_unique_';
+      const matchLabel = document.createElement('div');
+      matchLabel.className = '_x_extension_shortcut_label_2024_unique_';
+      matchLabel.textContent = getMessage('blacklist_match_label', '匹配方式');
+      const matchModes = document.createElement('div');
+      matchModes.className = '_x_extension_blacklist_match_modes_2026_unique_';
+
+      function createModeOption(mode, textKey, fallback, tooltipKey, tooltipFallback) {
+        const wrap = document.createElement('label');
+        wrap.className = '_x_extension_blacklist_match_mode_2026_unique_';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        const text = document.createElement('span');
+        text.textContent = getMessage(textKey, fallback);
+        const hint = document.createElement('span');
+        hint.className = '_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_';
+        hint.setAttribute('data-tooltip', getMessage(tooltipKey, tooltipFallback));
+        hint.innerHTML = getRiSvg('ri-question-line', 'ri-size-14');
+        wrap.appendChild(input);
+        wrap.appendChild(text);
+        wrap.appendChild(hint);
+        return { wrap, input };
+      }
+
+      const exactOption = createModeOption(
+        'exact',
+        'blacklist_match_exact',
+        '完全匹配',
+        'blacklist_match_exact_tooltip',
+        '只匹配这一条完整地址\n────────\n例如，\n输入：example.com/a\n屏蔽：example.com/a'
+      );
+      const prefixOption = createModeOption(
+        'prefix',
+        'blacklist_match_prefix',
+        '前缀匹配',
+        'blacklist_match_prefix_tooltip',
+        '匹配这个站点或路径下的页面\n────────\n例如，\n输入：example.com/docs/\n屏蔽：https://example.com/docs/article'
+      );
+      const suffixOption = createModeOption(
+        'suffix',
+        'blacklist_match_suffix',
+        '后缀匹配',
+        'blacklist_match_suffix_tooltip',
+        '匹配以这段后缀结尾的页面\n────────\n例如，\n输入：settings\n屏蔽：https://example.com/account/settings'
+      );
+      matchModes.appendChild(exactOption.wrap);
+      matchModes.appendChild(prefixOption.wrap);
+      matchModes.appendChild(suffixOption.wrap);
+      matchField.appendChild(matchLabel);
+      matchField.appendChild(matchModes);
+
+      const editorError = document.createElement('div');
+      editorError.className = '_x_extension_shortcut_error_2024_unique_';
+      editorError.style.display = 'none';
+
+      function setEditorError(message) {
+        const text = String(message || '').trim();
+        editorError.textContent = text;
+        editorError.style.display = text ? 'block' : 'none';
+      }
+
+      function getEditorMatchModes() {
+        return normalizeBlacklistMatchModes([
+          exactOption.input.checked ? 'exact' : '',
+          prefixOption.input.checked ? 'prefix' : '',
+          suffixOption.input.checked ? 'suffix' : ''
+        ]);
+      }
+
+      function syncEditorMatchModeAvailability(changedMode) {
+        const modes = getEditorMatchModes();
+        const hasExact = modes.includes('exact');
+        const hasPrefix = modes.includes('prefix');
+        const hasSuffix = modes.includes('suffix');
+        exactOption.input.checked = hasExact;
+        exactOption.input.disabled = hasPrefix || hasSuffix;
+        prefixOption.input.checked = hasPrefix;
+        prefixOption.input.disabled = hasExact || hasSuffix;
+        suffixOption.input.checked = hasSuffix;
+        suffixOption.input.disabled = hasExact || hasPrefix;
+        if (changedMode === 'exact' && hasExact) {
+          prefixOption.input.checked = false;
+          suffixOption.input.checked = false;
+        }
+        if (changedMode === 'prefix' && hasPrefix) {
+          exactOption.input.checked = false;
+          suffixOption.input.checked = false;
+        }
+        if (changedMode === 'suffix' && hasSuffix) {
+          exactOption.input.checked = false;
+          prefixOption.input.checked = false;
+        }
+        [
+          [exactOption.wrap, exactOption.input],
+          [prefixOption.wrap, prefixOption.input],
+          [suffixOption.wrap, suffixOption.input]
+        ].forEach(([wrap, input]) => {
+          wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
+        });
+        const config = getBlacklistInputConfig(getEditorMatchModes());
+        urlLabelText.textContent = getMessage(config.labelKey, config.labelFallback);
+        urlPrefix.textContent = config.prefixText;
+        urlInput.placeholder = getMessage(config.placeholderKey, config.placeholderFallback);
+      }
+
+      exactOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('exact'));
+      prefixOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('prefix'));
+      suffixOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('suffix'));
+      urlInput.addEventListener('input', () => setEditorError(''));
+
+      const initialModes = normalizeBlacklistMatchModes(item.matchModes);
+      exactOption.input.checked = initialModes.includes('exact');
+      prefixOption.input.checked = initialModes.includes('prefix');
+      suffixOption.input.checked = initialModes.includes('suffix');
+      syncEditorMatchModeAvailability();
+
+      const editorActions = document.createElement('div');
+      editorActions.className = '_x_extension_shortcut_editor_actions_2024_unique_';
+      const cancelButton = document.createElement('button');
+      cancelButton.className = '_x_extension_shortcut_secondary_2024_unique_';
+      cancelButton.textContent = getMessage('shortcuts_cancel', '取消');
+      const saveButton = document.createElement('button');
+      saveButton.className = '_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_ _x_extension_shortcut_save_2024_unique_';
+      saveButton.textContent = getMessage('shortcuts_save', '保存修改');
+      attachSaveButtonAnimation(saveButton);
+      cancelButton.addEventListener('click', () => {
+        row.setAttribute('data-expanded', 'false');
+      });
+      saveButton.addEventListener('click', () => {
+        const nextModes = getEditorMatchModes();
+        if (nextModes.length === 0) {
+          setEditorError(getMessage('blacklist_error_match_mode', '请选择至少一种匹配方式'));
+          return;
+        }
+        const nextPattern = normalizeBlacklistPattern(urlInput.value, nextModes);
+        if (!nextPattern) {
+          const message = nextModes.includes('suffix')
+            ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
+            : getMessage('blacklist_error_url', '请输入站点域名或完整 URL');
+          setEditorError(message);
+          return;
+        }
+        setEditorError('');
+        const nextItems = [{ pattern: nextPattern, matchModes: nextModes }].concat(
+          searchBlacklistItems.filter((entry) => buildBlacklistItemKey(entry) !== itemKey && entry.pattern !== nextPattern)
+        );
+        saveSearchBlacklistItems(nextItems).then((savedItems) => {
+          searchBlacklistItems = savedItems;
+          renderSearchBlacklistList();
+          notifyNewtabSectionsRefresh('recent');
+          const finalize = () => {
+            showToast(getMessage('toast_saved', '已保存'), false);
+          };
+          if (saveButton.classList.contains('_x_extension_shortcut_save_2024_unique_')) {
+            setTimeout(finalize, 220);
+          } else {
+            finalize();
+          }
+        }).catch(() => {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        });
+      });
+      editorActions.appendChild(cancelButton);
+      editorActions.appendChild(saveButton);
+
+      editor.appendChild(urlField);
+      editor.appendChild(matchField);
+      editor.appendChild(editorActions);
+      editor.appendChild(editorError);
+      row.appendChild(editor);
+
+      editButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        row.setAttribute('data-expanded', row.getAttribute('data-expanded') === 'true' ? 'false' : 'true');
+      });
+      removeButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (activePopconfirm && activePopconfirm !== popconfirm) {
+          closeActivePopconfirm();
+        }
+        const isOpen = popconfirm.getAttribute('data-open') === 'true';
+        if (isOpen) {
+          popconfirm.setAttribute('data-open', 'false');
+          activePopconfirm = null;
+        } else {
+          popconfirm.setAttribute('data-open', 'true');
+          activePopconfirm = popconfirm;
+        }
+      });
+      popCancel.addEventListener('click', (event) => {
+        event.stopPropagation();
+        popconfirm.setAttribute('data-open', 'false');
+        if (activePopconfirm === popconfirm) {
+          activePopconfirm = null;
+        }
+      });
+      popOk.addEventListener('click', (event) => {
+        event.stopPropagation();
+        popconfirm.setAttribute('data-open', 'false');
+        if (activePopconfirm === popconfirm) {
+          activePopconfirm = null;
+        }
+        const nextItems = searchBlacklistItems.filter((entry) => buildBlacklistItemKey(entry) !== itemKey);
         saveSearchBlacklistItems(nextItems).then((savedItems) => {
           searchBlacklistItems = savedItems;
           renderSearchBlacklistList();
@@ -3793,12 +4168,9 @@
           showToast(getMessage('toast_error', '操作失败，请重试'), true);
         });
       });
-      actions.appendChild(removeButton);
-      header.appendChild(info);
-      header.appendChild(actions);
-      row.appendChild(header);
       blacklistList.appendChild(row);
     });
+    initTooltips();
   }
 
   function refreshSiteSearchProviders() {
