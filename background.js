@@ -4846,15 +4846,26 @@ function shouldUseTitlePinyinMatch(value) {
   return Boolean(normalized) && /^[a-z]+$/.test(normalized);
 }
 
-function getTitlePinyinKey(title) {
+function getChineseCharacters(text) {
+  const matches = String(text || '').match(/[\u4e00-\u9fff]/g);
+  return Array.isArray(matches) ? matches : [];
+}
+
+function buildTitlePinyinIndex(title) {
   const rawTitle = String(title || '').trim();
   if (!rawTitle) {
-    return '';
+    return {
+      full: '',
+      initials: '',
+      chineseLength: 0
+    };
   }
   if (titlePinyinCache.has(rawTitle)) {
     return titlePinyinCache.get(rawTitle);
   }
-  let normalized = '';
+  let full = '';
+  let initials = '';
+  const chineseChars = getChineseCharacters(rawTitle);
   try {
     if (globalThis.pinyinPro && typeof globalThis.pinyinPro.pinyin === 'function') {
       const converted = globalThis.pinyinPro.pinyin(rawTitle, {
@@ -4863,36 +4874,74 @@ function getTitlePinyinKey(title) {
         nonZh: 'removed',
         v: false
       });
-      normalized = (Array.isArray(converted) ? converted : [])
-        .join('')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '');
+      const syllables = (Array.isArray(converted) ? converted : [])
+        .map((item) => String(item || '').toLowerCase().replace(/[^a-z]+/g, ''))
+        .filter(Boolean);
+      full = syllables.join('');
+      initials = syllables.map((item) => item.charAt(0)).join('');
     }
   } catch (error) {
-    normalized = '';
+    full = '';
+    initials = '';
   }
-  titlePinyinCache.set(rawTitle, normalized);
-  return normalized;
+  const result = {
+    full: full,
+    initials: initials,
+    chineseLength: chineseChars.length
+  };
+  titlePinyinCache.set(rawTitle, result);
+  return result;
 }
 
 function getTitlePinyinMatchScore(title, normalizedQuery) {
   if (!normalizedQuery || normalizedQuery.length < 2) {
-    return 0;
+    return {
+      score: 0,
+      reason: ''
+    };
   }
-  const titlePinyin = getTitlePinyinKey(title);
-  if (!titlePinyin) {
-    return 0;
+  const index = buildTitlePinyinIndex(title);
+  if (!index || (!index.full && !index.initials)) {
+    return {
+      score: 0,
+      reason: ''
+    };
   }
-  if (titlePinyin === normalizedQuery) {
-    return 42;
+  if (index.full === normalizedQuery) {
+    return {
+      score: 42,
+      reason: 'full-exact'
+    };
   }
-  if (titlePinyin.startsWith(normalizedQuery)) {
-    return 28;
+  if (index.full.startsWith(normalizedQuery)) {
+    return {
+      score: 28,
+      reason: 'full-prefix'
+    };
   }
-  if (titlePinyin.includes(normalizedQuery)) {
-    return 14;
+  if (index.full.includes(normalizedQuery)) {
+    return {
+      score: 14,
+      reason: 'full-contains'
+    };
   }
-  return 0;
+  const canUseInitials = index.chineseLength >= 2 && normalizedQuery.length >= 2;
+  if (canUseInitials && index.initials === normalizedQuery) {
+    return {
+      score: 18,
+      reason: 'initials-exact'
+    };
+  }
+  if (canUseInitials && index.initials.startsWith(normalizedQuery)) {
+    return {
+      score: 12,
+      reason: 'initials-prefix'
+    };
+  }
+  return {
+    score: 0,
+    reason: ''
+  };
 }
 
 function mergeItemsByUrl(itemGroups) {
@@ -4972,7 +5021,7 @@ async function getSearchSuggestions(query) {
       if (!useTitlePinyinMatch || !item || !item.title) {
         return false;
       }
-      return getTitlePinyinMatchScore(item.title, normalizedPinyinQuery) > 0;
+      return getTitlePinyinMatchScore(item.title, normalizedPinyinQuery).score > 0;
     };
 
     let historyItems = mergeItemsByUrl([
@@ -5096,7 +5145,7 @@ async function getSearchSuggestions(query) {
         // Ignore invalid URL parsing/decoding errors.
       }
 
-      pinyinTitleScore = getTitlePinyinMatchScore(item.title, normalizedPinyinQuery);
+      pinyinTitleScore = getTitlePinyinMatchScore(item.title, normalizedPinyinQuery).score;
       textScore += pinyinTitleScore;
 
       // Local-network/dev pages should surface earlier for quick workflows.
@@ -5148,7 +5197,10 @@ async function getSearchSuggestions(query) {
       } else if (sourceType === 'history') {
         reasons.push('来源：浏览历史');
       }
-      if (getTitlePinyinMatchScore(item && item.title, normalizedPinyinQuery) > 0) {
+      const pinyinMatch = getTitlePinyinMatchScore(item && item.title, normalizedPinyinQuery);
+      if (pinyinMatch.reason === 'initials-exact' || pinyinMatch.reason === 'initials-prefix') {
+        reasons.push('标题首字母匹配');
+      } else if (pinyinMatch.score > 0) {
         reasons.push('标题拼音匹配');
       }
       if (item && item.lastVisitTime) {
