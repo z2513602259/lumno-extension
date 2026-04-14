@@ -1,4 +1,10 @@
 
+try {
+  importScripts('assets/vendor/pinyin-pro.js');
+} catch (error) {
+  console.warn('Lumno: failed to load pinyin support.', error);
+}
+
 function isBrowserExtensionProtocol(protocol) {
   const normalized = String(protocol || '').toLowerCase();
   return normalized === 'chrome-extension:' ||
@@ -3153,7 +3159,12 @@ let bookmarkTreeIndexCache = {
   expiresAt: 0,
   map: null
 };
+let bookmarkItemsCache = {
+  expiresAt: 0,
+  items: []
+};
 let bookmarkTreeIndexPromise = null;
+let bookmarkItemsPromise = null;
 let bookmarkTreeCacheListenersBound = false;
 const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
 const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
@@ -3173,6 +3184,7 @@ migrateStorageIfNeeded([
 const FAVICON_GOOGLE_SIZE = 128;
 const faviconDataCache = new Map();
 const faviconPending = new Map();
+const titlePinyinCache = new Map();
 const faviconResolveCache = new Map();
 const faviconResolvePending = new Map();
 const blockedLocalFaviconLogCache = new Set();
@@ -4647,7 +4659,12 @@ function invalidateBookmarkTreeCache() {
     expiresAt: 0,
     map: null
   };
+  bookmarkItemsCache = {
+    expiresAt: 0,
+    items: []
+  };
   bookmarkTreeIndexPromise = null;
+  bookmarkItemsPromise = null;
 }
 
 function ensureBookmarkTreeCacheListeners() {
@@ -4691,6 +4708,30 @@ function buildBookmarkNodeMap(tree) {
   return bookmarkNodeMap;
 }
 
+function buildBookmarkItems(tree) {
+  const items = [];
+  function collectBookmarkNodes(node) {
+    if (!node || !node.id) {
+      return;
+    }
+    if (node.url) {
+      items.push({
+        id: node.id,
+        parentId: node.parentId || null,
+        title: node.title || '',
+        url: node.url
+      });
+    }
+    if (Array.isArray(node.children)) {
+      node.children.forEach((child) => collectBookmarkNodes(child));
+    }
+  }
+  if (Array.isArray(tree)) {
+    tree.forEach((node) => collectBookmarkNodes(node));
+  }
+  return items;
+}
+
 function getBookmarkNodeMapCached() {
   const now = Date.now();
   if (bookmarkTreeIndexCache.map && bookmarkTreeIndexCache.expiresAt > now) {
@@ -4718,6 +4759,35 @@ function getBookmarkNodeMapCached() {
     return new Map();
   });
   return bookmarkTreeIndexPromise;
+}
+
+function getAllBookmarksCached() {
+  const now = Date.now();
+  if (Array.isArray(bookmarkItemsCache.items) && bookmarkItemsCache.expiresAt > now) {
+    return Promise.resolve(bookmarkItemsCache.items);
+  }
+  if (bookmarkItemsPromise) {
+    return bookmarkItemsPromise;
+  }
+  if (!chrome || !chrome.bookmarks || typeof chrome.bookmarks.getTree !== 'function') {
+    return Promise.resolve([]);
+  }
+  ensureBookmarkTreeCacheListeners();
+  bookmarkItemsPromise = callChromeApiWithTimeout((done) => {
+    chrome.bookmarks.getTree((tree) => {
+      const items = buildBookmarkItems(tree);
+      bookmarkItemsCache = {
+        items: items,
+        expiresAt: Date.now() + BOOKMARK_TREE_CACHE_TTL_MS
+      };
+      bookmarkItemsPromise = null;
+      done(items);
+    });
+  }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => {
+    bookmarkItemsPromise = null;
+    return [];
+  });
+  return bookmarkItemsPromise;
 }
 
 function getTopSitesCached() {
@@ -4764,10 +4834,97 @@ function getFallbackHistoryItemsCached() {
   }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS).catch(() => []);
 }
 
+function normalizeAsciiQueryForPinyin(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+function shouldUseTitlePinyinMatch(value) {
+  const normalized = normalizeAsciiQueryForPinyin(value);
+  return Boolean(normalized) && /^[a-z]+$/.test(normalized);
+}
+
+function getTitlePinyinKey(title) {
+  const rawTitle = String(title || '').trim();
+  if (!rawTitle) {
+    return '';
+  }
+  if (titlePinyinCache.has(rawTitle)) {
+    return titlePinyinCache.get(rawTitle);
+  }
+  let normalized = '';
+  try {
+    if (globalThis.pinyinPro && typeof globalThis.pinyinPro.pinyin === 'function') {
+      const converted = globalThis.pinyinPro.pinyin(rawTitle, {
+        toneType: 'none',
+        type: 'array',
+        nonZh: 'removed',
+        v: false
+      });
+      normalized = (Array.isArray(converted) ? converted : [])
+        .join('')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '');
+    }
+  } catch (error) {
+    normalized = '';
+  }
+  titlePinyinCache.set(rawTitle, normalized);
+  return normalized;
+}
+
+function getTitlePinyinMatchScore(title, normalizedQuery) {
+  if (!normalizedQuery || normalizedQuery.length < 2) {
+    return 0;
+  }
+  const titlePinyin = getTitlePinyinKey(title);
+  if (!titlePinyin) {
+    return 0;
+  }
+  if (titlePinyin === normalizedQuery) {
+    return 42;
+  }
+  if (titlePinyin.startsWith(normalizedQuery)) {
+    return 28;
+  }
+  if (titlePinyin.includes(normalizedQuery)) {
+    return 14;
+  }
+  return 0;
+}
+
+function mergeItemsByUrl(itemGroups) {
+  const merged = [];
+  const seenKeys = new Set();
+  (Array.isArray(itemGroups) ? itemGroups : []).forEach((items) => {
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      if (!item) {
+        return;
+      }
+      const urlKey = typeof item.url === 'string' && item.url
+        ? `url:${item.url}`
+        : `id:${item.id || ''}:${item.title || ''}`;
+      if (seenKeys.has(urlKey)) {
+        return;
+      }
+      seenKeys.add(urlKey);
+      merged.push(item);
+    });
+  });
+  return merged;
+}
+
 // Function to get search suggestions from history and top sites
 async function getSearchSuggestions(query) {
   const suggestions = [];
   const lookupQuery = String(query || '');
+  const queryLower = String(lookupQuery || '').trim().toLowerCase();
+  const normalizedPinyinQuery = shouldUseTitlePinyinMatch(lookupQuery)
+    ? normalizeAsciiQueryForPinyin(lookupQuery)
+    : '';
+  const useTitlePinyinMatch = Boolean(normalizedPinyinQuery);
   const lookupStartTime = Date.now() - (30 * 24 * 60 * 60 * 1000);
   const lookupEndTime = Date.now();
   const lookupMaxResults = 50;
@@ -4777,7 +4934,9 @@ async function getSearchSuggestions(query) {
       engineSuggestions,
       historyItemsRaw,
       topSites,
-      bookmarks
+      bookmarksRaw,
+      fallbackHistoryItems,
+      allBookmarks
     ] = await Promise.all([
       withTimeout(
         fetchSearchSuggestionsForEngine(query)
@@ -4797,23 +4956,42 @@ async function getSearchSuggestions(query) {
       getTopSitesCached(),
       callChromeApiWithTimeout((done) => {
         chrome.bookmarks.search({ query: lookupQuery }, done);
-      }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS)
+      }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS),
+      getFallbackHistoryItemsCached(),
+      getAllBookmarksCached()
     ]);
-    let historyItems = Array.isArray(historyItemsRaw) ? historyItemsRaw : [];
+    const matchesLookupText = (item) => {
+      if (!item || !item.url) {
+        return false;
+      }
+      const titleLower = item.title ? item.title.toLowerCase() : '';
+      const urlLower = item.url.toLowerCase();
+      return Boolean(queryLower) && (titleLower.includes(queryLower) || urlLower.includes(queryLower));
+    };
+    const matchesTitlePinyin = (item) => {
+      if (!useTitlePinyinMatch || !item || !item.title) {
+        return false;
+      }
+      return getTitlePinyinMatchScore(item.title, normalizedPinyinQuery) > 0;
+    };
+
+    let historyItems = mergeItemsByUrl([
+      Array.isArray(historyItemsRaw) ? historyItemsRaw : [],
+      useTitlePinyinMatch
+        ? (Array.isArray(fallbackHistoryItems) ? fallbackHistoryItems.filter((item) => matchesTitlePinyin(item)) : [])
+        : []
+    ]);
     if (historyItems.length === 0 && lookupQuery && lookupQuery.trim().length > 0) {
-      const fallbackHistoryItems = await getFallbackHistoryItemsCached();
-      const queryLower = lookupQuery.toLowerCase();
       historyItems = Array.isArray(fallbackHistoryItems)
-        ? fallbackHistoryItems.filter((item) => {
-          if (!item || !item.url) {
-            return false;
-          }
-          const titleLower = item.title ? item.title.toLowerCase() : '';
-          const urlLower = item.url.toLowerCase();
-          return titleLower.includes(queryLower) || urlLower.includes(queryLower);
-        })
+        ? fallbackHistoryItems.filter((item) => matchesLookupText(item) || matchesTitlePinyin(item))
         : [];
     }
+    const bookmarks = mergeItemsByUrl([
+      Array.isArray(bookmarksRaw) ? bookmarksRaw : [],
+      useTitlePinyinMatch
+        ? (Array.isArray(allBookmarks) ? allBookmarks.filter((item) => matchesTitlePinyin(item)) : [])
+        : []
+    ]);
 
     engineSuggestions.forEach((suggestion) => {
       if (suggestion && suggestion !== lookupQuery) {
@@ -4834,7 +5012,6 @@ async function getSearchSuggestions(query) {
       ? await getBookmarkNodeMapCached()
       : new Map();
     
-    const queryLower = String(lookupQuery || '').toLowerCase();
     const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
     const rootFolderTitles = new Set([
       'Bookmarks bar',
@@ -4851,6 +5028,7 @@ async function getSearchSuggestions(query) {
       const urlLower = item.url.toLowerCase();
       let hostname = '';
       let textScore = 0;
+      let pinyinTitleScore = 0;
       let behaviorScore = 0;
       
       // Exact title match (highest priority)
@@ -4918,6 +5096,9 @@ async function getSearchSuggestions(query) {
         // Ignore invalid URL parsing/decoding errors.
       }
 
+      pinyinTitleScore = getTitlePinyinMatchScore(item.title, normalizedPinyinQuery);
+      textScore += pinyinTitleScore;
+
       // Local-network/dev pages should surface earlier for quick workflows.
       if (hostname && shouldBlockFaviconForHost(hostname)) {
         if (titleLower === queryLower) textScore += 90;
@@ -4966,6 +5147,9 @@ async function getSearchSuggestions(query) {
         reasons.push('来源：常用站点');
       } else if (sourceType === 'history') {
         reasons.push('来源：浏览历史');
+      }
+      if (getTitlePinyinMatchScore(item && item.title, normalizedPinyinQuery) > 0) {
+        reasons.push('标题拼音匹配');
       }
       if (item && item.lastVisitTime) {
         const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
@@ -6440,7 +6624,7 @@ async function getSearchSuggestions(query) {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
-      contain: layout paint style !important;
+      contain: layout style !important;
       box-sizing: border-box !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -6594,6 +6778,7 @@ async function getSearchSuggestions(query) {
       inputContainer.style.setProperty('height', `${overlayInputHeight}px`, 'important');
       inputContainer.style.setProperty('min-height', `${overlayInputHeight}px`, 'important');
       inputContainer.style.setProperty('max-height', `${overlayInputHeight}px`, 'important');
+      inputContainer.style.setProperty('overflow', 'visible', 'important');
     }
     if (searchInput) {
       searchInput.style.setProperty('height', `${overlayInputHeight}px`, 'important');
