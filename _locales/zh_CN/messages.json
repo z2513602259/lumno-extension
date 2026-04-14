@@ -14,6 +14,9 @@
   "settings_tab_shortcuts": {
     "message": "站内搜索"
   },
+  "settings_tab_blacklist": {
+    "message": "黑名单"
+  },
   "settings_tab_labs": {
     "message": "实验室功能"
   },
@@ -389,6 +392,78 @@
   "shortcuts_group_custom": {
     "message": "自定义"
   },
+  "blacklist_section_title": {
+    "message": "搜索与最近访问黑名单"
+  },
+  "blacklist_section_desc": {
+    "message": "以下 URL 不会出现在 Lumno 的搜索结果，以及新标签页的“最近访问”和“最常访问”中"
+  },
+  "blacklist_group_custom": {
+    "message": "URL 列表"
+  },
+  "blacklist_label_url": {
+    "message": "URL / 后缀"
+  },
+  "blacklist_label_domain": {
+    "message": "站点域名"
+  },
+  "blacklist_label_exact": {
+    "message": "完整 URL"
+  },
+  "blacklist_label_suffix": {
+    "message": "后缀"
+  },
+  "blacklist_match_label": {
+    "message": "匹配方式"
+  },
+  "blacklist_match_exact": {
+    "message": "完全匹配"
+  },
+  "blacklist_match_prefix": {
+    "message": "前缀匹配"
+  },
+  "blacklist_match_suffix": {
+    "message": "后缀匹配"
+  },
+  "blacklist_match_exact_tooltip": {
+    "message": "只匹配这一条完整地址\n例：example.com/a"
+  },
+  "blacklist_match_prefix_tooltip": {
+    "message": "匹配这个站点或路径下的页面\n例：example.com/docs/"
+  },
+  "blacklist_match_suffix_tooltip": {
+    "message": "匹配以这段后缀结尾的页面\n例：settings"
+  },
+  "blacklist_placeholder_url": {
+    "message": "前缀模式填完整 URL；后缀模式填 /settings"
+  },
+  "blacklist_placeholder_domain": {
+    "message": "example.com"
+  },
+  "blacklist_placeholder_exact": {
+    "message": "example.com/path"
+  },
+  "blacklist_placeholder_suffix": {
+    "message": "settings"
+  },
+  "blacklist_add": {
+    "message": "添加到黑名单"
+  },
+  "blacklist_empty": {
+    "message": "暂未添加黑名单 URL"
+  },
+  "blacklist_error_url": {
+    "message": "请输入站点域名或完整 URL"
+  },
+  "blacklist_error_suffix": {
+    "message": "请输入 URL 后缀，不要填写完整 URL"
+  },
+  "blacklist_match_mode_prefix": {
+    "message": "匹配以该 URL 开头的页面"
+  },
+  "blacklist_removed_toast": {
+    "message": "已从黑名单移除"
+  },
   "shortcuts_group_builtin": {
     "message": "内置"
   },
@@ -464,11 +539,17 @@
   "shortcuts_clear_custom": {
     "message": "清空自定义"
   },
+  "blacklist_clear": {
+    "message": "清空黑名单"
+  },
   "toast_cleared": {
     "message": "已清空"
   },
   "confirm_clear_custom": {
     "message": "确认清空自定义搜索？"
+  },
+  "confirm_clear_blacklist": {
+    "message": "确认清空黑名单？"
   },
   "confirm_reset_builtin": {
     "message": "确认重置内置列表？"
@@ -784,5 +865,17 @@
   },
   "recent_pin_limit_toast": {
     "message": "最多只能置顶 3 个卡片"
+  },
+  "recent_dismiss_tooltip": {
+    "message": "移除"
+  },
+  "recent_dismiss_pinned_tooltip": {
+    "message": "取消置顶并移除"
+  },
+  "recent_dismiss_toast": {
+    "message": "已移除"
+  },
+  "recent_dismiss_pinned_toast": {
+    "message": "已取消置顶并移除"
   }
 }

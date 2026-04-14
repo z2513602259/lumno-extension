@@ -14,6 +14,9 @@
   "settings_tab_shortcuts": {
     "message": "站內搜尋"
   },
+  "settings_tab_blacklist": {
+    "message": "黑名單"
+  },
   "settings_tab_labs": {
     "message": "實驗室功能"
   },
@@ -380,6 +383,78 @@
   "shortcuts_group_custom": {
     "message": "自訂"
   },
+  "blacklist_section_title": {
+    "message": "搜尋與最近訪問黑名單"
+  },
+  "blacklist_section_desc": {
+    "message": "以下 URL 不會出現在 Lumno 的搜尋結果，以及新分頁的「最近訪問」和「最常訪問」中"
+  },
+  "blacklist_group_custom": {
+    "message": "URL 清單"
+  },
+  "blacklist_label_url": {
+    "message": "URL / 後綴"
+  },
+  "blacklist_label_domain": {
+    "message": "網站網域"
+  },
+  "blacklist_label_exact": {
+    "message": "完整 URL"
+  },
+  "blacklist_label_suffix": {
+    "message": "後綴"
+  },
+  "blacklist_match_label": {
+    "message": "比對方式"
+  },
+  "blacklist_match_exact": {
+    "message": "完全比對"
+  },
+  "blacklist_match_prefix": {
+    "message": "前綴比對"
+  },
+  "blacklist_match_suffix": {
+    "message": "後綴比對"
+  },
+  "blacklist_match_exact_tooltip": {
+    "message": "只比對這一條完整網址\n例：example.com/a"
+  },
+  "blacklist_match_prefix_tooltip": {
+    "message": "比對這個網站或路徑下的頁面\n例：example.com/docs/"
+  },
+  "blacklist_match_suffix_tooltip": {
+    "message": "比對以這段後綴結尾的頁面\n例：settings"
+  },
+  "blacklist_placeholder_url": {
+    "message": "前綴模式填完整 URL；後綴模式填 /settings"
+  },
+  "blacklist_placeholder_domain": {
+    "message": "example.com"
+  },
+  "blacklist_placeholder_exact": {
+    "message": "example.com/path"
+  },
+  "blacklist_placeholder_suffix": {
+    "message": "settings"
+  },
+  "blacklist_add": {
+    "message": "加入黑名單"
+  },
+  "blacklist_empty": {
+    "message": "尚未加入黑名單 URL"
+  },
+  "blacklist_error_url": {
+    "message": "請輸入網站網域或完整 URL"
+  },
+  "blacklist_error_suffix": {
+    "message": "請輸入 URL 後綴，不要填寫完整 URL"
+  },
+  "blacklist_match_mode_prefix": {
+    "message": "比對以此 URL 開頭的頁面"
+  },
+  "blacklist_removed_toast": {
+    "message": "已從黑名單移除"
+  },
   "shortcuts_group_builtin": {
     "message": "內置"
   },
@@ -464,11 +539,17 @@
   "shortcuts_clear_custom": {
     "message": "清空自訂"
   },
+  "blacklist_clear": {
+    "message": "清空黑名單"
+  },
   "toast_cleared": {
     "message": "已清空"
   },
   "confirm_clear_custom": {
     "message": "確認清空自訂搜尋？"
+  },
+  "confirm_clear_blacklist": {
+    "message": "確認清空黑名單？"
   },
   "confirm_reset_builtin": {
     "message": "確認重置內置清單？"
@@ -784,5 +865,17 @@
   },
   "recent_pin_limit_toast": {
     "message": "最多只能置頂 3 個卡片"
+  },
+  "recent_dismiss_tooltip": {
+    "message": "移除"
+  },
+  "recent_dismiss_pinned_tooltip": {
+    "message": "取消置頂並移除"
+  },
+  "recent_dismiss_toast": {
+    "message": "已移除"
+  },
+  "recent_dismiss_pinned_toast": {
+    "message": "已取消置頂並移除"
   }
 }

@@ -451,6 +451,74 @@
         margin: 4px 0 0;
         color: var(--panel-subtext);
       }
+      ._x_extension_settings_content_2024_unique_[data-content="labs"] ._x_extension_setting_desc_2024_unique_ {
+        font-size: 13px;
+      }
+      ._x_extension_setting_desc_compact_2026_unique_ {
+        font-size: 13px;
+        margin: -2px 0 0;
+      }
+      ._x_extension_blacklist_match_modes_2026_unique_ {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        align-items: center;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--panel-text);
+        font-size: 13px;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ input[type="checkbox"] {
+        margin: 0;
+        accent-color: rgb(59, 130, 246);
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_[data-disabled="true"] {
+        opacity: 0.5;
+      }
+      ._x_extension_blacklist_match_mode_2026_unique_ ._x_extension_shortcut_hint_2024_unique_ {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      ._x_extension_shortcut_input_affix_2026_unique_ {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        border-radius: 10px;
+        border: 1px solid var(--tab-border);
+        background: var(--control-bg);
+        transition: border-color 180ms ease, background-color 200ms ease;
+        overflow: hidden;
+      }
+      ._x_extension_shortcut_input_affix_2026_unique_:focus-within,
+      ._x_extension_shortcut_input_affix_2026_unique_:hover {
+        border-color: var(--input-focus-color);
+        background: var(--input-focus-bg);
+      }
+      ._x_extension_shortcut_input_prefix_2026_unique_ {
+        flex-shrink: 0;
+        padding: 8px 0 8px 10px;
+        color: var(--panel-subtext);
+        font-size: 13px;
+        white-space: nowrap;
+        user-select: none;
+      }
+      ._x_extension_shortcut_input_affix_2026_unique_ ._x_extension_shortcut_input_2024_unique_ {
+        border: none;
+        background: transparent;
+        border-radius: 0;
+        padding-left: 2px;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      ._x_extension_shortcut_input_affix_2026_unique_ ._x_extension_shortcut_input_2024_unique_:focus,
+      ._x_extension_shortcut_input_affix_2026_unique_ ._x_extension_shortcut_input_2024_unique_:hover {
+        border: none;
+        background: transparent;
+      }
       ._x_extension_section_title_2024_unique_ {
         font-size: 16px;
         font-weight: 550;
@@ -2123,6 +2191,10 @@
             <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-search-line" aria-hidden="true"></i>
             <span data-i18n="settings_tab_shortcuts">站内搜索</span>
           </button>
+          <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="blacklist" data-active="false">
+            <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-forbid-2-fill" aria-hidden="true"></i>
+            <span data-i18n="settings_tab_blacklist">黑名单</span>
+          </button>
           <button class="_x_extension_settings_tab_button_2024_unique_" data-tab="labs" data-active="false">
             <i class="_x_extension_tab_icon_2024_unique_ ri-icon ri-test-tube-fill" aria-hidden="true"></i>
             <span data-i18n="settings_tab_labs">实验室功能</span>
@@ -2508,6 +2580,70 @@
                 </button>
               </div>
               <div id="_x_extension_site_search_builtin_list_2024_unique_" class="_x_extension_shortcut_list_2024_unique_"></div>
+            </div>
+          </div>
+        </div>
+        <div class="_x_extension_settings_content_2024_unique_" data-content="blacklist" data-active="false">
+          <div class="_x_extension_shortcuts_section_2024_unique_">
+            <div class="_x_extension_shortcut_group_2024_unique_">
+              <div class="_x_extension_shortcut_group_header_2024_unique_">
+                <div class="_x_extension_shortcut_group_title_2024_unique_ _x_extension_section_title_2024_unique_" data-i18n="blacklist_group_custom">URL 列表</div>
+                <button id="_x_extension_blacklist_clear_2026_unique_" class="_x_extension_shortcut_group_action_2024_unique_" title="清空黑名单" aria-label="清空黑名单" data-tooltip="清空黑名单" data-i18n-tooltip="blacklist_clear">
+                  <i class="ri-icon ri-size-14 ri-delete-bin-4-line" aria-hidden="true"></i>
+                </button>
+              </div>
+              <p class="_x_extension_setting_desc_2024_unique_ _x_extension_setting_desc_compact_2026_unique_" data-i18n="blacklist_section_desc">以下 URL 不会出现在 Lumno 的搜索结果，以及新标签页的“最近访问”和“最常访问”中</p>
+              <div id="_x_extension_blacklist_list_2026_unique_" class="_x_extension_shortcut_list_2024_unique_"></div>
+            </div>
+            <div id="_x_extension_blacklist_form_2026_unique_" class="_x_extension_shortcut_form_2024_unique_" data-expanded="false">
+              <div class="_x_extension_shortcut_form_trigger_2024_unique_">
+                <button id="_x_extension_blacklist_expand_2026_unique_" class="_x_extension_shortcut_submit_2024_unique_" type="button">
+                  <i class="ri-icon ri-size-14 ri-add-line" aria-hidden="true"></i>
+                  <span data-i18n="blacklist_add">添加到黑名单</span>
+                </button>
+              </div>
+              <div class="_x_extension_shortcut_form_fields_2024_unique_">
+                <div class="_x_extension_shortcut_field_2024_unique_">
+                  <label class="_x_extension_shortcut_label_2024_unique_" for="_x_extension_blacklist_url_2026_unique_">
+                    <span id="_x_extension_blacklist_url_label_2026_unique_" data-i18n="blacklist_label_domain">站点域名</span><span class="_x_extension_shortcut_required_2024_unique_">*</span>
+                  </label>
+                  <div class="_x_extension_shortcut_input_affix_2026_unique_">
+                    <span id="_x_extension_blacklist_url_prefix_2026_unique_" class="_x_extension_shortcut_input_prefix_2026_unique_">http(s)://</span>
+                    <input id="_x_extension_blacklist_url_2026_unique_" class="_x_extension_shortcut_input_2024_unique_" placeholder="example.com" data-i18n-placeholder="blacklist_placeholder_domain" />
+                  </div>
+                </div>
+                <div class="_x_extension_shortcut_field_2024_unique_">
+                  <div class="_x_extension_shortcut_label_2024_unique_" data-i18n="blacklist_match_label">匹配方式</div>
+                  <div class="_x_extension_blacklist_match_modes_2026_unique_">
+                    <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_exact_wrap_2026_unique_">
+                      <input id="_x_extension_blacklist_match_exact_2026_unique_" type="checkbox" />
+                      <span data-i18n="blacklist_match_exact">完全匹配</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_exact_tooltip" data-tooltip="仅匹配完整相同的 URL&#10;例：只命中 https://example.com/a">
+                        <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
+                      </span>
+                    </label>
+                    <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_prefix_wrap_2026_unique_">
+                      <input id="_x_extension_blacklist_match_prefix_2026_unique_" type="checkbox" checked />
+                      <span data-i18n="blacklist_match_prefix">前缀匹配</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_prefix_tooltip" data-tooltip="匹配以这段 URL 开头的页面&#10;例：https://example.com/docs/ 会命中 /docs/ 下所有页面">
+                        <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
+                      </span>
+                    </label>
+                    <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_suffix_wrap_2026_unique_">
+                      <input id="_x_extension_blacklist_match_suffix_2026_unique_" type="checkbox" />
+                      <span data-i18n="blacklist_match_suffix">后缀匹配</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_suffix_tooltip" data-tooltip="匹配以这段 URL 结尾的页面&#10;例：/settings 会命中所有以 /settings 结尾的页面">
+                        <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div class="_x_extension_shortcut_actions_row_2024_unique_">
+                  <button id="_x_extension_blacklist_cancel_2026_unique_" class="_x_extension_shortcut_secondary_2024_unique_" style="display:none;" type="button" data-i18n="shortcuts_cancel">取消</button>
+                  <button id="_x_extension_blacklist_add_2026_unique_" type="button" class="_x_extension_shortcut_submit_2024_unique_ _x_extension_shortcut_submit_primary_2024_unique_" data-i18n="blacklist_add">添加到黑名单</button>
+                </div>
+                <div id="_x_extension_blacklist_error_2026_unique_" class="_x_extension_shortcut_error_2024_unique_" style="display:none;"></div>
+              </div>
             </div>
           </div>
         </div>

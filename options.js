@@ -74,13 +74,29 @@
   const siteSearchNameInput = document.getElementById('_x_extension_site_search_name_2024_unique_');
   const siteSearchTemplateInput = document.getElementById('_x_extension_site_search_template_2024_unique_');
   const siteSearchAliasInput = document.getElementById('_x_extension_site_search_alias_2024_unique_');
-  const siteSearchForm = document.querySelector('._x_extension_shortcut_form_2024_unique_');
+  const siteSearchForm = document.querySelector('._x_extension_settings_content_2024_unique_[data-content="shortcuts"] ._x_extension_shortcut_form_2024_unique_');
   const siteSearchFormTrigger = document.getElementById('_x_extension_site_search_expand_2024_unique_');
   const siteSearchAddButton = document.getElementById('_x_extension_site_search_add_2024_unique_');
   const siteSearchCancelButton = document.getElementById('_x_extension_site_search_cancel_2024_unique_');
   const siteSearchError = document.getElementById('_x_extension_site_search_error_2024_unique_');
   const builtinResetButton = document.getElementById('_x_extension_builtin_reset_2024_unique_');
   const customClearButton = document.getElementById('_x_extension_custom_clear_2024_unique_');
+  const blacklistList = document.getElementById('_x_extension_blacklist_list_2026_unique_');
+  const blacklistForm = document.getElementById('_x_extension_blacklist_form_2026_unique_');
+  const blacklistFormTrigger = document.getElementById('_x_extension_blacklist_expand_2026_unique_');
+  const blacklistClearButton = document.getElementById('_x_extension_blacklist_clear_2026_unique_');
+  const blacklistUrlLabel = document.getElementById('_x_extension_blacklist_url_label_2026_unique_');
+  const blacklistUrlPrefix = document.getElementById('_x_extension_blacklist_url_prefix_2026_unique_');
+  const blacklistUrlInput = document.getElementById('_x_extension_blacklist_url_2026_unique_');
+  const blacklistMatchExactInput = document.getElementById('_x_extension_blacklist_match_exact_2026_unique_');
+  const blacklistMatchPrefixInput = document.getElementById('_x_extension_blacklist_match_prefix_2026_unique_');
+  const blacklistMatchSuffixInput = document.getElementById('_x_extension_blacklist_match_suffix_2026_unique_');
+  const blacklistMatchExactWrap = document.getElementById('_x_extension_blacklist_match_exact_wrap_2026_unique_');
+  const blacklistMatchPrefixWrap = document.getElementById('_x_extension_blacklist_match_prefix_wrap_2026_unique_');
+  const blacklistMatchSuffixWrap = document.getElementById('_x_extension_blacklist_match_suffix_wrap_2026_unique_');
+  const blacklistAddButton = document.getElementById('_x_extension_blacklist_add_2026_unique_');
+  const blacklistCancelButton = document.getElementById('_x_extension_blacklist_cancel_2026_unique_');
+  const blacklistError = document.getElementById('_x_extension_blacklist_error_2026_unique_');
   const toastElement = document.getElementById('_x_extension_toast_2024_unique_');
   const confirmMask = document.getElementById('_x_extension_confirm_mask_2024_unique_');
   const confirmMessage = document.getElementById('_x_extension_confirm_message_2024_unique_');
@@ -124,6 +140,7 @@
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
+  const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SYNC_META_KEY = '_x_extension_sync_meta_2024_unique_';
   const SYNC_KEYS = [
@@ -146,6 +163,7 @@
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
+    SEARCH_BLACKLIST_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY
   ];
   const DEBUG_DUPLICATE_CUSTOM_KEY = 'dup';
@@ -175,6 +193,8 @@
   let fallbackCaptureStopTimer = null;
   let fallbackShortcutBaseWidth = 0;
   let isFallbackWidthReady = false;
+  let searchBlacklistItems = [];
+  let blacklistFormExpanded = false;
   const fallbackSiteSearchProviders = [
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
@@ -262,6 +282,242 @@
       return parsed;
     }
     return 4;
+  }
+
+  function setBlacklistError(message) {
+    if (!blacklistError) {
+      return;
+    }
+    const text = String(message || '').trim();
+    blacklistError.textContent = text;
+    blacklistError.style.display = text ? 'block' : 'none';
+  }
+
+  function setBlacklistFormExpanded(expanded) {
+    blacklistFormExpanded = Boolean(expanded);
+    if (blacklistForm) {
+      blacklistForm.setAttribute('data-expanded', blacklistFormExpanded ? 'true' : 'false');
+    }
+    if (blacklistFormTrigger) {
+      blacklistFormTrigger.setAttribute('aria-expanded', blacklistFormExpanded ? 'true' : 'false');
+    }
+    if (blacklistCancelButton) {
+      blacklistCancelButton.style.display = blacklistFormExpanded ? 'inline-flex' : 'none';
+      if (blacklistCancelButton.textContent) {
+        blacklistCancelButton.textContent = getMessage('shortcuts_cancel', blacklistCancelButton.textContent);
+      }
+    }
+    if (blacklistFormExpanded && blacklistUrlInput) {
+      updateBlacklistInputPresentation();
+      blacklistUrlInput.focus();
+    }
+  }
+
+  function resetBlacklistForm() {
+    if (blacklistUrlInput) {
+      blacklistUrlInput.value = '';
+    }
+    setBlacklistError('');
+    if (blacklistMatchExactInput) {
+      blacklistMatchExactInput.checked = false;
+    }
+    if (blacklistMatchPrefixInput) {
+      blacklistMatchPrefixInput.checked = true;
+    }
+    if (blacklistMatchSuffixInput) {
+      blacklistMatchSuffixInput.checked = false;
+    }
+    syncBlacklistMatchModeAvailability();
+    updateBlacklistInputPresentation();
+    setBlacklistFormExpanded(false);
+  }
+
+  function normalizeBlacklistPattern(value, matchModes) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return '';
+    }
+    const modes = normalizeBlacklistMatchModes(matchModes);
+    if (modes.includes('suffix')) {
+      if (/^https?:\/\//i.test(raw)) {
+        return '';
+      }
+      const suffix = raw.replace(/^\/+/, '');
+      return suffix ? `/${suffix}` : '';
+    }
+    const withoutScheme = raw.replace(/^https?:\/\//i, '').trim();
+    if (!withoutScheme) {
+      return '';
+    }
+    try {
+      const parsed = new URL(`https://${withoutScheme}`);
+      if (!parsed.hostname) {
+        return '';
+      }
+      parsed.hash = '';
+      const host = String(parsed.host || '').toLowerCase();
+      const path = String(parsed.pathname || '');
+      const search = String(parsed.search || '');
+      return `${host}${path}${search}`;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function normalizeBlacklistMatchModes(value) {
+    const source = Array.isArray(value) ? value : [value];
+    const set = new Set();
+    source.forEach((item) => {
+      const mode = String(item || '').trim().toLowerCase();
+      if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
+        set.add(mode);
+      }
+    });
+    if (set.has('exact')) {
+      return ['exact'];
+    }
+    const next = [];
+    if (set.has('prefix')) {
+      next.push('prefix');
+    }
+    if (set.has('suffix')) {
+      next.push('suffix');
+    }
+    return next.length > 0 ? next : ['prefix'];
+  }
+
+  function normalizeSearchBlacklistItems(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    const normalized = [];
+    const seen = new Set();
+    for (let i = 0; i < items.length; i += 1) {
+      const entry = items[i];
+      const matchModes = normalizeBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
+      const pattern = normalizeBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
+      if (!pattern || seen.has(pattern)) {
+        continue;
+      }
+      seen.add(pattern);
+      normalized.push({
+        pattern: pattern,
+        matchModes: matchModes
+      });
+    }
+    return normalized;
+  }
+
+  function getBlacklistMatchModesFromForm() {
+    return normalizeBlacklistMatchModes([
+      blacklistMatchExactInput && blacklistMatchExactInput.checked ? 'exact' : '',
+      blacklistMatchPrefixInput && blacklistMatchPrefixInput.checked ? 'prefix' : '',
+      blacklistMatchSuffixInput && blacklistMatchSuffixInput.checked ? 'suffix' : ''
+    ]);
+  }
+
+  function syncBlacklistMatchModeAvailability(changedMode) {
+    const modes = getBlacklistMatchModesFromForm();
+    const hasExact = modes.includes('exact');
+    const hasFlexible = modes.includes('prefix') || modes.includes('suffix');
+    if (blacklistMatchExactInput) {
+      blacklistMatchExactInput.checked = hasExact;
+      blacklistMatchExactInput.disabled = hasFlexible;
+    }
+    if (blacklistMatchPrefixInput) {
+      blacklistMatchPrefixInput.checked = modes.includes('prefix');
+      blacklistMatchPrefixInput.disabled = hasExact;
+    }
+    if (blacklistMatchSuffixInput) {
+      blacklistMatchSuffixInput.checked = modes.includes('suffix');
+      blacklistMatchSuffixInput.disabled = hasExact;
+    }
+    if (changedMode === 'exact' && hasExact) {
+      if (blacklistMatchPrefixInput) blacklistMatchPrefixInput.checked = false;
+      if (blacklistMatchSuffixInput) blacklistMatchSuffixInput.checked = false;
+    }
+    if ((changedMode === 'prefix' || changedMode === 'suffix') && hasFlexible && blacklistMatchExactInput) {
+      blacklistMatchExactInput.checked = false;
+    }
+    [
+      [blacklistMatchExactWrap, blacklistMatchExactInput],
+      [blacklistMatchPrefixWrap, blacklistMatchPrefixInput],
+      [blacklistMatchSuffixWrap, blacklistMatchSuffixInput]
+    ].forEach(([wrap, input]) => {
+      if (!wrap || !input) {
+        return;
+      }
+      wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
+    });
+    updateBlacklistInputPresentation();
+  }
+
+  function getBlacklistMatchModesSummary(modes) {
+    const normalized = normalizeBlacklistMatchModes(modes);
+    return normalized.map((mode) => {
+      if (mode === 'exact') {
+        return getMessage('blacklist_match_exact', '完全匹配');
+      }
+      if (mode === 'suffix') {
+        return getMessage('blacklist_match_suffix', '后缀匹配');
+      }
+      return getMessage('blacklist_match_prefix', '前缀匹配');
+    }).join(' / ');
+  }
+
+  function formatBlacklistPatternForDisplay(item) {
+    if (!item || !item.pattern) {
+      return '';
+    }
+    const modes = normalizeBlacklistMatchModes(item.matchModes);
+    if (modes.includes('suffix')) {
+      return `http(s)://example.com${item.pattern}`;
+    }
+    return `http(s)://${item.pattern}`;
+  }
+
+  function getBlacklistInputConfig(modes) {
+    const normalized = normalizeBlacklistMatchModes(modes);
+    if (normalized.includes('exact')) {
+      return {
+        labelKey: 'blacklist_label_exact',
+        labelFallback: '完整 URL',
+        placeholderKey: 'blacklist_placeholder_exact',
+        placeholderFallback: 'example.com/path',
+        prefixText: 'http(s)://'
+      };
+    }
+    if (normalized.includes('suffix')) {
+      return {
+        labelKey: 'blacklist_label_suffix',
+        labelFallback: '后缀',
+        placeholderKey: 'blacklist_placeholder_suffix',
+        placeholderFallback: 'settings',
+        prefixText: 'http(s)://example.com/'
+      };
+    }
+    return {
+      labelKey: 'blacklist_label_domain',
+      labelFallback: '站点域名',
+      placeholderKey: 'blacklist_placeholder_domain',
+      placeholderFallback: 'example.com',
+      prefixText: 'http(s)://'
+    };
+  }
+
+  function updateBlacklistInputPresentation() {
+    const config = getBlacklistInputConfig(getBlacklistMatchModesFromForm());
+    if (blacklistUrlLabel) {
+      blacklistUrlLabel.setAttribute('data-i18n', config.labelKey);
+      blacklistUrlLabel.textContent = getMessage(config.labelKey, config.labelFallback);
+    }
+    if (blacklistUrlPrefix) {
+      blacklistUrlPrefix.textContent = config.prefixText;
+    }
+    if (blacklistUrlInput) {
+      blacklistUrlInput.setAttribute('data-i18n-placeholder', config.placeholderKey);
+      blacklistUrlInput.setAttribute('placeholder', getMessage(config.placeholderKey, config.placeholderFallback));
+    }
   }
 
   function normalizeBookmarkColumns(value) {
@@ -905,6 +1161,16 @@
     customClearButton.setAttribute('data-tooltip', text);
   }
 
+  function updateBlacklistClearTooltip() {
+    if (!blacklistClearButton) {
+      return;
+    }
+    const text = getMessage('blacklist_clear', '清空黑名单');
+    blacklistClearButton.title = text;
+    blacklistClearButton.setAttribute('aria-label', text);
+    blacklistClearButton.setAttribute('data-tooltip', text);
+  }
+
   function showToast(message, isError) {
     if (!toastElement) {
       return;
@@ -1335,11 +1601,15 @@
       setEditingState(editingSiteSearchKey);
       updateBuiltinResetTooltip();
       updateCustomClearTooltip();
+      updateBlacklistClearTooltip();
       refreshSyncStatus();
       refreshShortcutsStatus();
       if (confirmCancel) confirmCancel.textContent = getMessage('confirm_cancel', '取消');
       if (confirmOk) confirmOk.textContent = getMessage('confirm_ok', '确认');
       renderSiteSearchList();
+      renderSearchBlacklistList();
+      updateBlacklistInputPresentation();
+      setBlacklistFormExpanded(blacklistFormExpanded);
       if (shouldPersist) {
         if (!storageArea) {
           return;
@@ -2076,6 +2346,7 @@
     FALLBACK_SHORTCUT_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
     SITE_SEARCH_DISABLED_STORAGE_KEY,
+    SEARCH_BLACKLIST_STORAGE_KEY,
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY
   ]);
   refreshSyncStatus();
@@ -2282,6 +2553,71 @@
         storageArea.set({ [RECENT_MODE_STORAGE_KEY]: nextMode });
         notifyNewtabSectionsRefresh('recent');
       });
+    });
+  }
+  if (blacklistAddButton) {
+    blacklistAddButton.addEventListener('click', () => {
+      if (!blacklistFormExpanded) {
+        setBlacklistFormExpanded(true);
+        return;
+      }
+      const matchModes = getBlacklistMatchModesFromForm();
+      const pattern = normalizeBlacklistPattern(blacklistUrlInput && blacklistUrlInput.value, matchModes);
+      if (!pattern) {
+        const message = matchModes.includes('suffix') && !matchModes.includes('prefix') && !matchModes.includes('exact')
+          ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
+          : getMessage('blacklist_error_url', '请输入站点域名或完整 URL');
+        setBlacklistError(message);
+        return;
+      }
+      setBlacklistError('');
+      const nextItems = [{ pattern: pattern, matchModes: matchModes }].concat(
+        searchBlacklistItems.filter((item) => item && item.pattern !== pattern)
+      );
+      saveSearchBlacklistItems(nextItems).then((savedItems) => {
+        searchBlacklistItems = savedItems;
+        renderSearchBlacklistList();
+        notifyNewtabSectionsRefresh('recent');
+        showToast(getMessage('toast_saved', '已保存'), false);
+        resetBlacklistForm();
+      }).catch(() => {
+        showToast(getMessage('toast_error', '操作失败，请重试'), true);
+      });
+    });
+  }
+  if (blacklistFormTrigger) {
+    blacklistFormTrigger.addEventListener('click', () => {
+      setBlacklistFormExpanded(true);
+    });
+  }
+  [
+    [blacklistMatchExactInput, 'exact'],
+    [blacklistMatchPrefixInput, 'prefix'],
+    [blacklistMatchSuffixInput, 'suffix']
+  ].forEach(([input, mode]) => {
+    if (!input) {
+      return;
+    }
+    input.addEventListener('change', () => {
+      syncBlacklistMatchModeAvailability(mode);
+    });
+  });
+  if (blacklistCancelButton) {
+    blacklistCancelButton.addEventListener('click', () => {
+      resetBlacklistForm();
+    });
+  }
+  if (blacklistUrlInput) {
+    blacklistUrlInput.addEventListener('input', () => {
+      setBlacklistError('');
+    });
+    blacklistUrlInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (blacklistAddButton) {
+          blacklistAddButton.click();
+        }
+      }
     });
   }
   if (bookmarkCountSelect) {
@@ -2936,6 +3272,7 @@
   }
 
   setSiteSearchFormExpanded(false);
+  setBlacklistFormExpanded(false);
 
   function renderSiteSearchList() {
     if (!siteSearchCustomList || !siteSearchBuiltinList) {
@@ -3383,6 +3720,87 @@
     });
   }
 
+  function loadSearchBlacklistItems() {
+    return new Promise((resolve) => {
+      if (!storageArea) {
+        resolve([]);
+        return;
+      }
+      storageArea.get([SEARCH_BLACKLIST_STORAGE_KEY], (result) => {
+        resolve(normalizeSearchBlacklistItems(result && result[SEARCH_BLACKLIST_STORAGE_KEY]));
+      });
+    });
+  }
+
+  function saveSearchBlacklistItems(items) {
+    return new Promise((resolve) => {
+      if (!storageArea) {
+        resolve([]);
+        return;
+      }
+      const normalized = normalizeSearchBlacklistItems(items);
+      storageArea.set({ [SEARCH_BLACKLIST_STORAGE_KEY]: normalized }, () => resolve(normalized));
+    });
+  }
+
+  function renderSearchBlacklistList() {
+    if (!blacklistList) {
+      return;
+    }
+    blacklistList.innerHTML = '';
+    if (!Array.isArray(searchBlacklistItems) || searchBlacklistItems.length === 0) {
+      // 保留输入区域即可，和站内搜索空状态保持一致
+      return;
+    }
+    searchBlacklistItems.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = '_x_extension_shortcut_item_2024_unique_';
+      const header = document.createElement('div');
+      header.className = '_x_extension_shortcut_item_header_2024_unique_';
+      const info = document.createElement('div');
+      info.className = '_x_extension_shortcut_item_info_2024_unique_';
+      const title = document.createElement('div');
+      title.className = '_x_extension_shortcut_item_title_2024_unique_';
+      const badge = document.createElement('div');
+      badge.className = '_x_extension_shortcut_badge_2024_unique_';
+      badge.textContent = getMessage('settings_tab_blacklist', '黑名单');
+      const titleText = document.createElement('span');
+      titleText.textContent = formatBlacklistPatternForDisplay(item);
+      title.appendChild(badge);
+      title.appendChild(titleText);
+      const meta = document.createElement('div');
+      meta.className = '_x_extension_shortcut_item_meta_2024_unique_';
+      meta.textContent = getBlacklistMatchModesSummary(item.matchModes);
+      info.appendChild(title);
+      info.appendChild(meta);
+      const actions = document.createElement('div');
+      actions.className = '_x_extension_shortcut_item_actions_2024_unique_';
+      const removeButton = document.createElement('button');
+      removeButton.className = '_x_extension_shortcut_remove_2024_unique_';
+      removeButton.innerHTML = getRiSvg('ri-delete-bin-4-line', 'ri-size-14');
+      removeButton.setAttribute('aria-label', getMessage('shortcuts_remove', '移除'));
+      removeButton.addEventListener('click', () => {
+        const nextItems = searchBlacklistItems.filter((entry) => entry.pattern !== item.pattern);
+        saveSearchBlacklistItems(nextItems).then((savedItems) => {
+          searchBlacklistItems = savedItems;
+          renderSearchBlacklistList();
+          notifyNewtabSectionsRefresh('recent');
+          showToast(getMessage('blacklist_removed_toast', '已从黑名单移除'), false);
+          if (blacklistUrlInput) {
+            blacklistUrlInput.focus();
+          }
+        }).catch(() => {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        });
+      });
+      actions.appendChild(removeButton);
+      header.appendChild(info);
+      header.appendChild(actions);
+      row.appendChild(header);
+      blacklistList.appendChild(row);
+    });
+  }
+
   function refreshSiteSearchProviders() {
     if (!siteSearchCustomList || !siteSearchBuiltinList) {
       return;
@@ -3433,6 +3851,13 @@
 
   if (siteSearchCustomList && siteSearchBuiltinList) {
     refreshSiteSearchProviders();
+  }
+  if (blacklistList) {
+    loadSearchBlacklistItems().then((items) => {
+      searchBlacklistItems = items;
+      syncBlacklistMatchModeAvailability();
+      renderSearchBlacklistList();
+    });
   }
 
   function handleSiteSearchListClick(event) {
@@ -3592,6 +4017,25 @@
     );
   }
 
+  if (blacklistClearButton) {
+    attachPopconfirm(
+      blacklistClearButton,
+      'confirm_clear_blacklist',
+      '确认清空黑名单？',
+      () => {
+        saveSearchBlacklistItems([]).then((savedItems) => {
+          searchBlacklistItems = savedItems;
+          renderSearchBlacklistList();
+          resetBlacklistForm();
+          notifyNewtabSectionsRefresh('recent');
+          showToast(getMessage('toast_cleared', '已清空'), false);
+        }).catch(() => {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+        });
+      }
+    );
+  }
+
   /*
   if (confirmOk) {
     confirmOk.addEventListener('click', () => closeConfirm(true));
@@ -3631,6 +4075,7 @@
         changes[FALLBACK_SHORTCUT_STORAGE_KEY] ||
         changes[SITE_SEARCH_STORAGE_KEY] ||
         changes[SITE_SEARCH_DISABLED_STORAGE_KEY] ||
+        changes[SEARCH_BLACKLIST_STORAGE_KEY] ||
         changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY]) {
       refreshSyncStatus();
     }
@@ -3741,6 +4186,10 @@
     }
     if (changes[FALLBACK_SHORTCUT_STORAGE_KEY]) {
       loadCurrentShortcut();
+    }
+    if (changes[SEARCH_BLACKLIST_STORAGE_KEY]) {
+      searchBlacklistItems = normalizeSearchBlacklistItems(changes[SEARCH_BLACKLIST_STORAGE_KEY].newValue);
+      renderSearchBlacklistList();
     }
     if (!changes[SITE_SEARCH_STORAGE_KEY] && !changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
       return;

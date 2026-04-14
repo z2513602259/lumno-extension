@@ -33,6 +33,7 @@
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
+  const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
   const NEWTAB_OPEN_TAB_SUGGESTION_LIMIT = 8;
   const FAVICON_PERSIST_STORAGE_KEY = '_x_extension_favicon_url_cache_2024_unique_';
@@ -49,7 +50,9 @@
   const NEWTAB_RECENT_CACHE_STORAGE_KEY = '_x_extension_newtab_recent_cache_2024_unique_';
   const NEWTAB_BOOKMARK_CACHE_STORAGE_KEY = '_x_extension_newtab_bookmark_cache_2024_unique_';
   const PINNED_RECENT_SITES_STORAGE_KEY = '_x_extension_newtab_pinned_recent_sites_2026_unique_';
+  const HIDDEN_RECENT_SITES_STORAGE_KEY = '_x_extension_newtab_hidden_recent_sites_2026_unique_';
   const MAX_PINNED_RECENT_SITES = 3;
+  const MAX_HIDDEN_RECENT_SITES = 60;
   const NEWTAB_SECTION_CACHE_TTL_MS = 1000 * 60 * 5;
   const pageSearchParams = new URLSearchParams(window.location.search || '');
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -73,6 +76,8 @@
   const bookmarkCardElementCache = new Map();
   let recentSourceItems = [];
   let pinnedRecentSites = [];
+  let hiddenRecentSites = [];
+  let searchBlacklistItems = [];
   let currentMessages = null;
   let currentLanguageMode = 'system';
   let defaultPlaceholderText = '搜索或输入网址...';
@@ -1544,6 +1549,10 @@
     recentHeading.textContent = t(key, fallback);
   }
 
+  function canDismissRecentCard() {
+    return true;
+  }
+
   function updateBookmarkHeading() {
     if (!bookmarkHeading) {
       return;
@@ -1828,12 +1837,23 @@
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {
+      hideToast();
+    }
+    if (document.visibilityState !== 'visible') {
       return;
     }
     syncSystemThemeMode();
   });
-  window.addEventListener('pageshow', syncSystemThemeMode);
-  window.addEventListener('focus', syncSystemThemeMode);
+  window.addEventListener('pageshow', () => {
+    hideToast();
+    syncSystemThemeMode();
+  });
+  window.addEventListener('focus', () => {
+    hideToast();
+    syncSystemThemeMode();
+  });
+  window.addEventListener('blur', hideToast);
+  window.addEventListener('pagehide', hideToast);
 
   bootstrapInitialThemeMode();
 
@@ -1842,6 +1862,11 @@
     if (!isPrimaryArea) {
       if (areaName === 'local' && changes[PINNED_RECENT_SITES_STORAGE_KEY]) {
         pinnedRecentSites = normalizePinnedRecentSites(changes[PINNED_RECENT_SITES_STORAGE_KEY].newValue);
+        recentRenderSignature = '';
+        renderRecentSites(recentSourceItems);
+      }
+      if (areaName === 'local' && changes[HIDDEN_RECENT_SITES_STORAGE_KEY]) {
+        hiddenRecentSites = normalizeHiddenRecentSites(changes[HIDDEN_RECENT_SITES_STORAGE_KEY].newValue);
         recentRenderSignature = '';
         renderRecentSites(recentSourceItems);
       }
@@ -1942,6 +1967,11 @@
       recentRenderSignature = '';
       renderRecentSites(recentSourceItems);
     }
+    if (changes[HIDDEN_RECENT_SITES_STORAGE_KEY]) {
+      hiddenRecentSites = normalizeHiddenRecentSites(changes[HIDDEN_RECENT_SITES_STORAGE_KEY].newValue);
+      recentRenderSignature = '';
+      renderRecentSites(recentSourceItems);
+    }
   });
 
   if (chrome && chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
@@ -1965,6 +1995,13 @@
     bootstrapInitialLanguageMode();
     readPinnedRecentSites().then((items) => {
       pinnedRecentSites = items;
+      if (recentSourceItems.length > 0) {
+        recentRenderSignature = '';
+        renderRecentSites(recentSourceItems);
+      }
+    });
+    readHiddenRecentSites().then((items) => {
+      hiddenRecentSites = items;
       if (recentSourceItems.length > 0) {
         recentRenderSignature = '';
         renderRecentSites(recentSourceItems);
@@ -2235,9 +2272,15 @@
       if (changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]) {
         searchResultPriorityMode = normalizeSearchResultPriority(changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY].newValue);
       }
+      if (changes[SEARCH_BLACKLIST_STORAGE_KEY]) {
+        searchBlacklistItems = normalizeSearchBlacklistItems(changes[SEARCH_BLACKLIST_STORAGE_KEY].newValue);
+        markRecentDataDirty();
+        scheduleRecentReloadIfVisible();
+      }
       if (latestQuery && latestQuery.trim() && (
         changes[DEFAULT_SEARCH_ENGINE_STORAGE_KEY] ||
-        changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]
+        changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY] ||
+        changes[SEARCH_BLACKLIST_STORAGE_KEY]
       )) {
         requestSuggestions(latestQuery, { immediate: true });
       }
@@ -2259,7 +2302,8 @@
     DEFAULT_SEARCH_ENGINE_STORAGE_KEY,
     SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     SITE_SEARCH_STORAGE_KEY,
-    SITE_SEARCH_DISABLED_STORAGE_KEY
+    SITE_SEARCH_DISABLED_STORAGE_KEY,
+    SEARCH_BLACKLIST_STORAGE_KEY
   ]);
   let handleTabKey = null;
   const defaultSiteSearchProviders = [
@@ -4879,10 +4923,34 @@
   }
 
   function renderRecentSites(items) {
-    const normalizedSourceItems = (Array.isArray(items) ? items : [])
+    const sourceItems = Array.isArray(items) ? items : [];
+    const resolvedHiddenUrls = new Set();
+    sourceItems.forEach((item) => {
+      const normalizedItem = normalizeRecentSiteRecord(item);
+      if (!normalizedItem) {
+        return;
+      }
+      const key = getRecentSiteUrlKey(normalizedItem);
+      if (!key) {
+        return;
+      }
+      const hiddenEntry = hiddenRecentSites.find((entry) => entry && entry.url === key);
+      if (!hiddenEntry) {
+        return;
+      }
+      if ((Number(normalizedItem.lastVisitTime) || 0) > (Number(hiddenEntry.lastVisitTime) || 0)) {
+        resolvedHiddenUrls.add(key);
+      }
+    });
+    if (resolvedHiddenUrls.size > 0) {
+      writeHiddenRecentSites(
+        hiddenRecentSites.filter((entry) => entry && !resolvedHiddenUrls.has(entry.url))
+      );
+    }
+    const normalizedSourceItems = sourceItems
       .filter((item) => {
         const url = item && item.url ? String(item.url) : '';
-        return !shouldExcludeFromRecentSites(url);
+        return !shouldExcludeFromRecentSites(url) && !isRecentSiteHidden(item);
       });
     recentSourceItems = normalizedSourceItems.slice();
     const mergedItems = mergeRecentSitesWithPinned(normalizedSourceItems, getRecentLimit());
@@ -5140,6 +5208,131 @@
     return String(item.url).trim();
   }
 
+  function normalizeHiddenRecentSiteEntry(item) {
+    if (!item) {
+      return null;
+    }
+    const url = typeof item === 'string'
+      ? String(item).trim()
+      : String(item.url || '').trim();
+    if (!url) {
+      return null;
+    }
+    const lastVisitTime = typeof item === 'string'
+      ? 0
+      : Math.max(0, Number(item.lastVisitTime) || 0);
+    return {
+      url,
+      lastVisitTime,
+      hiddenAt: Math.max(0, Number(item.hiddenAt) || Date.now())
+    };
+  }
+
+  function normalizeHiddenRecentSites(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    const normalized = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const entry = normalizeHiddenRecentSiteEntry(items[i]);
+      if (!entry) {
+        continue;
+      }
+      const duplicatedIndex = normalized.findIndex((existingItem) => existingItem.url === entry.url);
+      if (duplicatedIndex >= 0) {
+        normalized[duplicatedIndex] = entry.lastVisitTime >= normalized[duplicatedIndex].lastVisitTime
+          ? entry
+          : normalized[duplicatedIndex];
+        continue;
+      }
+      normalized.push(entry);
+      if (normalized.length >= MAX_HIDDEN_RECENT_SITES) {
+        break;
+      }
+    }
+    return normalized;
+  }
+
+  function readHiddenRecentSites() {
+    return new Promise((resolve) => {
+      if (!localStorageArea) {
+        resolve([]);
+        return;
+      }
+      localStorageArea.get([HIDDEN_RECENT_SITES_STORAGE_KEY], (result) => {
+        resolve(normalizeHiddenRecentSites(result && result[HIDDEN_RECENT_SITES_STORAGE_KEY]));
+      });
+    });
+  }
+
+  function writeHiddenRecentSites(items) {
+    const normalized = normalizeHiddenRecentSites(items);
+    hiddenRecentSites = normalized;
+    if (!localStorageArea) {
+      return Promise.resolve(normalized);
+    }
+    return new Promise((resolve) => {
+      localStorageArea.set({ [HIDDEN_RECENT_SITES_STORAGE_KEY]: normalized }, () => {
+        resolve(normalized);
+      });
+    });
+  }
+
+  function isRecentSiteHidden(item) {
+    const key = getRecentSiteUrlKey(item);
+    if (!key) {
+      return false;
+    }
+    const entry = hiddenRecentSites.find((candidate) => candidate && candidate.url === key);
+    if (!entry) {
+      return false;
+    }
+    const lastVisitTime = Math.max(0, Number(item && item.lastVisitTime) || 0);
+    return lastVisitTime <= entry.lastVisitTime;
+  }
+
+  function hideRecentSiteTemporarily(item) {
+    const normalizedItem = normalizeRecentSiteRecord(item);
+    const key = getRecentSiteUrlKey(normalizedItem);
+    if (!normalizedItem || !key) {
+      return Promise.resolve({ hidden: false, wasPinned: false });
+    }
+    const hiddenEntry = normalizeHiddenRecentSiteEntry({
+      url: key,
+      lastVisitTime: Number(normalizedItem.lastVisitTime) || 0,
+      hiddenAt: Date.now()
+    });
+    const wasPinned = isRecentSitePinned(normalizedItem);
+    const nextPinnedItems = wasPinned
+      ? pinnedRecentSites.filter((pinnedItem) => !isSameRecentSite(pinnedItem, normalizedItem))
+      : pinnedRecentSites.slice();
+    const nextHiddenItems = [hiddenEntry].concat(
+      hiddenRecentSites.filter((entry) => entry && entry.url !== key)
+    );
+    const persistPinned = wasPinned
+      ? writePinnedRecentSites(nextPinnedItems)
+      : Promise.resolve(pinnedRecentSites.slice());
+    return persistPinned.then(() => writeHiddenRecentSites(nextHiddenItems)).then(() => {
+      recentRenderSignature = '';
+      renderRecentSites(recentSourceItems);
+      return { hidden: true, wasPinned };
+    });
+  }
+
+  function getRecentDismissTooltip(item) {
+    const normalizedItem = normalizeRecentSiteRecord(item);
+    if (normalizedItem && isRecentSitePinned(normalizedItem)) {
+      return t(
+        'recent_dismiss_pinned_tooltip',
+        '取消置顶并从最近访问移除，再次访问后会重新出现'
+      );
+    }
+    return t(
+      'recent_dismiss_tooltip',
+      '从最近访问移除，再次访问后会重新出现'
+    );
+  }
+
   function getRecentSiteHostKey(item) {
     if (!item) {
       return '';
@@ -5240,7 +5433,7 @@
     const merged = [];
     const appendUnique = (item, isPinned) => {
       const normalized = normalizeRecentSiteRecord(item);
-      if (!normalized) {
+      if (!normalized || isRecentSiteHidden(normalized)) {
         return;
       }
       const duplicated = merged.some((existingItem) => isSameRecentSite(existingItem, normalized));
@@ -5312,14 +5505,37 @@
     );
   }
 
-  function showToast(message, isError) {
-    if (!toastElement || !message) {
+  function updateRecentDismissButton(button, item) {
+    if (!button) {
+      return;
+    }
+    const enabled = canDismissRecentCard();
+    const label = getRecentDismissTooltip(item);
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.innerHTML = getRiSvg('ri-close-line', 'ri-size-16');
+    button.disabled = !enabled;
+    button.tabIndex = enabled ? 0 : -1;
+    button.setAttribute('aria-hidden', enabled ? 'false' : 'true');
+    button.style.setProperty('display', enabled ? 'inline-flex' : 'none');
+  }
+
+  function hideToast() {
+    if (!toastElement) {
       return;
     }
     if (toastTimer) {
       clearTimeout(toastTimer);
       toastTimer = null;
     }
+    toastElement.setAttribute('data-show', 'false');
+  }
+
+  function showToast(message, isError) {
+    if (!toastElement || !message) {
+      return;
+    }
+    hideToast();
     toastElement.textContent = message;
     if (isError) {
       toastElement.style.setProperty('background', 'rgba(153, 27, 27, 0.92)');
@@ -5328,6 +5544,7 @@
     }
     toastElement.setAttribute('data-show', 'true');
     toastTimer = setTimeout(() => {
+      toastTimer = null;
       toastElement.setAttribute('data-show', 'false');
     }, 2200);
   }
@@ -6041,13 +6258,115 @@
     }, 700);
   }
 
+  function normalizeSearchBlacklistPattern(value, matchModes) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return '';
+    }
+    const modes = normalizeSearchBlacklistMatchModes(matchModes);
+    const requiresFullUrl = modes.includes('exact') || modes.includes('prefix');
+    if (!requiresFullUrl) {
+      if (/^https?:\/\//i.test(raw)) {
+        return '';
+      }
+      return raw;
+    }
+    try {
+      const parsed = new URL(raw);
+      if (!/^https?:$/i.test(parsed.protocol)) {
+        return '';
+      }
+      parsed.hash = '';
+      return parsed.toString();
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function normalizeSearchBlacklistMatchModes(value) {
+    const source = Array.isArray(value) ? value : [value];
+    const set = new Set();
+    source.forEach((item) => {
+      const mode = String(item || '').trim().toLowerCase();
+      if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
+        set.add(mode);
+      }
+    });
+    if (set.has('exact')) {
+      return ['exact'];
+    }
+    const next = [];
+    if (set.has('prefix')) {
+      next.push('prefix');
+    }
+    if (set.has('suffix')) {
+      next.push('suffix');
+    }
+    return next.length > 0 ? next : ['prefix'];
+  }
+
+  function normalizeSearchBlacklistItems(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    const normalized = [];
+    const seen = new Set();
+    items.forEach((entry) => {
+      const matchModes = normalizeSearchBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
+      const pattern = normalizeSearchBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
+      if (!pattern || seen.has(pattern)) {
+        return;
+      }
+      seen.add(pattern);
+      normalized.push({
+        pattern: pattern,
+        matchModes: matchModes
+      });
+    });
+    return normalized;
+  }
+
+  function loadSearchBlacklistItems() {
+    return new Promise((resolve) => {
+      if (!storageArea) {
+        resolve([]);
+        return;
+      }
+      storageArea.get([SEARCH_BLACKLIST_STORAGE_KEY], (result) => {
+        const items = normalizeSearchBlacklistItems(result && result[SEARCH_BLACKLIST_STORAGE_KEY]);
+        searchBlacklistItems = items;
+        resolve(items);
+      });
+    });
+  }
+
   function shouldExcludeFromRecentSites(url) {
     if (!url) {
       return true;
     }
     try {
       const parsed = new URL(url);
-      return isBrowserExtensionProtocol(parsed.protocol);
+      if (isBrowserExtensionProtocol(parsed.protocol)) {
+        return true;
+      }
+      parsed.hash = '';
+      const normalizedUrl = parsed.toString();
+      return searchBlacklistItems.some((item) => {
+        if (!item || !item.pattern) {
+          return false;
+        }
+        const modes = normalizeSearchBlacklistMatchModes(item.matchModes);
+        if (modes.includes('exact') && normalizedUrl === item.pattern) {
+          return true;
+        }
+        if (modes.includes('prefix') && normalizedUrl.startsWith(item.pattern)) {
+          return true;
+        }
+        if (modes.includes('suffix') && normalizedUrl.endsWith(item.pattern)) {
+          return true;
+        }
+        return false;
+      });
     } catch (e) {
       return true;
     }
@@ -6809,8 +7128,14 @@
     name.className = 'x-nt-recent-name';
     name.textContent = siteName;
     name.title = siteName;
+    const dismissButton = document.createElement('button');
+    dismissButton.type = 'button';
+    dismissButton.className = 'x-nt-recent-dismiss';
+    updateRecentDismissButton(dismissButton, item);
+    card._xDismissButton = dismissButton;
     header.appendChild(faviconImage);
     header.appendChild(name);
+    header.appendChild(dismissButton);
 
     const title = document.createElement('div');
     title.className = 'x-nt-recent-title';
@@ -6989,6 +7314,52 @@
       swallowPinEvent(event);
       pinButton.click();
     });
+    dismissButton.addEventListener('pointerdown', swallowPinEvent);
+    dismissButton.addEventListener('click', (event) => {
+      swallowPinEvent(event);
+      if (!canDismissRecentCard()) {
+        return;
+      }
+      hideRecentSiteTemporarily(item).then((result) => {
+        if (!result || !result.hidden) {
+          return;
+        }
+        showToast(
+          result.wasPinned
+            ? t('recent_dismiss_pinned_toast', '已取消置顶并从最近访问移除，再次访问后会重新出现')
+            : t('recent_dismiss_toast', '已从最近访问移除，再次访问后会重新出现'),
+          false
+        );
+      });
+    });
+    dismissButton.addEventListener('keydown', (event) => {
+      if (!canDismissRecentCard()) {
+        return;
+      }
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+      swallowPinEvent(event);
+      dismissButton.click();
+    });
+    dismissButton.addEventListener('mouseenter', () => {
+      if (!canDismissRecentCard()) {
+        return;
+      }
+      const label = getRecentDismissTooltip(item);
+      updateRecentDismissButton(dismissButton, item);
+      showTopActionTooltip(dismissButton, label);
+    });
+    dismissButton.addEventListener('mouseleave', hideTopActionTooltip);
+    dismissButton.addEventListener('focus', () => {
+      if (!canDismissRecentCard()) {
+        return;
+      }
+      const label = getRecentDismissTooltip(item);
+      updateRecentDismissButton(dismissButton, item);
+      showTopActionTooltip(dismissButton, label);
+    });
+    dismissButton.addEventListener('blur', hideTopActionTooltip);
 
     return card;
   }
@@ -10132,9 +10503,6 @@
   function scheduleAutoFocusRecovery() {
     const hasExplicitFocusHint = window.location.search.includes('focus=1') ||
       window.location.hash.includes('focus');
-    if (!hasExplicitFocusHint) {
-      return;
-    }
 
     const retryDelays = [0, 60, 140, 280, 520, 900, 1400];
     const attemptFocusIfVisible = () => {
@@ -10144,7 +10512,7 @@
       if (!document.hasFocus()) {
         return;
       }
-      tryFocusSearchInput(false);
+      tryFocusSearchInput(hasExplicitFocusHint);
     };
 
     retryDelays.forEach((delay) => {
@@ -10640,7 +11008,7 @@
 
   bindRecentAndBookmarkChangeListeners();
   window.addEventListener('visibilitychange', handleRecentVisibilityChange);
-  Promise.all([bootstrapInitialThemeMode(), bootstrapInitialLanguageMode()]).then(() => {
+  Promise.all([bootstrapInitialThemeMode(), bootstrapInitialLanguageMode(), loadSearchBlacklistItems()]).then(() => {
     hydrateSectionsFromCache();
     loadRecentSites();
     loadBookmarks();

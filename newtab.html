@@ -634,6 +634,7 @@
         align-items: center;
         gap: 7px;
         grid-column: 1 / -1;
+        padding-right: 30px;
       }
       .x-nt-recent-favicon {
         width: 25px;
@@ -763,6 +764,47 @@
       body[data-theme="dark"] .x-nt-recent-pin.x-nt-recent-pin--active {
         color: var(--x-nt-recent-accent-color, #8ab4ff);
         background: var(--x-nt-recent-accent-soft, rgba(255, 255, 255, 0.07));
+      }
+      .x-nt-recent-dismiss {
+        all: unset;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 24px;
+        height: 24px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--x-nt-recent-accent-color, rgba(0, 0, 0, 0.54));
+        background: color-mix(in srgb, var(--x-nt-recent-accent-soft, rgba(0, 0, 0, 0.04)) 82%, transparent);
+        border: 1px solid color-mix(in srgb, var(--x-nt-recent-accent-border, rgba(0, 0, 0, 0.08)) 80%, transparent);
+        cursor: pointer;
+        opacity: 0;
+        transform: translateY(-4px) scale(0.94);
+        transition: opacity 180ms ease, transform 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .x-nt-recent-card:hover .x-nt-recent-dismiss,
+      .x-nt-recent-card:focus-within .x-nt-recent-dismiss {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+      }
+      .x-nt-recent-dismiss:hover,
+      .x-nt-recent-dismiss:focus-visible {
+        background: color-mix(in srgb, var(--x-nt-recent-accent-soft, rgba(0, 0, 0, 0.08)) 100%, transparent);
+        border-color: var(--x-nt-recent-accent-border, rgba(0, 0, 0, 0.12));
+      }
+      .x-nt-recent-dismiss:focus-visible {
+        outline: 2px solid var(--x-nt-recent-focus);
+        outline-offset: 2px;
+      }
+      body[data-theme="dark"] .x-nt-recent-dismiss {
+        background: color-mix(in srgb, var(--x-nt-recent-accent-soft, rgba(255, 255, 255, 0.08)) 100%, transparent);
+        border-color: color-mix(in srgb, var(--x-nt-recent-accent-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
       }
       ._x_extension_toast_2024_unique_ {
         position: fixed;

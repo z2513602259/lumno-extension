@@ -3142,6 +3142,8 @@ let shortcutRulesCache = null;
 let shortcutRulesPromise = null;
 let siteSearchCache = null;
 let siteSearchPromise = null;
+let searchBlacklistCache = null;
+let searchBlacklistPromise = null;
 const SEARCH_ENGINE_SUGGEST_TIMEOUT_MS = 180;
 const LOCAL_SUGGEST_SOURCE_TIMEOUT_MS = 800;
 const HISTORY_FALLBACK_CACHE_TTL_MS = 45 * 1000;
@@ -3168,6 +3170,7 @@ let bookmarkItemsPromise = null;
 let bookmarkTreeCacheListenersBound = false;
 const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
 const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
+const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
 const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
 migrateStorageIfNeeded([
   DOCUMENT_PIP_ENABLED_STORAGE_KEY,
@@ -3179,7 +3182,8 @@ migrateStorageIfNeeded([
   FALLBACK_SHORTCUT_STORAGE_KEY,
   SEARCH_RESULT_PRIORITY_STORAGE_KEY,
   SITE_SEARCH_STORAGE_KEY,
-  SITE_SEARCH_DISABLED_STORAGE_KEY
+  SITE_SEARCH_DISABLED_STORAGE_KEY,
+  SEARCH_BLACKLIST_STORAGE_KEY
 ]);
 const FAVICON_GOOGLE_SIZE = 128;
 const faviconDataCache = new Map();
@@ -4405,6 +4409,121 @@ function loadDisabledSiteSearchKeys() {
   });
 }
 
+function normalizeSearchBlacklistPattern(value, matchModes) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  const modes = normalizeSearchBlacklistMatchModes(matchModes);
+  const requiresFullUrl = modes.includes('exact') || modes.includes('prefix');
+  if (!requiresFullUrl) {
+    if (/^https?:\/\//i.test(raw)) {
+      return '';
+    }
+    return raw;
+  }
+  try {
+    const parsed = new URL(raw);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return '';
+    }
+    parsed.hash = '';
+    return parsed.toString();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeSearchBlacklistMatchModes(value) {
+  const source = Array.isArray(value) ? value : [value];
+  const set = new Set();
+  source.forEach((item) => {
+    const mode = String(item || '').trim().toLowerCase();
+    if (mode === 'exact' || mode === 'prefix' || mode === 'suffix') {
+      set.add(mode);
+    }
+  });
+  if (set.has('exact')) {
+    return ['exact'];
+  }
+  const next = [];
+  if (set.has('prefix')) {
+    next.push('prefix');
+  }
+  if (set.has('suffix')) {
+    next.push('suffix');
+  }
+  return next.length > 0 ? next : ['prefix'];
+}
+
+function normalizeSearchBlacklistItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  const normalized = [];
+  const seen = new Set();
+  items.forEach((entry) => {
+    const matchModes = normalizeSearchBlacklistMatchModes(entry && entry.matchModes ? entry.matchModes : ['prefix']);
+    const pattern = normalizeSearchBlacklistPattern(entry && entry.pattern ? entry.pattern : entry, matchModes);
+    if (!pattern || seen.has(pattern)) {
+      return;
+    }
+    seen.add(pattern);
+    normalized.push({
+      pattern: pattern,
+      matchModes: matchModes
+    });
+  });
+  return normalized;
+}
+
+function loadSearchBlacklistItems() {
+  if (searchBlacklistCache) {
+    return Promise.resolve(searchBlacklistCache);
+  }
+  if (searchBlacklistPromise) {
+    return searchBlacklistPromise;
+  }
+  searchBlacklistPromise = new Promise((resolve) => {
+    if (!storageArea) {
+      resolve([]);
+      return;
+    }
+    storageArea.get([SEARCH_BLACKLIST_STORAGE_KEY], (result) => {
+      const items = normalizeSearchBlacklistItems(result && result[SEARCH_BLACKLIST_STORAGE_KEY]);
+      searchBlacklistCache = items;
+      resolve(items);
+    });
+  }).finally(() => {
+    searchBlacklistPromise = null;
+  });
+  return searchBlacklistPromise;
+}
+
+function isUrlBlockedBySearchBlacklist(url, items) {
+  const target = normalizeSearchBlacklistPattern(url, ['exact', 'prefix']);
+  if (!target) {
+    return false;
+  }
+  const rules = Array.isArray(items) ? items : [];
+  return rules.some((entry) => {
+    if (!entry || !entry.pattern) {
+      return false;
+    }
+    const modes = normalizeSearchBlacklistMatchModes(entry.matchModes);
+    if (modes.includes('exact') && target === entry.pattern) {
+      return true;
+    }
+    if (modes.includes('prefix') && target.startsWith(entry.pattern)) {
+      return true;
+    }
+    if (modes.includes('suffix') && target.endsWith(entry.pattern)) {
+      return true;
+    }
+    return false;
+  });
+}
+
 function mergeCustomProviders(baseItems, customItems) {
   const merged = [];
   const seen = new Set();
@@ -4572,11 +4691,14 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       schedulePersistPinnedTabSnapshot();
     }
   }
-  if (!changes[SITE_SEARCH_STORAGE_KEY] && !changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
-    return;
+  if (changes[SITE_SEARCH_STORAGE_KEY] || changes[SITE_SEARCH_DISABLED_STORAGE_KEY]) {
+    siteSearchCache = null;
+    siteSearchPromise = null;
   }
-  siteSearchCache = null;
-  siteSearchPromise = null;
+  if (changes[SEARCH_BLACKLIST_STORAGE_KEY]) {
+    searchBlacklistCache = null;
+    searchBlacklistPromise = null;
+  }
 });
 
 function getBrowserInternalScheme() {
@@ -4985,7 +5107,8 @@ async function getSearchSuggestions(query) {
       topSites,
       bookmarksRaw,
       fallbackHistoryItems,
-      allBookmarks
+      allBookmarks,
+      searchBlacklistItems
     ] = await Promise.all([
       withTimeout(
         fetchSearchSuggestionsForEngine(query)
@@ -5007,7 +5130,8 @@ async function getSearchSuggestions(query) {
         chrome.bookmarks.search({ query: lookupQuery }, done);
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS),
       getFallbackHistoryItemsCached(),
-      getAllBookmarksCached()
+      getAllBookmarksCached(),
+      loadSearchBlacklistItems()
     ]);
     const matchesLookupText = (item) => {
       if (!item || !item.url) {
@@ -5029,10 +5153,13 @@ async function getSearchSuggestions(query) {
       useTitlePinyinMatch
         ? (Array.isArray(fallbackHistoryItems) ? fallbackHistoryItems.filter((item) => matchesTitlePinyin(item)) : [])
         : []
-    ]);
+    ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
     if (historyItems.length === 0 && lookupQuery && lookupQuery.trim().length > 0) {
       historyItems = Array.isArray(fallbackHistoryItems)
-        ? fallbackHistoryItems.filter((item) => matchesLookupText(item) || matchesTitlePinyin(item))
+        ? fallbackHistoryItems.filter((item) => (
+          (matchesLookupText(item) || matchesTitlePinyin(item)) &&
+          !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems)
+        ))
         : [];
     }
     const bookmarks = mergeItemsByUrl([
@@ -5040,7 +5167,7 @@ async function getSearchSuggestions(query) {
       useTitlePinyinMatch
         ? (Array.isArray(allBookmarks) ? allBookmarks.filter((item) => matchesTitlePinyin(item)) : [])
         : []
-    ]);
+    ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
 
     engineSuggestions.forEach((suggestion) => {
       if (suggestion && suggestion !== lookupQuery) {
@@ -5267,6 +5394,9 @@ async function getSearchSuggestions(query) {
     // Process top sites with scoring
     const fallbackTopSites = [];
     topSites.forEach(site => {
+      if (isUrlBlockedBySearchBlacklist(site && site.url, searchBlacklistItems)) {
+        return;
+      }
       if (!site || !site.url || processedUrls.has(site.url)) {
         if (site && site.url) {
           const existing = suggestionByUrl.get(site.url);

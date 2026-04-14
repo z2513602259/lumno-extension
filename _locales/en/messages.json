@@ -14,6 +14,9 @@
   "settings_tab_shortcuts": {
     "message": "Site Search"
   },
+  "settings_tab_blacklist": {
+    "message": "Blacklist"
+  },
   "settings_tab_labs": {
     "message": "Labs"
   },
@@ -389,6 +392,78 @@
   "shortcuts_group_custom": {
     "message": "Custom"
   },
+  "blacklist_section_title": {
+    "message": "Search and Recent Blacklist"
+  },
+  "blacklist_section_desc": {
+    "message": "The URLs below won't appear in Lumno search results or in the New Tab page's Recent and Most Visited sections"
+  },
+  "blacklist_group_custom": {
+    "message": "Blocked URLs"
+  },
+  "blacklist_label_url": {
+    "message": "URL / suffix"
+  },
+  "blacklist_label_domain": {
+    "message": "Site domain"
+  },
+  "blacklist_label_exact": {
+    "message": "Full URL"
+  },
+  "blacklist_label_suffix": {
+    "message": "Suffix"
+  },
+  "blacklist_match_label": {
+    "message": "Match type"
+  },
+  "blacklist_match_exact": {
+    "message": "Exact"
+  },
+  "blacklist_match_prefix": {
+    "message": "Prefix"
+  },
+  "blacklist_match_suffix": {
+    "message": "Suffix"
+  },
+  "blacklist_match_exact_tooltip": {
+    "message": "Matches only this exact URL\nExample: example.com/a"
+  },
+  "blacklist_match_prefix_tooltip": {
+    "message": "Matches pages under this site or path\nExample: example.com/docs/"
+  },
+  "blacklist_match_suffix_tooltip": {
+    "message": "Matches pages that end with this suffix\nExample: settings"
+  },
+  "blacklist_placeholder_url": {
+    "message": "Use a full URL for prefix mode, or /settings for suffix mode"
+  },
+  "blacklist_placeholder_domain": {
+    "message": "example.com"
+  },
+  "blacklist_placeholder_exact": {
+    "message": "example.com/path"
+  },
+  "blacklist_placeholder_suffix": {
+    "message": "settings"
+  },
+  "blacklist_add": {
+    "message": "Add to blacklist"
+  },
+  "blacklist_empty": {
+    "message": "No blacklisted URLs yet"
+  },
+  "blacklist_error_url": {
+    "message": "Enter a site domain or full URL"
+  },
+  "blacklist_error_suffix": {
+    "message": "Enter a URL suffix, not a full URL"
+  },
+  "blacklist_match_mode_prefix": {
+    "message": "Matches pages starting with this URL"
+  },
+  "blacklist_removed_toast": {
+    "message": "Removed from blacklist"
+  },
   "shortcuts_group_builtin": {
     "message": "Built-in"
   },
@@ -464,11 +539,17 @@
   "shortcuts_clear_custom": {
     "message": "Clear custom"
   },
+  "blacklist_clear": {
+    "message": "Clear blacklist"
+  },
   "toast_cleared": {
     "message": "Cleared"
   },
   "confirm_clear_custom": {
     "message": "Clear all custom searches?"
+  },
+  "confirm_clear_blacklist": {
+    "message": "Clear the blacklist?"
   },
   "confirm_reset_builtin": {
     "message": "Reset built-in list?"
@@ -784,5 +865,17 @@
   },
   "recent_pin_limit_toast": {
     "message": "Pin up to 3 cards"
+  },
+  "recent_dismiss_tooltip": {
+    "message": "Remove"
+  },
+  "recent_dismiss_pinned_tooltip": {
+    "message": "Unpin and remove"
+  },
+  "recent_dismiss_toast": {
+    "message": "Removed"
+  },
+  "recent_dismiss_pinned_toast": {
+    "message": "Unpinned and removed"
   }
 }
