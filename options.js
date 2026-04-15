@@ -369,10 +369,10 @@
       blacklistMatchExactInput.checked = false;
     }
     if (blacklistMatchPrefixInput) {
-      blacklistMatchPrefixInput.checked = true;
+      blacklistMatchPrefixInput.checked = false;
     }
     if (blacklistMatchSuffixInput) {
-      blacklistMatchSuffixInput.checked = false;
+      blacklistMatchSuffixInput.checked = true;
     }
     syncBlacklistMatchModeAvailability();
     updateBlacklistInputPresentation();
@@ -416,12 +416,12 @@
     }
     return normalized.map((mode) => {
       if (mode === 'exact') {
-        return getMessage('blacklist_match_exact', '完全匹配');
+        return getMessage('blacklist_match_exact', '当前页面');
       }
       if (mode === 'suffix') {
-        return getMessage('blacklist_match_suffix', '后缀匹配');
+        return getMessage('blacklist_match_suffix', '整个网站');
       }
-      return getMessage('blacklist_match_prefix', '前缀匹配');
+      return getMessage('blacklist_match_prefix', '当前站点路径');
     }).join(' / ');
   }
 
@@ -430,18 +430,18 @@
     if (normalized.includes('exact')) {
       return {
         tone: 'exact',
-        text: getMessage('blacklist_match_exact', '完全匹配')
+        text: getMessage('blacklist_match_exact', '当前页面')
       };
     }
     if (normalized.includes('suffix')) {
       return {
         tone: 'suffix',
-        text: getMessage('blacklist_match_suffix', '后缀匹配')
+        text: getMessage('blacklist_match_suffix', '整个网站')
       };
     }
     return {
       tone: 'prefix',
-      text: getMessage('blacklist_match_prefix', '前缀匹配')
+      text: getMessage('blacklist_match_prefix', '当前站点路径')
     };
   }
 
@@ -460,8 +460,8 @@
     const normalized = normalizeBlacklistMatchModes(modes);
     if (normalized.includes('exact')) {
       return {
-        labelKey: 'blacklist_label_exact',
-        labelFallback: '完整 URL',
+        labelKey: 'blacklist_label_url',
+        labelFallback: 'URL 规则',
         placeholderKey: 'blacklist_placeholder_exact',
         placeholderFallback: 'example.com/path',
         prefixText: 'http(s)://'
@@ -469,30 +469,31 @@
     }
     if (normalized.includes('suffix')) {
       return {
-        labelKey: 'blacklist_label_suffix',
-        labelFallback: '后缀',
-        placeholderKey: 'blacklist_placeholder_suffix',
-        placeholderFallback: 'settings',
-        prefixText: '/'
+        labelKey: 'blacklist_label_url',
+        labelFallback: 'URL 规则',
+        placeholderKey: 'blacklist_placeholder_domain',
+        placeholderFallback: 'baidu.com',
+        prefixText: ''
       };
     }
     return {
-      labelKey: 'blacklist_label_domain',
-      labelFallback: '站点域名',
-      placeholderKey: 'blacklist_placeholder_domain',
-      placeholderFallback: 'example.com',
+      labelKey: 'blacklist_label_url',
+      labelFallback: 'URL 规则',
+      placeholderKey: 'blacklist_placeholder_prefix',
+      placeholderFallback: 'baidu.com 或 baidu.com/search',
       prefixText: 'http(s)://'
     };
   }
 
   function updateBlacklistInputPresentation() {
+    const modes = getBlacklistMatchModesFromForm();
     applyBlacklistInputPresentationToElements(
       blacklistUrlLabel,
       blacklistUrlPrefix,
       blacklistUrlInput,
-      getBlacklistMatchModesFromForm()
+      modes
     );
-    const config = getBlacklistInputConfig(getBlacklistMatchModesFromForm());
+    const config = getBlacklistInputConfig(modes);
     if (blacklistUrlLabel) {
       blacklistUrlLabel.setAttribute('data-i18n', config.labelKey);
     }
@@ -508,6 +509,13 @@
     }
     if (prefixNode) {
       prefixNode.textContent = config.prefixText;
+      prefixNode.style.display = config.prefixText ? 'block' : 'none';
+    }
+    const affixNode = inputNode && inputNode.closest
+      ? inputNode.closest('._x_extension_shortcut_input_affix_2026_unique_')
+      : null;
+    if (affixNode) {
+      affixNode.setAttribute('data-has-prefix', config.prefixText ? 'true' : 'false');
     }
     if (inputNode) {
       inputNode.placeholder = getMessage(config.placeholderKey, config.placeholderFallback);
@@ -524,43 +532,42 @@
   }
 
   function syncBlacklistModeSelection(modeInputs, changedMode, wrapMap, onAfterSync) {
+    const changedInput = changedMode ? modeInputs[changedMode] : null;
+    if (changedInput && changedInput.checked) {
+      if (changedMode === 'exact') {
+        if (modeInputs.prefix) modeInputs.prefix.checked = false;
+        if (modeInputs.suffix) modeInputs.suffix.checked = false;
+      }
+      if (changedMode === 'prefix') {
+        if (modeInputs.exact) modeInputs.exact.checked = false;
+        if (modeInputs.suffix) modeInputs.suffix.checked = false;
+      }
+      if (changedMode === 'suffix') {
+        if (modeInputs.exact) modeInputs.exact.checked = false;
+        if (modeInputs.prefix) modeInputs.prefix.checked = false;
+      }
+    }
     const modes = normalizeBlacklistMatchModes([
       modeInputs.exact && modeInputs.exact.checked ? 'exact' : '',
       modeInputs.prefix && modeInputs.prefix.checked ? 'prefix' : '',
       modeInputs.suffix && modeInputs.suffix.checked ? 'suffix' : ''
     ], null);
-    const hasExact = modes.includes('exact');
-    const hasPrefix = modes.includes('prefix');
-    const hasSuffix = modes.includes('suffix');
     if (modeInputs.exact) {
-      modeInputs.exact.checked = hasExact;
-      modeInputs.exact.disabled = hasPrefix || hasSuffix;
+      modeInputs.exact.checked = modes.includes('exact');
+      modeInputs.exact.disabled = false;
     }
     if (modeInputs.prefix) {
-      modeInputs.prefix.checked = hasPrefix;
-      modeInputs.prefix.disabled = hasExact || hasSuffix;
+      modeInputs.prefix.checked = modes.includes('prefix');
+      modeInputs.prefix.disabled = false;
     }
     if (modeInputs.suffix) {
-      modeInputs.suffix.checked = hasSuffix;
-      modeInputs.suffix.disabled = hasExact || hasPrefix;
-    }
-    if (changedMode === 'exact' && hasExact) {
-      if (modeInputs.prefix) modeInputs.prefix.checked = false;
-      if (modeInputs.suffix) modeInputs.suffix.checked = false;
-    }
-    if (changedMode === 'prefix' && hasPrefix) {
-      if (modeInputs.exact) modeInputs.exact.checked = false;
-      if (modeInputs.suffix) modeInputs.suffix.checked = false;
-    }
-    if (changedMode === 'suffix' && hasSuffix) {
-      if (modeInputs.exact) modeInputs.exact.checked = false;
-      if (modeInputs.prefix) modeInputs.prefix.checked = false;
+      modeInputs.suffix.checked = modes.includes('suffix');
+      modeInputs.suffix.disabled = false;
     }
     Object.keys(wrapMap || {}).forEach((key) => {
       const wrap = wrapMap[key];
-      const input = modeInputs[key];
-      if (wrap && input) {
-        wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
+      if (wrap) {
+        wrap.setAttribute('data-disabled', 'false');
       }
     });
     if (typeof onAfterSync === 'function') {
@@ -596,7 +603,7 @@
     if (!pattern) {
       return {
         error: matchModes.includes('suffix')
-          ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
+          ? getMessage('blacklist_error_domain', '请输入网站域名')
           : getMessage('blacklist_error_url', '请输入站点域名或完整 URL')
       };
     }
@@ -2726,6 +2733,7 @@
   if (blacklistUrlInput) {
     blacklistUrlInput.addEventListener('input', () => {
       setBlacklistError('');
+      updateBlacklistInputPresentation();
     });
     blacklistUrlInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
@@ -3980,34 +3988,33 @@
       const exactOption = createModeOption(
         'exact',
         'blacklist_match_exact',
-        '完全匹配',
+        '当前页面',
         'blacklist_match_exact_tooltip',
-        '只匹配这一条完整地址\n────────\n例如，\n输入：example.com/a\n屏蔽：example.com/a'
+        '只屏蔽这一页\n────────\n例如，填 x.com/home 后，只有这一页不会出现，其他页面不受影响'
       );
       const prefixOption = createModeOption(
         'prefix',
         'blacklist_match_prefix',
-        '前缀匹配',
+        '当前站点路径',
         'blacklist_match_prefix_tooltip',
-        '匹配这个站点或路径下的页面\n────────\n例如，\n输入：example.com/docs/\n屏蔽：https://example.com/docs/article'
+        '只屏蔽这个站点下这一路径的页面\n────────\n例如，填 baidu.com/search 后，baidu.com/search 和 baidu.com/search/1 不会出现，但 baidu.com/news 不受影响'
       );
       const suffixOption = createModeOption(
         'suffix',
         'blacklist_match_suffix',
-        '后缀匹配',
+        '整个网站',
         'blacklist_match_suffix_tooltip',
-        '匹配以这段后缀结尾的页面\n────────\n例如，\n输入：settings\n屏蔽：https://example.com/account/settings'
+        '屏蔽这个网站的所有页面，也包括它的子网站\n────────\n例如，填 baidu.com 后，baidu.com/search 和 tieba.baidu.com 都不会出现'
       );
+      matchModes.appendChild(suffixOption.wrap);
       matchModes.appendChild(exactOption.wrap);
       matchModes.appendChild(prefixOption.wrap);
-      matchModes.appendChild(suffixOption.wrap);
       matchField.appendChild(matchLabel);
       matchField.appendChild(matchModes);
 
       const editorError = document.createElement('div');
       editorError.className = '_x_extension_shortcut_error_2024_unique_';
       editorError.style.display = 'none';
-
       function setEditorError(message) {
         const text = String(message || '').trim();
         editorError.textContent = text;
@@ -4019,49 +4026,37 @@
           exactOption.input.checked ? 'exact' : '',
           prefixOption.input.checked ? 'prefix' : '',
           suffixOption.input.checked ? 'suffix' : ''
-        ]);
+        ], null);
       }
 
       function syncEditorMatchModeAvailability(changedMode) {
-        const modes = getEditorMatchModes();
-        const hasExact = modes.includes('exact');
-        const hasPrefix = modes.includes('prefix');
-        const hasSuffix = modes.includes('suffix');
-        exactOption.input.checked = hasExact;
-        exactOption.input.disabled = hasPrefix || hasSuffix;
-        prefixOption.input.checked = hasPrefix;
-        prefixOption.input.disabled = hasExact || hasSuffix;
-        suffixOption.input.checked = hasSuffix;
-        suffixOption.input.disabled = hasExact || hasPrefix;
-        if (changedMode === 'exact' && hasExact) {
-          prefixOption.input.checked = false;
-          suffixOption.input.checked = false;
-        }
-        if (changedMode === 'prefix' && hasPrefix) {
-          exactOption.input.checked = false;
-          suffixOption.input.checked = false;
-        }
-        if (changedMode === 'suffix' && hasSuffix) {
-          exactOption.input.checked = false;
-          prefixOption.input.checked = false;
-        }
-        [
-          [exactOption.wrap, exactOption.input],
-          [prefixOption.wrap, prefixOption.input],
-          [suffixOption.wrap, suffixOption.input]
-        ].forEach(([wrap, input]) => {
-          wrap.setAttribute('data-disabled', input.disabled ? 'true' : 'false');
-        });
-        const config = getBlacklistInputConfig(getEditorMatchModes());
-        urlLabelText.textContent = getMessage(config.labelKey, config.labelFallback);
-        urlPrefix.textContent = config.prefixText;
-        urlInput.placeholder = getMessage(config.placeholderKey, config.placeholderFallback);
+        syncBlacklistModeSelection(
+          {
+            exact: exactOption.input,
+            prefix: prefixOption.input,
+            suffix: suffixOption.input
+          },
+          changedMode,
+          {
+            exact: exactOption.wrap,
+            prefix: prefixOption.wrap,
+            suffix: suffixOption.wrap
+          },
+          (modes) => applyBlacklistInputPresentationToElements(
+            urlLabelText,
+            urlPrefix,
+            urlInput,
+            modes
+          )
+        );
       }
 
       exactOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('exact'));
       prefixOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('prefix'));
       suffixOption.input.addEventListener('change', () => syncEditorMatchModeAvailability('suffix'));
-      urlInput.addEventListener('input', () => setEditorError(''));
+      urlInput.addEventListener('input', () => {
+        setEditorError('');
+      });
 
       const initialModes = normalizeBlacklistMatchModes(item.matchModes);
       exactOption.input.checked = initialModes.includes('exact');
@@ -4090,7 +4085,7 @@
         const nextPattern = normalizeBlacklistPattern(urlInput.value, nextModes);
         if (!nextPattern) {
           const message = nextModes.includes('suffix')
-            ? getMessage('blacklist_error_suffix', '请输入要匹配的 URL 后缀')
+            ? getMessage('blacklist_error_domain', '请输入网站域名')
             : getMessage('blacklist_error_url', '请输入站点域名或完整 URL');
           setEditorError(message);
           return;

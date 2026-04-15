@@ -393,49 +393,67 @@
     "message": "URL 清單"
   },
   "blacklist_label_url": {
-    "message": "URL / 後綴"
+    "message": "URL 規則"
   },
   "blacklist_label_domain": {
     "message": "網站網域"
+  },
+  "blacklist_label_prefix": {
+    "message": "網站或路徑"
   },
   "blacklist_label_exact": {
     "message": "完整 URL"
   },
   "blacklist_label_suffix": {
-    "message": "後綴"
+    "message": "網站網域"
   },
   "blacklist_match_label": {
     "message": "比對方式"
   },
   "blacklist_match_exact": {
-    "message": "完全比對"
+    "message": "目前頁面"
   },
   "blacklist_match_prefix": {
-    "message": "前綴比對"
+    "message": "目前網站路徑"
   },
   "blacklist_match_suffix": {
-    "message": "後綴比對"
+    "message": "整個網站"
   },
   "blacklist_match_exact_tooltip": {
-    "message": "只比對這一條完整網址\n────────\n例如，\n輸入：example.com/a\n屏蔽：example.com/a"
+    "message": "只封鎖這一頁\n────────\n例如，填 x.com/home 後，只有這一頁不會出現，其他頁面不受影響"
   },
   "blacklist_match_prefix_tooltip": {
-    "message": "比對這個網站或路徑下的頁面\n────────\n例如，\n輸入：example.com/docs/\n屏蔽：https://example.com/docs/article"
+    "message": "只封鎖這個網站下這一路徑的頁面\n────────\n例如，填 baidu.com/search 後，baidu.com/search 和 baidu.com/search/1 不會出現，但 baidu.com/news 不受影響"
   },
   "blacklist_match_suffix_tooltip": {
-    "message": "比對以這段後綴結尾的頁面\n────────\n例如，\n輸入：settings\n屏蔽：https://example.com/account/settings"
+    "message": "封鎖這個網站的所有頁面，也包括它的子網站\n────────\n例如，填 baidu.com 後，baidu.com/search 和 tieba.baidu.com 都不會出現"
+  },
+  "blacklist_preview_title": {
+    "message": "實際比對預覽"
+  },
+  "blacklist_preview_match": {
+    "message": "會比對"
+  },
+  "blacklist_preview_miss": {
+    "message": "不會比對"
+  },
+  "blacklist_preview_www_note": {
+    "message": "會一併套用到 www. 版本，例如 baidu.com 也會比對到 www.baidu.com"
   },
   "blacklist_placeholder_url": {
-    "message": "前綴模式填完整 URL；後綴模式填 /settings"
+    "message": "目前頁面填完整網址；整個網站填網站網域"
   },
   "blacklist_placeholder_domain": {
-    "message": "example.com"
+    "message": "baidu.com"
+  },
+  "blacklist_placeholder_prefix": {
+    "message": "baidu.com 或 baidu.com/search"
   },
   "blacklist_placeholder_exact": {
-    "message": "example.com/path"
+    "message": "x.com/home"
   },
   "blacklist_placeholder_suffix": {
-    "message": "settings"
+    "message": "baidu.com"
   },
   "blacklist_add": {
     "message": "加入黑名單"
@@ -450,7 +468,10 @@
     "message": "請至少選擇一種比對方式"
   },
   "blacklist_error_suffix": {
-    "message": "請輸入 URL 後綴，不要填寫完整 URL"
+    "message": "請輸入網站網域"
+  },
+  "blacklist_error_domain": {
+    "message": "請輸入網站網域"
   },
   "blacklist_match_mode_prefix": {
     "message": "比對以此 URL 開頭的頁面"

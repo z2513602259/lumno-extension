@@ -5342,12 +5342,14 @@
     return normalizeHost(rawHost || '');
   }
 
-  function normalizeRecentSiteRecord(item) {
+  function normalizeRecentSiteRecord(item, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const ignoreBlacklist = opts.ignoreBlacklist === true;
     if (!item || !item.url) {
       return null;
     }
     const url = String(item.url).trim();
-    if (!url || shouldExcludeFromRecentSites(url)) {
+    if (!url || (!ignoreBlacklist && shouldExcludeFromRecentSites(url))) {
       return null;
     }
     const host = getRecentSiteHostKey(item);
@@ -5381,7 +5383,7 @@
     }
     const normalized = [];
     for (let i = 0; i < items.length; i += 1) {
-      const nextItem = normalizeRecentSiteRecord(items[i]);
+      const nextItem = normalizeRecentSiteRecord(items[i], { ignoreBlacklist: true });
       if (!nextItem) {
         continue;
       }
@@ -5433,7 +5435,7 @@
     }
     const merged = [];
     const appendUnique = (item, isPinned) => {
-      const normalized = normalizeRecentSiteRecord(item);
+      const normalized = normalizeRecentSiteRecord(item, { ignoreBlacklist: Boolean(isPinned) });
       if (!normalized || isRecentSiteHidden(normalized)) {
         return;
       }
@@ -5450,7 +5452,7 @@
   }
 
   function togglePinnedRecentSite(item) {
-    const normalizedItem = normalizeRecentSiteRecord(item);
+    const normalizedItem = normalizeRecentSiteRecord(item, { ignoreBlacklist: true });
     if (!normalizedItem) {
       return Promise.resolve({ pinned: false, limitReached: false });
     }
@@ -6287,6 +6289,37 @@
     });
   }
 
+  function isUrlBlockedBySearchBlacklist(url) {
+    return BLACKLIST_UTILS.isUrlBlocked
+      ? BLACKLIST_UTILS.isUrlBlocked(url, searchBlacklistItems)
+      : false;
+  }
+
+  function isSuggestionBlockedBySearchBlacklist(suggestion) {
+    if (!suggestion) {
+      return false;
+    }
+    if (
+      suggestion.type === 'newtab' ||
+      suggestion.type === 'siteSearch' ||
+      suggestion.type === 'inlineSiteSearch' ||
+      suggestion.type === 'siteSearchPrompt'
+    ) {
+      return false;
+    }
+    if (suggestion.url && isUrlBlockedBySearchBlacklist(suggestion.url)) {
+      return true;
+    }
+    return false;
+  }
+
+  function filterBlacklistedSuggestions(list, queryForProvider) {
+    if (!Array.isArray(list) || list.length === 0) {
+      return [];
+    }
+    return list.filter((suggestion) => !isSuggestionBlockedBySearchBlacklist(suggestion));
+  }
+
   function shouldExcludeFromRecentSites(url) {
     if (!url) {
       return true;
@@ -6296,9 +6329,7 @@
       if (isBrowserExtensionProtocol(parsed.protocol)) {
         return true;
       }
-      return BLACKLIST_UTILS.isUrlBlocked
-        ? BLACKLIST_UTILS.isUrlBlocked(parsed.toString(), searchBlacklistItems)
-        : false;
+      return isUrlBlockedBySearchBlacklist(parsed.toString());
     } catch (e) {
       return true;
     }
@@ -9012,6 +9043,7 @@
           });
         }
       }
+      allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
 
       const onlyKeywordSuggestions = allSuggestions.length > 0 &&
         allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
@@ -9043,9 +9075,13 @@
             favicon: getProviderIcon(siteSearchTrigger),
             provider: siteSearchTrigger
           };
-          allSuggestions.unshift(siteSearchPrompt);
-          primaryHighlightIndex = 0;
-          primaryHighlightReason = 'siteSearchPrompt';
+          if (!isSuggestionBlockedBySearchBlacklist(siteSearchPrompt)) {
+            allSuggestions.unshift(siteSearchPrompt);
+            primaryHighlightIndex = 0;
+            primaryHighlightReason = 'siteSearchPrompt';
+          } else {
+            siteSearchPrompt = null;
+          }
         }
         if (!siteSearchState && !inlineEnabled && !siteSearchPrompt && preferAutocompleteFirst) {
           autocompleteCandidate = getAutocompleteCandidate(allSuggestions, latestRawQuery);
@@ -9076,6 +9112,7 @@
         }
         if (inlineSuggestion) {
           allSuggestions.unshift(inlineSuggestion);
+          allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
           primaryHighlightIndex = 0;
           primaryHighlightReason = 'inline';
         } else if (!siteSearchPrompt && topSiteMatch && preferAutocompleteFirst) {
@@ -9330,6 +9367,50 @@
           const searchIcon = createSearchIcon();
           searchIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
           iconNode = searchIcon;
+        } else if (
+          suggestion.favicon &&
+          (suggestion.type === 'siteSearch' ||
+            suggestion.type === 'inlineSiteSearch' ||
+            suggestion.type === 'siteSearchPrompt')
+        ) {
+          const favicon = document.createElement('img');
+          favicon.setAttribute('data-x-nt-suggestion-icon', '1');
+          favicon.decoding = 'async';
+          favicon.loading = 'eager';
+          favicon.referrerPolicy = 'no-referrer';
+          if (index < 4) {
+            favicon.fetchPriority = 'high';
+          }
+          favicon.style.cssText = `
+            all: unset !important;
+            width: 16px !important;
+            height: 16px !important;
+            border-radius: 2px !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+            list-style: none !important;
+            outline: none !important;
+            background: transparent !important;
+            color: inherit !important;
+            font-size: 100% !important;
+            font: inherit !important;
+            vertical-align: baseline !important;
+            display: block !important;
+            object-fit: contain !important;
+          `;
+          applyFaviconOpticalAlignment(favicon);
+          favicon.src = suggestion.favicon || '';
+          favicon.onerror = function() {
+            const fallbackIcon = createSearchIcon();
+            fallbackIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            if (favicon.parentNode) {
+              favicon.parentNode.replaceChild(fallbackIcon, favicon);
+            }
+          };
+          iconNode = favicon;
         } else if (suggestion.favicon) {
           const suggestionHost = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
           const isLocalSuggestion = suggestionHost && shouldBlockFaviconForHost(suggestionHost);

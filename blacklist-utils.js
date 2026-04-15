@@ -55,13 +55,23 @@
     }
   }
 
-  function normalizeSuffixPattern(value) {
-    const raw = String(value || '').trim();
-    if (!raw || /^https?:\/\//i.test(raw)) {
+  function normalizeDomainPattern(value) {
+    const raw = String(value || '').trim().replace(/^https?:\/\//i, '').trim();
+    if (!raw) {
       return '';
     }
-    const suffix = raw.replace(/^\/+/, '');
-    return suffix ? `/${suffix}` : '';
+    try {
+      const parsed = new URL(`https://${raw}`);
+      const hostname = String(parsed.hostname || '').toLowerCase();
+      if (!hostname) {
+        return '';
+      }
+      return hostname.startsWith('www.')
+        ? hostname.slice(4)
+        : hostname;
+    } catch (error) {
+      return '';
+    }
   }
 
   function normalizePattern(value, matchModes, fallbackMode) {
@@ -71,7 +81,7 @@
     }
     const modes = normalizeMatchModes(matchModes, fallbackMode);
     if (modes.length === 1 && modes[0] === 'suffix') {
-      return normalizeSuffixPattern(raw);
+      return normalizeDomainPattern(raw);
     }
     return normalizeUrlLikePattern(raw);
   }
@@ -94,6 +104,56 @@
     } catch (error) {
       return '';
     }
+  }
+
+  function splitHostPathQuery(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+      return null;
+    }
+    const queryIndex = normalized.indexOf('?');
+    const withoutQuery = queryIndex >= 0 ? normalized.slice(0, queryIndex) : normalized;
+    const search = queryIndex >= 0 ? normalized.slice(queryIndex) : '';
+    const slashIndex = withoutQuery.indexOf('/');
+    const host = (slashIndex >= 0 ? withoutQuery.slice(0, slashIndex) : withoutQuery).toLowerCase();
+    const path = slashIndex >= 0 ? withoutQuery.slice(slashIndex) : '/';
+    if (!host) {
+      return null;
+    }
+    return { host, path: path || '/', search };
+  }
+
+  function canToggleWwwHost(host) {
+    const normalized = String(host || '').trim().toLowerCase();
+    if (!normalized || normalized === 'localhost' || normalized.includes(':')) {
+      return false;
+    }
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(normalized)) {
+      return false;
+    }
+    return normalized.includes('.');
+  }
+
+  function toggleWwwHost(host) {
+    const normalized = String(host || '').trim().toLowerCase();
+    if (!canToggleWwwHost(normalized)) {
+      return '';
+    }
+    return normalized.startsWith('www.')
+      ? normalized.slice(4)
+      : `www.${normalized}`;
+  }
+
+  function getEquivalentPatterns(pattern) {
+    const parts = splitHostPathQuery(pattern);
+    if (!parts) {
+      return [];
+    }
+    const toggledHost = toggleWwwHost(parts.host);
+    if (!toggledHost || toggledHost === parts.host) {
+      return [];
+    }
+    return [`${toggledHost}${parts.path}${parts.search}`];
   }
 
   function buildRuleKey(rule, fallbackMode) {
@@ -145,11 +205,31 @@
     if (modes.includes('exact') && target === rule.pattern) {
       return true;
     }
-    if (modes.includes('prefix') && target.startsWith(rule.pattern)) {
-      return true;
+    if (modes.includes('exact')) {
+      const alternates = getEquivalentPatterns(rule.pattern);
+      if (alternates.includes(target)) {
+        return true;
+      }
     }
-    if (modes.includes('suffix') && target.endsWith(rule.pattern)) {
-      return true;
+    if (modes.includes('prefix')) {
+      if (target.startsWith(rule.pattern)) {
+        return true;
+      }
+      const alternates = getEquivalentPatterns(rule.pattern);
+      if (alternates.some((alternate) => target.startsWith(alternate))) {
+        return true;
+      }
+    }
+    if (modes.includes('suffix')) {
+      const sitePattern = normalizeDomainPattern(rule.pattern);
+      if (!sitePattern) {
+        return false;
+      }
+      const targetParts = splitHostPathQuery(target);
+      const targetHost = targetParts ? String(targetParts.host || '').toLowerCase() : '';
+      if (targetHost === sitePattern || targetHost.endsWith(`.${sitePattern}`)) {
+        return true;
+      }
     }
     return false;
   }
@@ -162,10 +242,6 @@
   function getPatternInputValue(rule) {
     if (!rule || !rule.pattern) {
       return '';
-    }
-    const modes = normalizeMatchModes(rule.matchModes, null);
-    if (modes.length === 1 && modes[0] === 'suffix') {
-      return String(rule.pattern).replace(/^\/+/, '');
     }
     return String(rule.pattern);
   }

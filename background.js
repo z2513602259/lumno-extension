@@ -4460,6 +4460,39 @@ function isUrlBlockedBySearchBlacklist(url, items) {
   return false;
 }
 
+function buildBlacklistProbeUrlFromTemplate(template, query) {
+  const rawTemplate = String(template || '');
+  if (!rawTemplate || !rawTemplate.includes('{query}')) {
+    return '';
+  }
+  return rawTemplate.replace(/\{query\}/g, encodeURIComponent(String(query || '')));
+}
+
+function isSuggestionBlockedBySearchBlacklist(suggestion, items, queryForProvider) {
+  if (!suggestion) {
+    return false;
+  }
+  if (suggestion.type === 'newtab') {
+    return false;
+  }
+  if (suggestion.url && isUrlBlockedBySearchBlacklist(suggestion.url, items)) {
+    return true;
+  }
+  if (suggestion.type === 'siteSearchPrompt' && suggestion.provider) {
+    const probeQuery = String(queryForProvider || '').trim() || 'test';
+    const probeUrl = buildBlacklistProbeUrlFromTemplate(suggestion.provider.template, probeQuery);
+    return Boolean(probeUrl) && isUrlBlockedBySearchBlacklist(probeUrl, items);
+  }
+  return false;
+}
+
+function filterBlacklistedSuggestions(list, items, queryForProvider) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return [];
+  }
+  return list.filter((suggestion) => !isSuggestionBlockedBySearchBlacklist(suggestion, items, queryForProvider));
+}
+
 function mergeCustomProviders(baseItems, customItems) {
   const merged = [];
   const seen = new Set();
@@ -5107,7 +5140,7 @@ async function getSearchSuggestions(query) {
 
     engineSuggestions.forEach((suggestion) => {
       if (suggestion && suggestion !== lookupQuery) {
-        suggestions.push({
+        const suggestionItem = {
           type: 'googleSuggest',
           title: suggestion,
           url: buildDefaultSearchUrl(suggestion),
@@ -5116,7 +5149,10 @@ async function getSearchSuggestions(query) {
           searchQuery: suggestion,
           forceSearch: true,
           reasons: ['来源：搜索建议']
-        });
+        };
+        if (!isSuggestionBlockedBySearchBlacklist(suggestionItem, searchBlacklistItems, suggestion)) {
+          suggestions.push(suggestionItem);
+        }
       }
     });
 
@@ -5539,7 +5575,7 @@ async function getSearchSuggestions(query) {
         dedupedByTitle[existingIndex] = suggestion;
       }
     });
-    let finalSuggestions = dedupedByTitle;
+    let finalSuggestions = filterBlacklistedSuggestions(dedupedByTitle, searchBlacklistItems, lookupQuery);
 
     const hostCounts = new Map();
     finalSuggestions = finalSuggestions.filter((suggestion) => {
@@ -5584,7 +5620,7 @@ async function getSearchSuggestions(query) {
           reasons: ['来源：常用站点']
         };
       });
-      finalSuggestions = fallbackResults;
+      finalSuggestions = filterBlacklistedSuggestions(fallbackResults, searchBlacklistItems, lookupQuery);
     }
     
     return finalSuggestions;
@@ -5601,6 +5637,7 @@ async function getSearchSuggestions(query) {
   let overlayLanguageStorageListener = null;
   let overlaySearchEngineStorageListener = null;
   let overlaySearchResultPriorityStorageListener = null;
+  let overlaySearchBlacklistStorageListener = null;
   let overlaySizeStorageListener = null;
   let overlayTabPriorityStorageListener = null;
   let overlayTabScoreDebugStorageListener = null;
@@ -5682,6 +5719,7 @@ async function getSearchSuggestions(query) {
   const LANGUAGE_MESSAGES_STORAGE_KEY = '_x_extension_language_messages_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
+  const SEARCH_BLACKLIST_STORAGE_KEY = '_x_extension_search_blacklist_2026_unique_';
   const OVERLAY_SIZE_MODE_STORAGE_KEY = '_x_extension_overlay_size_mode_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const TAB_RANK_SCORE_DEBUG_STORAGE_KEY = '_x_extension_tab_rank_score_debug_2026_unique_';
@@ -5701,7 +5739,67 @@ async function getSearchSuggestions(query) {
   let overlayThemeMode = 'system';
   let overlaySearchResultPriorityMode = 'autocomplete';
   let overlaySizeMode = 'standard';
+  let overlaySearchBlacklistItems = [];
   let overlayThemeListenerAttached = false;
+
+  function normalizeOverlaySearchBlacklistItems(items) {
+    if (globalThis.LumnoBlacklistUtils && typeof globalThis.LumnoBlacklistUtils.normalizeItems === 'function') {
+      return globalThis.LumnoBlacklistUtils.normalizeItems(items, 'prefix');
+    }
+    return [];
+  }
+
+  function buildOverlayBlacklistProbeUrlFromTemplate(template, query) {
+    const rawTemplate = String(template || '');
+    if (!rawTemplate || !rawTemplate.includes('{query}')) {
+      return '';
+    }
+    return rawTemplate.replace(/\{query\}/g, encodeURIComponent(String(query || '')));
+  }
+
+  function isUrlBlockedByOverlaySearchBlacklist(url) {
+    if (globalThis.LumnoBlacklistUtils && typeof globalThis.LumnoBlacklistUtils.isUrlBlocked === 'function') {
+      return globalThis.LumnoBlacklistUtils.isUrlBlocked(url, overlaySearchBlacklistItems);
+    }
+    return false;
+  }
+
+  function isOverlaySuggestionBlockedBySearchBlacklist(suggestion, queryForProvider) {
+    if (!suggestion || suggestion.type === 'newtab') {
+      return false;
+    }
+    if (suggestion.url && isUrlBlockedByOverlaySearchBlacklist(suggestion.url)) {
+      return true;
+    }
+    if (suggestion.type === 'siteSearchPrompt' && suggestion.provider) {
+      const probeQuery = String(queryForProvider || '').trim() || 'test';
+      const probeUrl = buildOverlayBlacklistProbeUrlFromTemplate(suggestion.provider.template, probeQuery);
+      return Boolean(probeUrl) && isUrlBlockedByOverlaySearchBlacklist(probeUrl);
+    }
+    return false;
+  }
+
+  function filterOverlayBlacklistedSuggestions(list, queryForProvider) {
+    if (!Array.isArray(list) || list.length === 0) {
+      return [];
+    }
+    return list.filter((suggestion) => !isOverlaySuggestionBlockedBySearchBlacklist(suggestion, queryForProvider));
+  }
+
+  function loadOverlaySearchBlacklistItems() {
+    if (!storageArea) {
+      overlaySearchBlacklistItems = [];
+      return;
+    }
+    storageArea.get([SEARCH_BLACKLIST_STORAGE_KEY], (result) => {
+      overlaySearchBlacklistItems = normalizeOverlaySearchBlacklistItems(
+        result ? result[SEARCH_BLACKLIST_STORAGE_KEY] : null
+      );
+      if (latestOverlayQuery) {
+        updateSearchSuggestions(lastSuggestionResponse, latestOverlayQuery);
+      }
+    });
+  }
 
   function normalizeSearchResultPriority(value) {
     return value === 'search' ? 'search' : 'autocomplete';
@@ -6679,6 +6777,10 @@ async function getSearchSuggestions(query) {
       chrome.storage.onChanged.removeListener(overlaySearchResultPriorityStorageListener);
       overlaySearchResultPriorityStorageListener = null;
     }
+    if (overlaySearchBlacklistStorageListener) {
+      chrome.storage.onChanged.removeListener(overlaySearchBlacklistStorageListener);
+      overlaySearchBlacklistStorageListener = null;
+    }
     if (overlayTabPriorityStorageListener) {
       chrome.storage.onChanged.removeListener(overlayTabPriorityStorageListener);
       overlayTabPriorityStorageListener = null;
@@ -6731,7 +6833,7 @@ async function getSearchSuggestions(query) {
       width: ${initialOverlaySizePreset.width}px !important;
       max-width: calc(100vw - 24px) !important;
       max-height: ${initialOverlaySizePreset.maxHeightVh}vh !important;
-      background: var(--x-ov-bg, rgba(255, 255, 255, 0.82)) !important;
+      background: var(--x-ov-bg, rgba(255, 255, 255, 0.95)) !important;
       backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
       -webkit-backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
       border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08)) !important;
@@ -7587,7 +7689,7 @@ async function getSearchSuggestions(query) {
     urlHighlightTheme._xIsUrl = true;
     const overlayThemeTokens = {
       light: {
-        bg: 'linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.84) 100%)',
+        bg: 'linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 255, 255, 0.95) 100%)',
         border: 'rgba(0, 0, 0, 0.14)',
         shadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 16px 40px rgba(15, 23, 42, 0.12), 0 40px 90px rgba(15, 23, 42, 0.12)',
         text: '#111827',
@@ -7911,6 +8013,7 @@ async function getSearchSuggestions(query) {
         overlaySearchResultPriorityMode = normalizeSearchResultPriority(result[SEARCH_RESULT_PRIORITY_STORAGE_KEY]);
       });
     }
+    loadOverlaySearchBlacklistItems();
     overlaySearchResultPriorityStorageListener = (changes, areaName) => {
       if (!storageAreaName || areaName !== storageAreaName || !changes[SEARCH_RESULT_PRIORITY_STORAGE_KEY]) {
         return;
@@ -7921,6 +8024,18 @@ async function getSearchSuggestions(query) {
       }
     };
     chrome.storage.onChanged.addListener(overlaySearchResultPriorityStorageListener);
+    overlaySearchBlacklistStorageListener = (changes, areaName) => {
+      if (!storageAreaName || areaName !== storageAreaName || !changes[SEARCH_BLACKLIST_STORAGE_KEY]) {
+        return;
+      }
+      overlaySearchBlacklistItems = normalizeOverlaySearchBlacklistItems(
+        changes[SEARCH_BLACKLIST_STORAGE_KEY].newValue
+      );
+      if (latestOverlayQuery) {
+        updateSearchSuggestions(lastSuggestionResponse, latestOverlayQuery);
+      }
+    };
+    chrome.storage.onChanged.addListener(overlaySearchBlacklistStorageListener);
 
     if (storageArea) {
       storageArea.get([OVERLAY_TAB_PRIORITY_STORAGE_KEY], (result) => {
@@ -12107,6 +12222,7 @@ async function getSearchSuggestions(query) {
             });
           }
         }
+        allSuggestions = filterOverlayBlacklistedSuggestions(allSuggestions, query);
         const onlyKeywordSuggestions = allSuggestions.length > 0 &&
           allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
 
@@ -12137,9 +12253,13 @@ async function getSearchSuggestions(query) {
               favicon: getProviderIcon(siteSearchTrigger),
               provider: siteSearchTrigger
             };
-            allSuggestions.unshift(siteSearchPrompt);
-            primaryHighlightIndex = 0;
-            primaryHighlightReason = 'siteSearchPrompt';
+            if (!isOverlaySuggestionBlockedBySearchBlacklist(siteSearchPrompt, rawTagInput)) {
+              allSuggestions.unshift(siteSearchPrompt);
+              primaryHighlightIndex = 0;
+              primaryHighlightReason = 'siteSearchPrompt';
+            } else {
+              siteSearchPrompt = null;
+            }
           }
           if (!siteSearchState && !inlineEnabled && !siteSearchPrompt && preferAutocompleteFirst) {
             autocompleteCandidate = getAutocompleteCandidate(allSuggestions, latestRawInputValue);
@@ -12170,6 +12290,7 @@ async function getSearchSuggestions(query) {
           }
           if (inlineSuggestion) {
             allSuggestions.unshift(inlineSuggestion);
+            allSuggestions = filterOverlayBlacklistedSuggestions(allSuggestions, query);
             primaryHighlightIndex = 0;
             primaryHighlightReason = 'inline';
           } else if (!siteSearchPrompt && topSiteMatch && preferAutocompleteFirst) {

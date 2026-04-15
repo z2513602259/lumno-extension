@@ -571,6 +571,9 @@
         flex: 1 1 auto;
         min-width: 0;
       }
+      ._x_extension_shortcut_input_affix_2026_unique_[data-has-prefix="false"] ._x_extension_shortcut_input_2024_unique_ {
+        padding-left: 10px;
+      }
       ._x_extension_shortcut_input_affix_2026_unique_ ._x_extension_shortcut_input_2024_unique_:focus,
       ._x_extension_shortcut_input_affix_2026_unique_ ._x_extension_shortcut_input_2024_unique_:hover {
         border: none;
@@ -2709,34 +2712,34 @@
               <div class="_x_extension_shortcut_form_fields_2024_unique_">
                 <div class="_x_extension_shortcut_field_2024_unique_">
                   <label class="_x_extension_shortcut_label_2024_unique_" for="_x_extension_blacklist_url_2026_unique_">
-                    <span id="_x_extension_blacklist_url_label_2026_unique_" data-i18n="blacklist_label_domain">站点域名</span><span class="_x_extension_shortcut_required_2024_unique_">*</span>
+                    <span id="_x_extension_blacklist_url_label_2026_unique_" data-i18n="blacklist_label_url">URL 规则</span><span class="_x_extension_shortcut_required_2024_unique_">*</span>
                   </label>
                   <div class="_x_extension_shortcut_input_affix_2026_unique_">
                     <span id="_x_extension_blacklist_url_prefix_2026_unique_" class="_x_extension_shortcut_input_prefix_2026_unique_">http(s)://</span>
-                    <input id="_x_extension_blacklist_url_2026_unique_" class="_x_extension_shortcut_input_2024_unique_" placeholder="example.com" data-i18n-placeholder="blacklist_placeholder_domain" />
+                    <input id="_x_extension_blacklist_url_2026_unique_" class="_x_extension_shortcut_input_2024_unique_" placeholder="example.com 或 example.com/docs/" data-i18n-placeholder="blacklist_placeholder_prefix" />
                   </div>
                 </div>
                 <div class="_x_extension_shortcut_field_2024_unique_">
                   <div class="_x_extension_shortcut_label_2024_unique_" data-i18n="blacklist_match_label">匹配方式</div>
                   <div class="_x_extension_blacklist_match_modes_2026_unique_">
+                    <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_suffix_wrap_2026_unique_">
+                      <input id="_x_extension_blacklist_match_suffix_2026_unique_" type="checkbox" checked />
+                      <span data-i18n="blacklist_match_suffix">整个网站</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_suffix_tooltip" data-tooltip="屏蔽这个网站的所有页面，也包括它的子网站&#10;────────&#10;例如，填 baidu.com 后，baidu.com/search 和 tieba.baidu.com 都不会出现">
+                        <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
+                      </span>
+                    </label>
                     <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_exact_wrap_2026_unique_">
                       <input id="_x_extension_blacklist_match_exact_2026_unique_" type="checkbox" />
-                      <span data-i18n="blacklist_match_exact">完全匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_exact_tooltip" data-tooltip="只匹配这一条完整地址&#10;────────&#10;例如，&#10;输入：example.com/a&#10;屏蔽：example.com/a">
+                      <span data-i18n="blacklist_match_exact">当前页面</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_exact_tooltip" data-tooltip="只屏蔽这一页&#10;────────&#10;例如，填 x.com/home 后，只有这一页不会出现，其他页面不受影响">
                         <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                       </span>
                     </label>
                     <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_prefix_wrap_2026_unique_">
-                      <input id="_x_extension_blacklist_match_prefix_2026_unique_" type="checkbox" checked />
-                      <span data-i18n="blacklist_match_prefix">前缀匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_prefix_tooltip" data-tooltip="匹配这个站点或路径下的页面&#10;────────&#10;例如，&#10;输入：example.com/docs/&#10;屏蔽：https://example.com/docs/article">
-                        <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
-                      </span>
-                    </label>
-                    <label class="_x_extension_blacklist_match_mode_2026_unique_" id="_x_extension_blacklist_match_suffix_wrap_2026_unique_">
-                      <input id="_x_extension_blacklist_match_suffix_2026_unique_" type="checkbox" />
-                      <span data-i18n="blacklist_match_suffix">后缀匹配</span>
-                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_suffix_tooltip" data-tooltip="匹配以这段后缀结尾的页面&#10;────────&#10;例如，&#10;输入：settings&#10;屏蔽：https://example.com/account/settings">
+                      <input id="_x_extension_blacklist_match_prefix_2026_unique_" type="checkbox" />
+                      <span data-i18n="blacklist_match_prefix">当前站点路径</span>
+                      <span class="_x_extension_shortcut_hint_2024_unique_ _x_extension_tooltip_host_2024_unique_" data-i18n-tooltip="blacklist_match_prefix_tooltip" data-tooltip="只屏蔽这个站点下这一路径的页面&#10;────────&#10;例如，填 baidu.com/search 后，baidu.com/search 和 baidu.com/search/1 不会出现，但 baidu.com/news 不受影响">
                         <i class="ri-icon ri-size-14 ri-question-line" aria-hidden="true"></i>
                       </span>
                     </label>

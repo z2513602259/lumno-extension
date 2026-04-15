@@ -402,49 +402,67 @@
     "message": "URL 列表"
   },
   "blacklist_label_url": {
-    "message": "URL / 后缀"
+    "message": "URL 规则"
   },
   "blacklist_label_domain": {
-    "message": "站点域名"
+    "message": "网站域名"
+  },
+  "blacklist_label_prefix": {
+    "message": "站点或路径"
   },
   "blacklist_label_exact": {
     "message": "完整 URL"
   },
   "blacklist_label_suffix": {
-    "message": "后缀"
+    "message": "网站域名"
   },
   "blacklist_match_label": {
     "message": "匹配方式"
   },
   "blacklist_match_exact": {
-    "message": "完全匹配"
+    "message": "当前页面"
   },
   "blacklist_match_prefix": {
-    "message": "前缀匹配"
+    "message": "当前站点路径"
   },
   "blacklist_match_suffix": {
-    "message": "后缀匹配"
+    "message": "整个网站"
   },
   "blacklist_match_exact_tooltip": {
-    "message": "只匹配这一条完整地址\n────────\n例如，\n输入：example.com/a\n屏蔽：example.com/a"
+    "message": "只屏蔽这一页\n────────\n例如，填 x.com/home 后，只有这一页不会出现，其他页面不受影响"
   },
   "blacklist_match_prefix_tooltip": {
-    "message": "匹配这个站点或路径下的页面\n────────\n例如，\n输入：example.com/docs/\n屏蔽：https://example.com/docs/article"
+    "message": "只屏蔽这个站点下这一路径的页面\n────────\n例如，填 baidu.com/search 后，baidu.com/search 和 baidu.com/search/1 不会出现，但 baidu.com/news 不受影响"
   },
   "blacklist_match_suffix_tooltip": {
-    "message": "匹配以这段后缀结尾的页面\n────────\n例如，\n输入：settings\n屏蔽：https://example.com/account/settings"
+    "message": "屏蔽这个网站的所有页面，也包括它的子网站\n────────\n例如，填 baidu.com 后，baidu.com/search 和 tieba.baidu.com 都不会出现"
+  },
+  "blacklist_preview_title": {
+    "message": "实际匹配预览"
+  },
+  "blacklist_preview_match": {
+    "message": "会匹配"
+  },
+  "blacklist_preview_miss": {
+    "message": "不会匹配"
+  },
+  "blacklist_preview_www_note": {
+    "message": "已自动兼容 www. 版本，例如 baidu.com 也会匹配 www.baidu.com"
   },
   "blacklist_placeholder_url": {
-    "message": "前缀模式填完整 URL；后缀模式填 /settings"
+    "message": "当前页面填完整地址；整个网站填网站域名"
   },
   "blacklist_placeholder_domain": {
-    "message": "example.com"
+    "message": "baidu.com"
+  },
+  "blacklist_placeholder_prefix": {
+    "message": "baidu.com 或 baidu.com/search"
   },
   "blacklist_placeholder_exact": {
-    "message": "example.com/path"
+    "message": "x.com/home"
   },
   "blacklist_placeholder_suffix": {
-    "message": "settings"
+    "message": "baidu.com"
   },
   "blacklist_add": {
     "message": "添加到黑名单"
@@ -459,7 +477,10 @@
     "message": "请至少选择一种匹配方式"
   },
   "blacklist_error_suffix": {
-    "message": "请输入 URL 后缀，不要填写完整 URL"
+    "message": "请输入网站域名"
+  },
+  "blacklist_error_domain": {
+    "message": "请输入网站域名"
   },
   "blacklist_match_mode_prefix": {
     "message": "匹配以该 URL 开头的页面"

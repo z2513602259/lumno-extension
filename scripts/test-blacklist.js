@@ -27,15 +27,15 @@ function run() {
   );
 
   assert.equal(
-    blacklistUtils.normalizePattern('settings', ['suffix'], null),
-    '/settings',
-    'suffix mode should normalize into a slash-prefixed suffix'
+    blacklistUtils.normalizePattern('www.baidu.com/news', ['suffix'], null),
+    'baidu.com',
+    'whole-site mode should normalize a pasted host or URL into the base site domain'
   );
 
   assert.equal(
     blacklistUtils.normalizePattern('https://example.com/settings', ['suffix'], null),
-    '',
-    'suffix mode should reject full URLs'
+    'example.com',
+    'whole-site mode should accept pasted URLs and keep only the site domain'
   );
 
   assert.deepEqual(
@@ -68,19 +68,59 @@ function run() {
   );
 
   assert.equal(
-    blacklistUtils.isUrlBlocked('https://exampleurl.com/settings', [
-      { pattern: '/settings', matchModes: ['suffix'] }
+    blacklistUtils.isUrlBlocked('https://www.baidu.com/', [
+      { pattern: 'baidu.com/', matchModes: ['exact'] }
     ]),
     true,
-    'suffix rules should match a trailing path segment'
+    'exact rules should treat bare and www hosts as the same root page'
   );
 
   assert.equal(
-    blacklistUtils.isUrlBlocked('https://exampleurl2.com/test/settings', [
-      { pattern: '/settings', matchModes: ['suffix'] }
+    blacklistUtils.isUrlBlocked('https://baidu.com/settings?tab=1', [
+      { pattern: 'www.baidu.com/settings?tab=1', matchModes: ['exact'] }
     ]),
     true,
-    'suffix rules should match nested paths that end with the same suffix'
+    'exact rules should treat bare and www hosts as the same page path'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://www.baidu.com/search?wd=test', [
+      { pattern: 'baidu.com/', matchModes: ['exact'] }
+    ]),
+    false,
+    'exact rules should still reject deeper paths that were not configured'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://www.baidu.com/docs/article', [
+      { pattern: 'baidu.com/docs/', matchModes: ['prefix'] }
+    ]),
+    true,
+    'prefix rules should treat bare and www hosts as the same site path'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://baidu.com/docs/article', [
+      { pattern: 'www.baidu.com/docs/', matchModes: ['prefix'] }
+    ]),
+    true,
+    'prefix rules should also work in the reverse www-to-bare direction'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://m.baidu.com/', [
+      { pattern: 'baidu.com', matchModes: ['suffix'] }
+    ]),
+    true,
+    'whole-site rules should match subdomains under the same site'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://tieba.baidu.com/f', [
+      { pattern: 'www.baidu.com', matchModes: ['suffix'] }
+    ]),
+    true,
+    'whole-site rules should work even if the saved domain was entered with www'
   );
 
   assert.equal(
@@ -88,7 +128,15 @@ function run() {
       { pattern: 'extensions', matchModes: ['suffix'] }
     ]),
     false,
-    'non-http URLs should not be matched by blacklist rules'
+    'non-http URLs should not be matched by whole-site rules'
+  );
+
+  assert.equal(
+    blacklistUtils.isUrlBlocked('https://baidu.net/', [
+      { pattern: 'baidu.com', matchModes: ['suffix'] }
+    ]),
+    false,
+    'whole-site rules should not match different registrable domains'
   );
 }
 

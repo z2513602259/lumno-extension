@@ -402,49 +402,67 @@
     "message": "Blocked URLs"
   },
   "blacklist_label_url": {
-    "message": "URL / suffix"
+    "message": "URL rule"
   },
   "blacklist_label_domain": {
     "message": "Site domain"
+  },
+  "blacklist_label_prefix": {
+    "message": "Site or path"
   },
   "blacklist_label_exact": {
     "message": "Full URL"
   },
   "blacklist_label_suffix": {
-    "message": "Suffix"
+    "message": "Site domain"
   },
   "blacklist_match_label": {
     "message": "Match type"
   },
   "blacklist_match_exact": {
-    "message": "Exact"
+    "message": "This page"
   },
   "blacklist_match_prefix": {
-    "message": "Prefix"
+    "message": "This site path"
   },
   "blacklist_match_suffix": {
-    "message": "Suffix"
+    "message": "Whole site"
   },
   "blacklist_match_exact_tooltip": {
-    "message": "Matches only this exact URL\n────────\nFor example,\nInput: example.com/a\nBlocked: example.com/a"
+    "message": "Blocks only this page\n────────\nFor example, if you enter x.com/home, only that page will be hidden while other pages stay visible"
   },
   "blacklist_match_prefix_tooltip": {
-    "message": "Matches pages under this site or path\n────────\nFor example,\nInput: example.com/docs/\nBlocked: https://example.com/docs/article"
+    "message": "Blocks pages under this site and path only\n────────\nFor example, if you enter baidu.com/search, baidu.com/search and baidu.com/search/1 will be hidden, but baidu.com/news will stay visible"
   },
   "blacklist_match_suffix_tooltip": {
-    "message": "Matches pages that end with this suffix\n────────\nFor example,\nInput: settings\nBlocked: https://example.com/account/settings"
+    "message": "Blocks every page on this site, including its subdomains\n────────\nFor example, if you enter baidu.com, both baidu.com/search and tieba.baidu.com will be hidden"
+  },
+  "blacklist_preview_title": {
+    "message": "Actual match preview"
+  },
+  "blacklist_preview_match": {
+    "message": "Matches"
+  },
+  "blacklist_preview_miss": {
+    "message": "Won't match"
+  },
+  "blacklist_preview_www_note": {
+    "message": "The www. version is also covered, so baidu.com will also match www.baidu.com"
   },
   "blacklist_placeholder_url": {
-    "message": "Use a full URL for prefix mode, or /settings for suffix mode"
+    "message": "Use the full address for This page, or a site domain for Whole site"
   },
   "blacklist_placeholder_domain": {
-    "message": "example.com"
+    "message": "baidu.com"
+  },
+  "blacklist_placeholder_prefix": {
+    "message": "baidu.com or baidu.com/search"
   },
   "blacklist_placeholder_exact": {
-    "message": "example.com/path"
+    "message": "x.com/home"
   },
   "blacklist_placeholder_suffix": {
-    "message": "settings"
+    "message": "e.g. baidu.com"
   },
   "blacklist_add": {
     "message": "Add to blacklist"
@@ -459,7 +477,10 @@
     "message": "Select at least one match type"
   },
   "blacklist_error_suffix": {
-    "message": "Enter a URL suffix, not a full URL"
+    "message": "Enter a site domain"
+  },
+  "blacklist_error_domain": {
+    "message": "Enter a site domain"
   },
   "blacklist_match_mode_prefix": {
     "message": "Matches pages starting with this URL"
