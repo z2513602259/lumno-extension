@@ -39,6 +39,993 @@
     return fallback;
   }
 
+  let borderBeamInstanceCounter = 0;
+
+  function clampNumber(value, fallback, min, max) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+    return Math.min(max, Math.max(min, numeric));
+  }
+
+  function readResolvedThemeToken(element) {
+    if (!element || typeof element.getAttribute !== 'function') {
+      return '';
+    }
+    const value = String(element.getAttribute('data-theme') || '').toLowerCase();
+    return value === 'dark' || value === 'light' ? value : '';
+  }
+
+  function resolveBorderBeamTheme(themeValue, target, themeTarget) {
+    const explicitTheme = String(themeValue || '').toLowerCase();
+    if (explicitTheme === 'dark' || explicitTheme === 'light') {
+      return explicitTheme;
+    }
+    const resolvedTheme = readResolvedThemeToken(themeTarget) ||
+      readResolvedThemeToken(target) ||
+      readResolvedThemeToken(document.body) ||
+      readResolvedThemeToken(document.documentElement);
+    if (resolvedTheme) {
+      return resolvedTheme;
+    }
+    try {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (error) {
+      return 'light';
+    }
+  }
+
+  function withAlpha(color, alpha) {
+    const rgbaMatch = String(color || '').match(
+      /^rgba\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*[\d.]+\s*\)$/
+    );
+    if (rgbaMatch) {
+      return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${alpha})`;
+    }
+    const rgbMatch = String(color || '').match(
+      /^rgb\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/
+    );
+    if (rgbMatch) {
+      return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+    }
+    return color;
+  }
+
+  // Adapted from the MIT-licensed border-beam package by Jakub Antalik.
+  const BORDER_BEAM_LINE_THEME_PRESETS = {
+    dark: {
+      strokeOpacity: 0.72,
+      innerOpacity: 0.7,
+      bloomOpacity: 0.8,
+      innerShadow: 'rgba(255, 255, 255, 0.1)',
+      saturation: 1.2
+    },
+    light: {
+      strokeOpacity: 0.72,
+      innerOpacity: 0.7,
+      bloomOpacity: 0.8,
+      innerShadow: 'rgba(0, 0, 0, 0.14)',
+      saturation: 1.2
+    }
+  };
+
+  const BORDER_BEAM_MEDIUM_COLORFUL_BORDER = [
+    { color: 'rgb(255, 50, 100)', pos: '33% -7.4%', size: '70px 40px' },
+    { color: 'rgb(40, 140, 255)', pos: '12% -5%', size: '60px 35px' },
+    { color: 'rgb(50, 200, 80)', pos: '2.1% 68.3%', size: '40px 70px' },
+    { color: 'rgb(30, 185, 170)', pos: '2.1% 68.3%', size: '20px 35px' },
+    { color: 'rgb(100, 70, 255)', pos: '74.4% 100%', size: '180px 32px' },
+    { color: 'rgb(40, 140, 255)', pos: '55% 100%', size: '85px 26px' },
+    { color: 'rgb(255, 120, 40)', pos: '93.9% 0%', size: '74px 32px' },
+    { color: 'rgb(240, 50, 180)', pos: '100% 27.1%', size: '26px 42px' },
+    { color: 'rgb(180, 40, 240)', pos: '100% 27.1%', size: '52px 48px' }
+  ];
+
+  const BORDER_BEAM_LINE_COLORFUL = {
+    border: [
+      { color: 'rgb(50, 200, 80)', pos: '2% 68%', size: '9px 18px' },
+      { color: 'rgb(30, 185, 170)', pos: '2% 68%', size: '4px 8px' },
+      { color: 'rgb(255, 120, 40)', pos: '72% -3%', size: '59px 9px' },
+      { color: 'rgb(100, 70, 255)', pos: '74% 100%', size: '42px 7px' },
+      { color: 'rgb(240, 50, 180)', pos: '100% 27%', size: '10px 17px' },
+      { color: 'rgb(180, 40, 240)', pos: '100% 27%', size: '10px 18px' },
+      { color: 'rgb(40, 140, 255)', pos: '100% 27%', size: '5px 10px' },
+      { color: 'rgb(255, 50, 100)', pos: '100% 27%', size: '11px 12px' }
+    ],
+    inner: [
+      { color: 'rgba(50, 200, 80, 0.5)', pos: '2% 68%', size: '9px 18px' },
+      { color: 'rgba(30, 185, 170, 0.45)', pos: '2% 68%', size: '4px 8px' },
+      { color: 'rgba(255, 120, 40, 0.35)', pos: '72% -3%', size: '59px 9px' },
+      { color: 'rgba(100, 70, 255, 0.35)', pos: '74% 100%', size: '42px 7px' },
+      { color: 'rgba(240, 50, 180, 0.3)', pos: '100% 27%', size: '10px 17px' },
+      { color: 'rgba(180, 40, 240, 0.4)', pos: '100% 27%', size: '10px 18px' },
+      { color: 'rgba(40, 140, 255, 0.3)', pos: '100% 27%', size: '5px 10px' },
+      { color: 'rgba(255, 50, 100, 0.3)', pos: '100% 27%', size: '11px 12px' }
+    ],
+    edgeDark: [
+      { color: 'rgb(255, 50, 100)', sizeW: 36, sizeH: 36, offsetX: 0, offsetY: 2 },
+      { color: 'rgb(40, 180, 220)', sizeW: 30, sizeH: 32, offsetX: 39, offsetY: 0 },
+      { color: 'rgb(50, 200, 80)', sizeW: 33, sizeH: 28, offsetX: -36, offsetY: 2 },
+      { color: 'rgb(180, 40, 240)', sizeW: 29, sizeH: 34, offsetX: -54, offsetY: 0 },
+      { color: 'rgb(255, 160, 30)', sizeW: 27, sizeH: 30, offsetX: 51, offsetY: -1 },
+      { color: 'rgb(100, 70, 255)', sizeW: 36, sizeH: 24, offsetX: 21, offsetY: 1 },
+      { color: 'rgb(40, 140, 255)', sizeW: 30, sizeH: 22, offsetX: -21, offsetY: 0 },
+      { color: 'rgb(240, 50, 180)', sizeW: 25, sizeH: 28, offsetX: 66, offsetY: 1 },
+      { color: 'rgb(30, 185, 170)', sizeW: 23, sizeH: 30, offsetX: -66, offsetY: -1 }
+    ],
+    edgeLight: [
+      { color: 'rgb(255, 50, 100)', sizeW: 45, sizeH: 36, offsetX: 0, offsetY: 2 },
+      { color: 'rgb(40, 140, 255)', sizeW: 35, sizeH: 32, offsetX: 65, offsetY: 0 },
+      { color: 'rgb(50, 200, 80)', sizeW: 40, sizeH: 28, offsetX: -60, offsetY: 2 },
+      { color: 'rgb(180, 40, 240)', sizeW: 35, sizeH: 34, offsetX: -90, offsetY: 0 },
+      { color: 'rgb(30, 185, 170)', sizeW: 38, sizeH: 30, offsetX: 85, offsetY: -1 },
+      { color: 'rgb(100, 70, 255)', sizeW: 50, sizeH: 24, offsetX: 35, offsetY: 1 },
+      { color: 'rgb(40, 140, 255)', sizeW: 40, sizeH: 22, offsetX: -35, offsetY: 0 },
+      { color: 'rgb(255, 120, 40)', sizeW: 35, sizeH: 28, offsetX: 110, offsetY: 1 },
+      { color: 'rgb(240, 50, 180)', sizeW: 30, sizeH: 30, offsetX: -110, offsetY: -1 }
+    ],
+    glow: [
+      { color: 'rgba(255, 50, 100, 0.48)', sizeW: 33, sizeH: 30, offsetX: 0, offsetY: 0 },
+      { color: 'rgba(40, 180, 220, 0.42)', sizeW: 24, sizeH: 26, offsetX: 39, offsetY: -3 },
+      { color: 'rgba(50, 200, 80, 0.48)', sizeW: 27, sizeH: 24, offsetX: -36, offsetY: 0 },
+      { color: 'rgba(180, 40, 240, 0.42)', sizeW: 23, sizeH: 28, offsetX: -54, offsetY: -2 },
+      { color: 'rgba(255, 160, 30, 0.50)', sizeW: 24, sizeH: 24, offsetX: 51, offsetY: -1 },
+      { color: 'rgba(100, 70, 255, 0.45)', sizeW: 30, sizeH: 20, offsetX: 21, offsetY: 0 },
+      { color: 'rgba(40, 140, 255, 0.40)', sizeW: 25, sizeH: 18, offsetX: -21, offsetY: -2 },
+      { color: 'rgba(240, 50, 180, 0.45)', sizeW: 21, sizeH: 24, offsetX: 66, offsetY: 0 },
+      { color: 'rgba(30, 185, 170, 0.52)', sizeW: 18, sizeH: 26, offsetX: -66, offsetY: -1 }
+    ],
+    spikeDark: {
+      primary: 'rgb(255, 60, 80)',
+      secondary: 'rgba(40, 190, 180, 0.98)'
+    },
+    spikeLight: {
+      primary: 'rgb(200, 30, 60)',
+      secondary: 'rgb(20, 150, 140)'
+    },
+    bloomDark: [
+      { color1: 'rgb(100, 70, 255)', color2: 'rgba(100, 70, 255, 1)' },
+      { color1: 'rgba(255, 170, 40, 0.59)', color2: 'rgba(255, 170, 40, 0.29)' },
+      { color1: 'rgb(50, 200, 100)', color2: 'rgba(50, 200, 100, 1)' },
+      { color1: 'rgba(200, 50, 240, 0.91)', color2: 'rgba(200, 50, 240, 0.45)' },
+      { color1: 'rgb(40, 140, 255)', color2: 'rgba(40, 140, 255, 1)' }
+    ],
+    bloomLight: [
+      { color1: 'rgb(80, 50, 200)', color2: 'rgba(80, 50, 200, 0.8)' },
+      { color1: 'rgba(210, 130, 0, 0.7)', color2: 'rgba(210, 130, 0, 0.46)' },
+      { color1: 'rgb(30, 160, 70)', color2: 'rgba(30, 160, 70, 0.82)' },
+      { color1: 'rgb(160, 30, 190)', color2: 'rgba(160, 30, 190, 0.7)' },
+      { color1: 'rgb(30, 100, 200)', color2: 'rgba(30, 100, 200, 0.78)' }
+    ]
+  };
+
+  function buildOffsetExpression(axisValue) {
+    if (!axisValue) {
+      return '';
+    }
+    return axisValue > 0 ? ` + ${axisValue}px` : ` - ${Math.abs(axisValue)}px`;
+  }
+
+  function parseBeamSizePair(size) {
+    const parts = String(size || '').trim().split(/\s+/);
+    return {
+      width: clampNumber(parseFloat(parts[0]), 0, 0, 4000),
+      height: clampNumber(parseFloat(parts[1]), 0, 0, 4000)
+    };
+  }
+
+  function buildMediumScaledEllipse(size, id, factor) {
+    const pair = parseBeamSizePair(size);
+    const scaleFactor = Number.isFinite(Number(factor)) ? Number(factor) : 1;
+    const width = Math.round(pair.width * scaleFactor * 10) / 10;
+    const height = Math.round(pair.height * scaleFactor * 10) / 10;
+    return `calc(${width}px * var(--beam-scale-x-${id}, 1)) calc(${height}px * var(--beam-scale-y-${id}, 1))`;
+  }
+
+  function computeBorderBeamAdaptiveScale(width, height) {
+    const safeWidth = Math.max(280, Number.isFinite(width) ? width : 0);
+    const safeHeight = Math.max(120, Number.isFinite(height) ? height : 0);
+    const referenceWidth = 760;
+    const referenceHeight = 320;
+    const referencePerimeter = (referenceWidth + referenceHeight) * 2;
+    const currentPerimeter = (safeWidth + safeHeight) * 2;
+    const widthScale = Math.pow(safeWidth / referenceWidth, 0.42);
+    const heightScale = Math.pow(safeHeight / referenceHeight, 0.38);
+    const densityScale = Math.pow(currentPerimeter / referencePerimeter, 0.18);
+    const scaleX = clampNumber(widthScale * densityScale, 1, 0.95, 2.2);
+    const scaleY = clampNumber(heightScale * densityScale, 1, 0.95, 1.9);
+    const blur = clampNumber(8 + ((scaleX + scaleY) / 2 - 1) * 3.8, 8, 8, 12.5);
+    return {
+      scaleX: scaleX,
+      scaleY: scaleY,
+      blur: blur
+    };
+  }
+
+  function buildLineBorderGradient(theme, id) {
+    const items = theme === 'dark'
+      ? BORDER_BEAM_LINE_COLORFUL.edgeDark
+      : BORDER_BEAM_LINE_COLORFUL.edgeLight;
+    return items.map((item) => {
+      const offsetX = buildOffsetExpression(item.offsetX);
+      const offsetY = buildOffsetExpression(item.offsetY);
+      return `radial-gradient(ellipse calc(${item.sizeW}px * var(--beam-w-${id})) calc(${item.sizeH}px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%${offsetX}) calc(100%${offsetY}), ${item.color}, transparent)`;
+    }).join(',\n       ');
+  }
+
+  function buildMediumBorderGradient(id) {
+    return BORDER_BEAM_MEDIUM_COLORFUL_BORDER.map((item) => {
+      return `radial-gradient(ellipse ${buildMediumScaledEllipse(item.size, id, 1)} at ${item.pos}, ${item.color}, transparent)`;
+    }).join(',\n    ');
+  }
+
+  function buildMediumInnerGradient(id) {
+    return BORDER_BEAM_MEDIUM_COLORFUL_BORDER.map((item) => {
+      return `radial-gradient(ellipse ${buildMediumScaledEllipse(item.size, id, 0.9)} at ${item.pos}, ${withAlpha(item.color, 0.45)}, transparent)`;
+    }).join(',\n    ');
+  }
+
+  function buildMediumBaseRingGradient(theme) {
+    if (theme === 'dark') {
+      return `conic-gradient(
+        from -12deg,
+        rgba(255, 120, 40, 0.16) 0deg,
+        rgba(255, 70, 145, 0.24) 42deg,
+        rgba(50, 165, 255, 0.22) 98deg,
+        rgba(45, 205, 150, 0.20) 156deg,
+        rgba(90, 90, 255, 0.22) 216deg,
+        rgba(212, 65, 230, 0.26) 286deg,
+        rgba(255, 120, 40, 0.16) 360deg
+      )`;
+    }
+    return `conic-gradient(
+      from -12deg,
+      rgba(210, 120, 10, 0.10) 0deg,
+      rgba(210, 45, 115, 0.15) 42deg,
+      rgba(25, 110, 215, 0.13) 98deg,
+      rgba(20, 150, 105, 0.11) 156deg,
+      rgba(70, 60, 215, 0.13) 216deg,
+      rgba(155, 35, 175, 0.15) 286deg,
+      rgba(210, 120, 10, 0.10) 360deg
+    )`;
+  }
+
+  function buildMediumBaseGlowGradient(theme) {
+    if (theme === 'dark') {
+      return `conic-gradient(
+        from -8deg,
+        transparent 0deg,
+        rgba(255, 120, 40, 0.025) 36deg,
+        rgba(255, 70, 145, 0.065) 78deg,
+        rgba(50, 165, 255, 0.065) 136deg,
+        rgba(45, 205, 150, 0.05) 196deg,
+        rgba(90, 90, 255, 0.065) 258deg,
+        rgba(212, 65, 230, 0.08) 320deg,
+        transparent 360deg
+      )`;
+    }
+    return `conic-gradient(
+      from -8deg,
+      transparent 0deg,
+      rgba(210, 120, 10, 0.018) 36deg,
+      rgba(210, 45, 115, 0.05) 78deg,
+      rgba(25, 110, 215, 0.05) 136deg,
+      rgba(20, 150, 105, 0.035) 196deg,
+      rgba(70, 60, 215, 0.05) 258deg,
+      rgba(155, 35, 175, 0.06) 320deg,
+      transparent 360deg
+    )`;
+  }
+
+  function buildMediumEdgeGradient(theme, id) {
+    return theme === 'dark'
+      ? `conic-gradient(
+        from var(--beam-angle-${id}),
+        transparent 0%, transparent 54%,
+        rgba(255, 255, 255, 0.1) 57%,
+        rgba(255, 255, 255, 0.3) 60%,
+        rgba(255, 255, 255, 0.6) 63%,
+        rgba(255, 255, 255, 0.75) 66%,
+        rgba(255, 255, 255, 0.6) 69%,
+        rgba(255, 255, 255, 0.3) 72%,
+        rgba(255, 255, 255, 0.1) 75%,
+        transparent 78%, transparent 100%
+      )`
+      : `conic-gradient(
+        from var(--beam-angle-${id}),
+        transparent 0%, transparent 54%,
+        rgba(0, 0, 0, 0.08) 57%,
+        rgba(0, 0, 0, 0.2) 60%,
+        rgba(0, 0, 0, 0.4) 63%,
+        rgba(0, 0, 0, 0.55) 66%,
+        rgba(0, 0, 0, 0.4) 69%,
+        rgba(0, 0, 0, 0.2) 72%,
+        rgba(0, 0, 0, 0.08) 75%,
+        transparent 78%, transparent 100%
+      )`;
+  }
+
+  function buildMediumBloomGradient(theme, id) {
+    return theme === 'dark'
+      ? `conic-gradient(
+        from var(--beam-angle-${id}),
+        transparent 0%, transparent 58%,
+        rgba(255, 255, 255, 0.03) 62%,
+        rgba(255, 255, 255, 0.08) 65%,
+        rgba(255, 255, 255, 0.2) 67%,
+        rgba(255, 255, 255, 0.45) 69%,
+        rgba(255, 255, 255, 0.85) 70%,
+        rgba(255, 255, 255, 0.85) 70.5%,
+        rgba(255, 255, 255, 0.45) 71.5%,
+        rgba(255, 255, 255, 0.2) 73%,
+        rgba(255, 255, 255, 0.08) 75%,
+        rgba(255, 255, 255, 0.03) 78%,
+        transparent 82%
+      )`
+      : `conic-gradient(
+        from var(--beam-angle-${id}),
+        transparent 0%, transparent 58%,
+        rgba(0, 0, 0, 0.02) 62%,
+        rgba(0, 0, 0, 0.08) 65%,
+        rgba(0, 0, 0, 0.2) 67%,
+        rgba(0, 0, 0, 0.4) 69%,
+        rgba(0, 0, 0, 0.6) 70%,
+        rgba(0, 0, 0, 0.6) 70.5%,
+        rgba(0, 0, 0, 0.4) 71.5%,
+        rgba(0, 0, 0, 0.2) 73%,
+        rgba(0, 0, 0, 0.08) 75%,
+        rgba(0, 0, 0, 0.02) 78%,
+        transparent 82%
+      )`;
+  }
+
+  function buildBorderBeamMediumStyle(config) {
+    const id = config.id;
+    const theme = config.theme === 'dark' ? 'dark' : 'light';
+    const borderRadius = clampNumber(config.borderRadius, 36, 0, 999);
+    const borderWidth = clampNumber(config.borderWidth, 1, 1, 6);
+    const duration = clampNumber(config.duration, 1.96, 0.5, 30);
+    const preset = BORDER_BEAM_LINE_THEME_PRESETS[theme];
+    const brightness = clampNumber(config.brightness, 1.3, 0.1, 5);
+    const saturation = clampNumber(config.saturation, theme === 'dark' ? 1.2 : 0.96, 0.1, 5);
+    const hueRange = clampNumber(config.hueRange, 30, 0, 60);
+    const glowRadius = Math.max(0, borderRadius - borderWidth);
+    const edgeGradient = buildMediumEdgeGradient(theme, id);
+    const borderGradient = buildMediumBorderGradient(id);
+    const innerGradient = buildMediumInnerGradient(id);
+    const baseRingGradient = buildMediumBaseRingGradient(theme);
+    const baseGlowGradient = buildMediumBaseGlowGradient(theme);
+    const bloomGradient = buildMediumBloomGradient(theme, id);
+    return `
+@property --beam-angle-${id} {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: true;
+}
+
+@property --beam-opacity-${id} {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+
+[data-beam="${id}"] {
+  position: relative;
+  border-radius: ${borderRadius}px;
+  overflow: hidden;
+}
+
+[data-beam="${id}"][data-active] {
+  animation:
+    beam-spin-${id} ${duration}s linear infinite,
+    beam-fade-in-${id} 0.6s ease forwards;
+}
+
+[data-beam="${id}"][data-fading] {
+  animation:
+    beam-spin-${id} ${duration}s linear infinite,
+    beam-fade-out-${id} 0.5s ease forwards;
+}
+
+[data-beam="${id}"][data-active]::after,
+[data-beam="${id}"][data-fading]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: ${glowRadius}px;
+  padding: ${borderWidth}px;
+  clip-path: inset(0 round ${borderRadius}px);
+  background: ${edgeGradient}, ${baseRingGradient}, ${borderGradient};
+  -webkit-mask:
+    conic-gradient(
+      from var(--beam-angle-${id}),
+      transparent 0%, transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+      white 52%, white 80%,
+      rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+      transparent 95%, transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    conic-gradient(
+      from var(--beam-angle-${id}),
+      transparent 0%, transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+      white 52%, white 80%,
+      rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+      transparent 95%, transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: intersect, exclude;
+  pointer-events: none;
+  z-index: 2;
+  opacity: calc(var(--beam-opacity-${id}) * ${preset.strokeOpacity.toFixed(2)} * var(--beam-strength, 1));
+  animation: beam-hue-shift-${id} 12s ease-in-out infinite;
+}
+
+[data-beam="${id}"][data-active]::before,
+[data-beam="${id}"][data-fading]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: ${borderRadius}px;
+  background: ${baseRingGradient}, ${innerGradient};
+  box-shadow: inset 0 0 9px 1px ${preset.innerShadow};
+  -webkit-mask-image:
+    conic-gradient(
+      from var(--beam-angle-${id}),
+      transparent 0%, transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+      white 52%, white 80%,
+      rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+      transparent 95%, transparent 100%
+    ),
+    linear-gradient(white, transparent 28px, transparent calc(100% - 28px), white),
+    linear-gradient(to right, white, transparent 28px, transparent calc(100% - 28px), white);
+  -webkit-mask-composite: source-in, source-over;
+  mask-image:
+    conic-gradient(
+      from var(--beam-angle-${id}),
+      transparent 0%, transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.35) 44%,
+      white 52%, white 80%,
+      rgba(255, 255, 255, 0.35) 86%, rgba(255, 255, 255, 0.1) 92%,
+      transparent 95%, transparent 100%
+    ),
+    linear-gradient(white, transparent 28px, transparent calc(100% - 28px), white),
+    linear-gradient(to right, white, transparent 28px, transparent calc(100% - 28px), white);
+  mask-composite: intersect, add;
+  pointer-events: none;
+  z-index: 1;
+  opacity: calc(var(--beam-opacity-${id}) * ${preset.innerOpacity.toFixed(2)} * var(--beam-strength, 1));
+  clip-path: inset(0 round ${borderRadius}px);
+  animation: beam-hue-shift-${id} 12s ease-in-out infinite;
+}
+
+[data-beam="${id}"] [data-beam-bloom] {
+  display: none;
+  position: absolute;
+  inset: 0;
+  border-radius: ${glowRadius}px;
+  clip-path: inset(0 round ${borderRadius}px);
+  background: ${baseGlowGradient}, ${bloomGradient};
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  padding: ${borderWidth}px;
+  filter: blur(var(--beam-blur-${id}, 8px)) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)});
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+}
+
+[data-beam="${id}"][data-active] [data-beam-bloom],
+[data-beam="${id}"][data-fading] [data-beam-bloom] {
+  display: block;
+  opacity: calc(var(--beam-opacity-${id}) * ${preset.bloomOpacity.toFixed(2)} * var(--beam-strength, 1));
+}
+
+@keyframes beam-hue-shift-${id} {
+  0% { filter: hue-rotate(-${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  50% { filter: hue-rotate(${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  100% { filter: hue-rotate(-${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+}
+
+@keyframes beam-spin-${id} {
+  to { --beam-angle-${id}: 360deg; }
+}
+
+@keyframes beam-fade-in-${id} {
+  to { --beam-opacity-${id}: 1; }
+}
+
+@keyframes beam-fade-out-${id} {
+  from { --beam-opacity-${id}: 1; }
+  to { --beam-opacity-${id}: 0; }
+}
+`;
+  }
+
+  function buildLineInnerGradient(id) {
+    return BORDER_BEAM_LINE_COLORFUL.glow.map((item) => {
+      const offsetX = buildOffsetExpression(item.offsetX);
+      const offsetY = item.offsetY === 0 ? '' : ` - ${Math.abs(item.offsetY)}px`;
+      return `radial-gradient(ellipse calc(${item.sizeW}px * var(--beam-w-${id})) calc(${item.sizeH}px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%${offsetX}) calc(100%${offsetY}), ${item.color}, transparent)`;
+    }).join(',\n    ');
+  }
+
+  function buildLineBloomGradient(theme, id) {
+    const spike = theme === 'dark'
+      ? BORDER_BEAM_LINE_COLORFUL.spikeDark
+      : BORDER_BEAM_LINE_COLORFUL.spikeLight;
+    const palette = theme === 'dark'
+      ? BORDER_BEAM_LINE_COLORFUL.bloomDark
+      : BORDER_BEAM_LINE_COLORFUL.bloomLight;
+    const primaryGlow = theme === 'dark' ? spike.primary : withAlpha(spike.primary, 0.85);
+    const secondaryGlow = theme === 'dark' ? withAlpha(spike.secondary, 0.49) : withAlpha(spike.secondary, 0.7);
+    const finalSpikeWidth = theme === 'dark' ? '0.6px' : '1px';
+    const tailBloom = theme === 'dark'
+      ? 'radial-gradient(ellipse calc(42px * var(--beam-w-${id})) calc(40px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.12) 25%, rgba(255, 255, 255, 0.03) 55%, transparent 80%)'
+      : 'radial-gradient(ellipse calc(50px * var(--beam-w-${id})) calc(32px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) calc(100%), rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.18) 30%, rgba(0, 0, 0, 0.03) 60%, transparent 85%)';
+    return [
+      `radial-gradient(ellipse calc(0.8px * var(--beam-spike-${id})) calc(92px * var(--beam-h-${id})) at 8% calc(100% - 2px), ${spike.primary}, ${primaryGlow} 30%, transparent 88%)`,
+      `radial-gradient(ellipse calc(10px * var(--beam-spike2-${id})) calc(35px * var(--beam-h-${id})) at 22% calc(100% - 4px), ${spike.secondary}, ${secondaryGlow} 50%, transparent 95%)`,
+      `radial-gradient(ellipse calc(2px * (2 - var(--beam-spike-${id}))) calc(72px * var(--beam-h-${id})) at 36% calc(100% - 3px), ${palette[0].color1}, ${palette[0].color2} 40%, transparent 90%)`,
+      `radial-gradient(ellipse calc(14px * var(--beam-spike2-${id})) calc(28px * var(--beam-h-${id})) at 50% calc(100% - 2px), ${palette[1].color1}, ${palette[1].color2} 55%, transparent 96%)`,
+      `radial-gradient(ellipse calc(1.2px * (2 - var(--beam-spike2-${id}))) calc(85px * var(--beam-h-${id})) at 64% calc(100% - 4px), ${palette[2].color1}, ${palette[2].color2} 35%, transparent 89%)`,
+      `radial-gradient(ellipse calc(7px * var(--beam-spike-${id})) calc(45px * var(--beam-h-${id})) at 78% calc(100% - 2px), ${palette[3].color1}, ${palette[3].color2} 48%, transparent 94%)`,
+      `radial-gradient(ellipse calc(${finalSpikeWidth} * (2 - var(--beam-spike-${id}))) calc(60px * var(--beam-h-${id})) at 92% calc(100% - 3px), ${palette[4].color1}, ${palette[4].color2} 42%, transparent 91%)`,
+      `radial-gradient(ellipse calc(21px * var(--beam-spike-${id})) calc(15px * var(--beam-spike2-${id})) at calc(var(--beam-x-${id}) * 100%) calc(100% + 1px), rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 20%, rgba(255, 255, 255, 0.5) 50%, transparent 100%)`,
+      tailBloom.replace(/\$\{id\}/g, id)
+    ].join(',\n       ');
+  }
+
+  function buildBorderBeamLineStyle(config) {
+    const id = config.id;
+    const theme = config.theme === 'dark' ? 'dark' : 'light';
+    const borderRadius = clampNumber(config.borderRadius, 36, 0, 999);
+    const borderWidth = clampNumber(config.borderWidth, 1, 1, 6);
+    const duration = clampNumber(config.duration, 2.4, 0.5, 30);
+    const preset = BORDER_BEAM_LINE_THEME_PRESETS[theme];
+    const strokeOpacity = preset.strokeOpacity;
+    const innerOpacity = preset.innerOpacity;
+    const bloomOpacity = preset.bloomOpacity;
+    const innerShadow = preset.innerShadow;
+    const brightness = clampNumber(config.brightness, 1.3, 0.1, 5);
+    const saturation = clampNumber(config.saturation, preset.saturation, 0.1, 5);
+    const hueRange = clampNumber(config.hueRange, 13, 0, 13);
+    const glowRadius = Math.max(0, borderRadius - borderWidth);
+    const borderGradient = buildLineBorderGradient(theme, id);
+    const innerGradient = buildLineInnerGradient(id);
+    const bloomGradient = buildLineBloomGradient(theme, id);
+    const edgeGradient = theme === 'dark'
+      ? `radial-gradient(
+        ellipse calc(24px * var(--beam-w-${id})) calc(28px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) calc(100% + 2px),
+        rgba(255, 255, 255, 0.38) 0%,
+        rgba(255, 255, 255, 0.12) 30%,
+        transparent 65%
+      )`
+      : `radial-gradient(
+        ellipse calc(35px * var(--beam-w-${id})) calc(28px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) calc(100% + 2px),
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.25) 35%,
+        transparent 70%
+      )`;
+    return `
+@property --beam-x-${id} {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+
+@property --beam-w-${id} {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: true;
+}
+
+@property --beam-h-${id} {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: true;
+}
+
+@property --beam-spike-${id} {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: true;
+}
+
+@property --beam-spike2-${id} {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: true;
+}
+
+@property --beam-edge-${id} {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: true;
+}
+
+@property --beam-opacity-${id} {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+
+[data-beam="${id}"] {
+  position: relative;
+  border-radius: ${borderRadius}px;
+  overflow: hidden;
+}
+
+[data-beam="${id}"][data-active] {
+  animation:
+    beam-travel-${id} ${duration}s linear infinite,
+    beam-edge-fade-${id} ${duration}s linear infinite,
+    beam-breathe-${id} ${(duration * 1.3).toFixed(1)}s ease-in-out infinite,
+    beam-spike-${id} ${(duration * 1.33).toFixed(1)}s ease-in-out infinite,
+    beam-spike2-${id} ${(duration * 1.7).toFixed(1)}s ease-in-out infinite,
+    beam-fade-in-${id} 0.6s ease forwards;
+}
+
+[data-beam="${id}"][data-fading] {
+  animation:
+    beam-travel-${id} ${duration}s linear infinite,
+    beam-edge-fade-${id} ${duration}s linear infinite,
+    beam-breathe-${id} ${(duration * 1.3).toFixed(1)}s ease-in-out infinite,
+    beam-spike-${id} ${(duration * 1.33).toFixed(1)}s ease-in-out infinite,
+    beam-spike2-${id} ${(duration * 1.7).toFixed(1)}s ease-in-out infinite,
+    beam-fade-out-${id} 0.5s ease forwards;
+}
+
+[data-beam="${id}"][data-active]::after,
+[data-beam="${id}"][data-fading]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: ${glowRadius}px;
+  padding: ${borderWidth}px;
+  clip-path: inset(0 round ${borderRadius}px);
+  background: ${edgeGradient}, ${borderGradient};
+  -webkit-mask:
+    radial-gradient(
+      ellipse calc(78px * var(--beam-w-${id})) calc(60px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+      white 0%, rgba(255, 255, 255, 0.5) 45%, transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    radial-gradient(
+      ellipse calc(78px * var(--beam-w-${id})) calc(60px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+      white 0%, rgba(255, 255, 255, 0.5) 45%, transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: intersect, exclude;
+  pointer-events: none;
+  z-index: 2;
+  opacity: calc(var(--beam-opacity-${id}) * var(--beam-edge-${id}) * ${strokeOpacity.toFixed(2)} * var(--beam-strength, 1));
+  animation: beam-hue-shift-${id} 12s ease-in-out infinite;
+}
+
+[data-beam="${id}"][data-active]::before,
+[data-beam="${id}"][data-fading]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: ${borderRadius}px;
+  background: ${innerGradient};
+  box-shadow: inset 0 0 9px 1px ${innerShadow};
+  -webkit-mask-image:
+    radial-gradient(
+      ellipse calc(78px * var(--beam-w-${id})) calc(60px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+      white 0%, rgba(255, 255, 255, 0.5) 45%, transparent 100%
+    ),
+    linear-gradient(white, transparent 28px, transparent calc(100% - 28px), white),
+    linear-gradient(to right, white, transparent 28px, transparent calc(100% - 28px), white);
+  -webkit-mask-composite: source-in, source-over;
+  mask-image:
+    radial-gradient(
+      ellipse calc(78px * var(--beam-w-${id})) calc(60px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+      white 0%, rgba(255, 255, 255, 0.5) 45%, transparent 100%
+    ),
+    linear-gradient(white, transparent 28px, transparent calc(100% - 28px), white),
+    linear-gradient(to right, white, transparent 28px, transparent calc(100% - 28px), white);
+  mask-composite: intersect, add;
+  pointer-events: none;
+  z-index: 1;
+  opacity: calc(var(--beam-opacity-${id}) * var(--beam-edge-${id}) * ${innerOpacity.toFixed(2)} * var(--beam-strength, 1));
+  clip-path: inset(0 round ${borderRadius}px);
+  animation: beam-hue-shift-${id} 12s ease-in-out infinite;
+}
+
+[data-beam="${id}"] [data-beam-bloom] {
+  display: none;
+  position: absolute;
+  inset: 0;
+  border-radius: ${glowRadius}px;
+  clip-path: inset(0 round ${borderRadius}px);
+  padding: 0;
+  -webkit-mask: radial-gradient(
+    ellipse calc(84px * var(--beam-w-${id})) calc(110px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+    white 0%, rgba(255, 255, 255, 0.5) 35%, transparent 100%
+  );
+  -webkit-mask-composite: source-over;
+  mask: radial-gradient(
+    ellipse calc(84px * var(--beam-w-${id})) calc(110px * var(--beam-h-${id})) at calc(var(--beam-x-${id}) * 100%) 100%,
+    white 0%, rgba(255, 255, 255, 0.5) 35%, transparent 100%
+  );
+  mask-composite: add;
+  background: ${bloomGradient};
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+}
+
+[data-beam="${id}"][data-active] [data-beam-bloom],
+[data-beam="${id}"][data-fading] [data-beam-bloom] {
+  display: block;
+  opacity: calc(var(--beam-opacity-${id}) * var(--beam-edge-${id}) * ${bloomOpacity.toFixed(2)} * var(--beam-strength, 1));
+  animation: beam-hue-shift-bloom-${id} 8s ease-in-out infinite;
+}
+
+@keyframes beam-hue-shift-${id} {
+  0% { filter: hue-rotate(-${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  50% { filter: hue-rotate(${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  100% { filter: hue-rotate(-${hueRange}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+}
+
+@keyframes beam-hue-shift-bloom-${id} {
+  0% { filter: blur(8px) hue-rotate(-${hueRange + 10}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  50% { filter: blur(8px) hue-rotate(${hueRange + 10}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+  100% { filter: blur(8px) hue-rotate(-${hueRange + 10}deg) brightness(${brightness.toFixed(2)}) saturate(${saturation.toFixed(2)}); }
+}
+
+@keyframes beam-travel-${id} {
+  0%   { --beam-x-${id}: 0.06;  --beam-w-${id}: 0.5; }
+  10%  { --beam-x-${id}: 0.15;  --beam-w-${id}: 0.8; }
+  20%  { --beam-x-${id}: 0.25;  --beam-w-${id}: 1.1; }
+  30%  { --beam-x-${id}: 0.35;  --beam-w-${id}: 1.3; }
+  40%  { --beam-x-${id}: 0.44;  --beam-w-${id}: 1.45; }
+  50%  { --beam-x-${id}: 0.5;   --beam-w-${id}: 1.5; }
+  60%  { --beam-x-${id}: 0.56;  --beam-w-${id}: 1.45; }
+  70%  { --beam-x-${id}: 0.65;  --beam-w-${id}: 1.3; }
+  80%  { --beam-x-${id}: 0.75;  --beam-w-${id}: 1.1; }
+  90%  { --beam-x-${id}: 0.85;  --beam-w-${id}: 0.8; }
+  100% { --beam-x-${id}: 0.94;  --beam-w-${id}: 0.5; }
+}
+
+@keyframes beam-edge-fade-${id} {
+  0%    { --beam-edge-${id}: 0; }
+  12.5% { --beam-edge-${id}: 0; }
+  32.5% { --beam-edge-${id}: 1; }
+  67.5% { --beam-edge-${id}: 1; }
+  87.5% { --beam-edge-${id}: 0; }
+  100%  { --beam-edge-${id}: 0; }
+}
+
+@keyframes beam-breathe-${id} {
+  0%, 100% { --beam-h-${id}: 0.8; }
+  25%      { --beam-h-${id}: 1.25; }
+  55%      { --beam-h-${id}: 0.85; }
+  80%      { --beam-h-${id}: 1.3; }
+}
+
+@keyframes beam-spike-${id} {
+  0%   { --beam-spike-${id}: 0.8; }
+  25%  { --beam-spike-${id}: 1.3; }
+  50%  { --beam-spike-${id}: 0.9; }
+  75%  { --beam-spike-${id}: 1.4; }
+  100% { --beam-spike-${id}: 0.8; }
+}
+
+@keyframes beam-spike2-${id} {
+  0%   { --beam-spike2-${id}: 1.2; }
+  25%  { --beam-spike2-${id}: 0.7; }
+  50%  { --beam-spike2-${id}: 1.4; }
+  75%  { --beam-spike2-${id}: 0.8; }
+  100% { --beam-spike2-${id}: 1.2; }
+}
+
+@keyframes beam-fade-in-${id} {
+  to { --beam-opacity-${id}: 1; }
+}
+
+@keyframes beam-fade-out-${id} {
+  from { --beam-opacity-${id}: 1; }
+  to { --beam-opacity-${id}: 0; }
+}
+`;
+  }
+
+  window._x_extension_createBorderBeamEffect_2026_unique_ = function(options) {
+    const config = options || {};
+    const target = config.target;
+    if (!target || !target.appendChild) {
+      return null;
+    }
+    const themeTarget = config.themeTarget && typeof config.themeTarget.getAttribute === 'function'
+      ? config.themeTarget
+      : target;
+    const id = `_x_extension_border_beam_${Date.now().toString(36)}_${borderBeamInstanceCounter++}`;
+    const borderWidth = clampNumber(config.borderWidth, 1, 1, 6);
+    const spread = clampNumber(config.spread, 0, 0, 40);
+    const edgeOffset = clampNumber(
+      config.edgeOffset,
+      borderWidth,
+      0,
+      12
+    );
+    const hostInset = spread + edgeOffset;
+    const borderRadius = clampNumber(config.borderRadius, 32, 0, 999);
+    const beamRadius = borderRadius + hostInset;
+    const zIndex = Number.isFinite(Number(config.zIndex)) ? String(config.zIndex) : '3';
+    const style = document.createElement('style');
+    style.id = `${id}_style`;
+    const host = document.createElement('div');
+    applyNoTranslate(host);
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText = `
+      position: absolute !important;
+      inset: -${hostInset}px !important;
+      display: block !important;
+      box-sizing: border-box !important;
+      border-radius: ${beamRadius}px !important;
+      pointer-events: none !important;
+      z-index: ${zIndex} !important;
+      overflow: visible !important;
+    `;
+
+    const beam = document.createElement('div');
+    applyNoTranslate(beam);
+    beam.setAttribute('aria-hidden', 'true');
+    beam.setAttribute('data-beam', id);
+    beam.style.cssText = `
+      position: absolute !important;
+      inset: 0 !important;
+      display: block !important;
+      box-sizing: border-box !important;
+      pointer-events: none !important;
+      --beam-strength: ${clampNumber(config.strength, 1, 0, 1)} !important;
+    `;
+
+    const bloom = document.createElement('div');
+    applyNoTranslate(bloom);
+    bloom.setAttribute('aria-hidden', 'true');
+    bloom.setAttribute('data-beam-bloom', 'true');
+    beam.appendChild(bloom);
+    host.appendChild(beam);
+
+    const previousInlinePosition = target.style.getPropertyValue('position');
+    const previousInlinePositionPriority = target.style.getPropertyPriority('position');
+    const previousInlineOverflow = target.style.getPropertyValue('overflow');
+    const previousInlineOverflowPriority = target.style.getPropertyPriority('overflow');
+    const computedTargetStyle = window.getComputedStyle(target);
+    const updatedPosition = computedTargetStyle.position === 'static';
+    const updatedOverflow = computedTargetStyle.overflow === 'hidden';
+    if (updatedPosition) {
+      target.style.setProperty('position', 'relative', 'important');
+    }
+    if (updatedOverflow) {
+      target.style.setProperty('overflow', 'visible', 'important');
+    }
+
+    function updateTheme(nextTheme) {
+      const resolvedTheme = resolveBorderBeamTheme(nextTheme, target, themeTarget);
+      style.textContent = buildBorderBeamMediumStyle({
+        id: id,
+        theme: resolvedTheme,
+        borderRadius: beamRadius,
+        borderWidth: borderWidth,
+        duration: config.duration,
+        brightness: config.brightness,
+        saturation: config.saturation,
+        hueRange: config.hueRange
+      });
+    }
+
+    function updateAdaptiveSizing() {
+      const rect = host.getBoundingClientRect();
+      const adaptiveScale = computeBorderBeamAdaptiveScale(rect.width, rect.height);
+      beam.style.setProperty(`--beam-scale-x-${id}`, adaptiveScale.scaleX.toFixed(3));
+      beam.style.setProperty(`--beam-scale-y-${id}`, adaptiveScale.scaleY.toFixed(3));
+      beam.style.setProperty(`--beam-blur-${id}`, `${adaptiveScale.blur.toFixed(1)}px`);
+    }
+
+    let fadeTimer = null;
+    let resizeObserver = null;
+    let handleWindowResize = null;
+
+    function setActive(active) {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      if (active) {
+        beam.removeAttribute('data-fading');
+        beam.setAttribute('data-active', '');
+        return;
+      }
+      if (beam.hasAttribute('data-active')) {
+        beam.removeAttribute('data-active');
+        beam.setAttribute('data-fading', '');
+        fadeTimer = window.setTimeout(() => {
+          beam.removeAttribute('data-fading');
+          fadeTimer = null;
+        }, 560);
+        return;
+      }
+      beam.removeAttribute('data-fading');
+    }
+
+    function destroy() {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+      }
+      if (resizeObserver && typeof resizeObserver.disconnect === 'function') {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      if (handleWindowResize) {
+        window.removeEventListener('resize', handleWindowResize);
+        handleWindowResize = null;
+      }
+      if (host.parentNode) {
+        host.parentNode.removeChild(host);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+      if (updatedPosition) {
+        if (previousInlinePosition) {
+          target.style.setProperty('position', previousInlinePosition, previousInlinePositionPriority || '');
+        } else {
+          target.style.removeProperty('position');
+        }
+      }
+      if (updatedOverflow) {
+        if (previousInlineOverflow) {
+          target.style.setProperty('overflow', previousInlineOverflow, previousInlineOverflowPriority || '');
+        } else {
+          target.style.removeProperty('overflow');
+        }
+      }
+    }
+
+    updateTheme(config.theme || 'auto');
+    (document.head || document.documentElement).appendChild(style);
+    target.insertBefore(host, target.firstChild);
+    updateAdaptiveSizing();
+    if (typeof window.ResizeObserver === 'function') {
+      resizeObserver = new window.ResizeObserver(() => {
+        updateAdaptiveSizing();
+      });
+      resizeObserver.observe(target);
+      resizeObserver.observe(host);
+    } else {
+      handleWindowResize = () => {
+        updateAdaptiveSizing();
+      };
+      window.addEventListener('resize', handleWindowResize);
+    }
+    setActive(Boolean(config.active));
+
+    return {
+      host: host,
+      beam: beam,
+      setActive: setActive,
+      setTheme: updateTheme,
+      destroy: destroy
+    };
+  };
 
   window._x_extension_createSearchInput_2024_unique_ = function(options) {
     const config = options || {};

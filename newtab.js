@@ -91,6 +91,7 @@
   let tabRankScoreDebugEnabled = false;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
+  let aiModeDecor = null;
   let wordmarkContainer = null;
   let wordmarkImageEl = null;
   let pageNoticeBanner = null;
@@ -1742,6 +1743,9 @@
     const resolved = resolveTheme(mode, mediaMatchesOverride);
     document.body.setAttribute('data-theme', resolved);
     applyWordmarkThemeAppearance(resolved);
+    if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
+      aiModeDecor.setTheme('auto');
+    }
     const didResolvedThemeChange = previousResolved !== resolved;
     suggestionItems.forEach((item) => {
       if (item && item._xTheme) {
@@ -2311,7 +2315,7 @@
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
     { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-    { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
+    { key: 'gm', aliases: ['gemini'], name: 'Gemini', category: 'ai', inputMode: 'ai', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
     { key: 'so', aliases: ['baidu', 'bd'], name: '百度', template: 'https://www.baidu.com/s?wd={query}' },
     { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
     { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -7796,6 +7800,57 @@
     );
   }
 
+  function normalizeSiteSearchProviderCategory(value) {
+    return String(value || '').trim().toLowerCase() === 'ai' ? 'ai' : 'siteSearch';
+  }
+
+  function getSiteSearchProviderCategory(provider) {
+    if (provider && (provider.category || provider.kind)) {
+      return normalizeSiteSearchProviderCategory(provider.category || provider.kind);
+    }
+    return isInteractiveSiteSearchProvider(provider) ? 'ai' : 'siteSearch';
+  }
+
+  function getSiteSearchProviderInputMode(provider) {
+    const raw = String(provider && provider.inputMode ? provider.inputMode : '').trim().toLowerCase();
+    if (raw) {
+      return raw;
+    }
+    return getSiteSearchProviderCategory(provider) === 'ai' ? 'ai' : 'siteSearch';
+  }
+
+  function normalizeSiteSearchProvider(item) {
+    if (!item || !item.key || !item.template) {
+      return null;
+    }
+    const template = normalizeSiteSearchTemplate(item.template);
+    const normalized = {
+      key: String(item.key).trim(),
+      aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
+      name: item.name || item.key,
+      template: template,
+      action: String(item.action || '').trim(),
+      submitStrategy: String(item.submitStrategy || '').trim(),
+      category: getSiteSearchProviderCategory(item),
+      inputMode: getSiteSearchProviderInputMode(item)
+    };
+    if (!normalized.key || !normalized.template) {
+      return null;
+    }
+    if (!normalized.template.includes('{query}') && !isInteractiveSiteSearchProvider(normalized)) {
+      return null;
+    }
+    return normalized;
+  }
+
+  function shouldLockToProviderOnly(provider, query) {
+    return Boolean(
+      provider &&
+      String(query || '').trim() &&
+      getSiteSearchProviderCategory(provider) === 'ai'
+    );
+  }
+
   function runSiteSearchProviderQuery(provider, query, disposition) {
     const trimmedQuery = String(query || '').trim();
     if (!provider || !trimmedQuery) {
@@ -7892,18 +7947,24 @@
       chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
         const items = response && Array.isArray(response.items) ? response.items : [];
         if (items.length > 0) {
-          siteSearchProvidersCache = items;
-          resolve(items);
+          const normalizedItems = items.map(normalizeSiteSearchProvider).filter(Boolean);
+          siteSearchProvidersCache = normalizedItems;
+          resolve(normalizedItems);
           return;
         }
         Promise.all([localFallback, customFallback, disabledFallback])
           .then(([localItems, customItems, disabledKeys]) => {
-          const baseItems = localItems.length > 0 ? localItems : defaultSiteSearchProviders;
+          const baseItems = (localItems.length > 0 ? localItems : defaultSiteSearchProviders)
+            .map(normalizeSiteSearchProvider)
+            .filter(Boolean);
           const filteredBase = baseItems.filter((item) => {
             const key = String(item && item.key ? item.key : '').toLowerCase();
             return key && !disabledKeys.includes(key);
           });
-          const merged = mergeCustomProvidersLocal(filteredBase, customItems);
+          const merged = mergeCustomProvidersLocal(
+            filteredBase,
+            customItems.map(normalizeSiteSearchProvider).filter(Boolean)
+          );
           siteSearchProvidersCache = merged;
           resolve(merged);
         });
@@ -9077,6 +9138,9 @@
         }
       }
       allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
+      if (shouldLockToProviderOnly(siteSearchState, query)) {
+        allSuggestions = allSuggestions.filter((item) => item && item.type === 'siteSearch').slice(0, 1);
+      }
 
       const onlyKeywordSuggestions = allSuggestions.length > 0 &&
         allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
@@ -10819,7 +10883,6 @@
   const defaultCaretColor = searchInput.style.caretColor || '#7DB7FF';
   let baseInputPaddingLeft = null;
   const prefixGap = 6;
-  let aiModeDecor = null;
 
   const siteSearchPrefix = document.createElement('span');
   siteSearchPrefix.id = '_x_extension_newtab_site_search_prefix_2024_unique_';
@@ -10848,155 +10911,51 @@
     if (aiModeDecor) {
       return aiModeDecor;
     }
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const panel = document.createElement('div');
-    panel.setAttribute('aria-hidden', 'true');
-      panel.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      inset: 0 !important;
-      border-radius: 24px !important;
-      background:
-        radial-gradient(circle at 12% 12%, rgba(56, 189, 248, 0.14), transparent 34%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)) !important;
-      border: 1px solid rgba(125, 211, 252, 0.14) !important;
-      box-sizing: border-box !important;
-      pointer-events: none !important;
-      opacity: 0 !important;
-      transition: opacity 180ms ease !important;
-      z-index: 0 !important;
-    `;
-    const beam = document.createElement('div');
-    beam.setAttribute('aria-hidden', 'true');
-    beam.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      inset: 0 !important;
-      padding: 1px !important;
-      border-radius: 24px !important;
-      box-sizing: border-box !important;
-      background:
-        conic-gradient(
-          from 0deg,
-          transparent 0deg,
-          transparent 300deg,
-          rgba(56, 189, 248, 0.00) 317deg,
-          rgba(56, 189, 248, 0.98) 327deg,
-          rgba(45, 212, 191, 1) 334deg,
-          rgba(251, 191, 36, 0.95) 340deg,
-          rgba(56, 189, 248, 0.00) 348deg,
-          transparent 360deg
-        ) !important;
-      -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0) !important;
-      -webkit-mask-composite: xor !important;
-      mask-composite: exclude !important;
-      opacity: 0 !important;
-      transition: opacity 180ms ease !important;
-      pointer-events: none !important;
-      z-index: 1 !important;
-    `;
-    const beamGlow = document.createElement('div');
-    beamGlow.setAttribute('aria-hidden', 'true');
-    beamGlow.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      inset: -8px !important;
-      padding: 8px !important;
-      border-radius: 30px !important;
-      box-sizing: border-box !important;
-      background:
-        conic-gradient(
-          from 0deg,
-          transparent 0deg,
-          transparent 294deg,
-          rgba(56, 189, 248, 0.00) 310deg,
-          rgba(56, 189, 248, 0.38) 322deg,
-          rgba(45, 212, 191, 0.52) 332deg,
-          rgba(251, 191, 36, 0.34) 340deg,
-          rgba(56, 189, 248, 0.00) 352deg,
-          transparent 360deg
-        ) !important;
-      -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0) !important;
-      -webkit-mask-composite: xor !important;
-      mask-composite: exclude !important;
-      filter: blur(10px) saturate(140%) !important;
-      opacity: 0 !important;
-      transition: opacity 180ms ease !important;
-      pointer-events: none !important;
-      z-index: 0 !important;
-    `;
-    searchLayer.insertBefore(panel, searchLayer.firstChild);
-    searchLayer.insertBefore(beamGlow, searchLayer.firstChild);
-    searchLayer.insertBefore(beam, searchLayer.firstChild);
-    let beamAnimation = null;
-    let beamGlowAnimation = null;
-    if (!reduceMotion && typeof beam.animate === 'function') {
-      beamAnimation = beam.animate(
-        [
-          { transform: 'rotate(0deg)' },
-          { transform: 'rotate(360deg)' }
-        ],
-        {
-          duration: 1800,
-          iterations: Infinity,
-          easing: 'linear'
-        }
-      );
-      beamAnimation.pause();
-      beamGlowAnimation = beamGlow.animate(
-        [
-          { transform: 'rotate(0deg) scale(1)' },
-          { transform: 'rotate(360deg) scale(1)' }
-        ],
-        {
-          duration: 1800,
-          iterations: Infinity,
-          easing: 'linear'
-        }
-      );
-      beamGlowAnimation.pause();
+    if (typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function') {
+      return null;
     }
-    aiModeDecor = {
-      panel: panel,
-      beamGlow: beamGlow,
-      beam: beam,
-      beamAnimation: beamAnimation,
-      beamGlowAnimation: beamGlowAnimation
-    };
+    aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
+      target: root,
+      themeTarget: document.body || root,
+      borderRadius: 28,
+      borderWidth: 1,
+      spread: 0,
+      duration: 2.4,
+      hueRange: 13,
+      strength: 0.82,
+      theme: 'auto',
+      active: false
+    });
     return aiModeDecor;
   }
 
   function setAiModeDecorActive(active) {
     const decor = ensureAiModeDecor();
-    const isActive = Boolean(active);
-    decor.panel.style.setProperty('opacity', isActive ? '1' : '0', 'important');
-    decor.beamGlow.style.setProperty('opacity', isActive ? '0.95' : '0', 'important');
-    decor.beam.style.setProperty('opacity', isActive ? '1' : '0', 'important');
-    searchLayer.style.setProperty(
-      'box-shadow',
-      isActive
-        ? '0 24px 68px rgba(16, 185, 129, 0.16), 0 10px 30px rgba(56, 189, 248, 0.14), var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))'
-        : 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))',
-      'important'
-    );
-    if (decor.beamAnimation) {
-      if (isActive) {
-        decor.beamAnimation.play();
-      } else {
-        decor.beamAnimation.pause();
-      }
+    if (!decor) {
+      return;
     }
-    if (decor.beamGlowAnimation) {
-      if (isActive) {
-        decor.beamGlowAnimation.play();
-      } else {
-        decor.beamGlowAnimation.pause();
+    decor.setTheme('auto');
+    decor.setActive(Boolean(active));
+  }
+
+  function setSiteSearchInputModeState(provider) {
+    const category = provider ? getSiteSearchProviderCategory(provider) : '';
+    const inputMode = provider ? getSiteSearchProviderInputMode(provider) : '';
+    [root, inputContainer, searchInput, siteSearchPrefix].forEach((element) => {
+      if (!element || !element.dataset) {
+        return;
       }
-    }
+      if (category) {
+        element.dataset.providerCategory = category;
+      } else {
+        delete element.dataset.providerCategory;
+      }
+      if (inputMode) {
+        element.dataset.inputMode = inputMode;
+      } else {
+        delete element.dataset.inputMode;
+      }
+    });
   }
 
   function getBaseInputPaddingLeft() {
@@ -11033,7 +10992,8 @@
     if (resolvedTheme && resolvedTheme.placeholderText) {
       searchInput.style.setProperty('caret-color', resolvedTheme.placeholderText, 'important');
     }
-    setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
+    setSiteSearchInputModeState(provider);
+    setAiModeDecorActive(getSiteSearchProviderCategory(provider) === 'ai');
     updateSiteSearchPrefixLayout();
   }
 
@@ -11042,6 +11002,7 @@
     siteSearchPrefix.style.setProperty('display', 'none', 'important');
     searchInput.placeholder = defaultPlaceholder;
     searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
+    setSiteSearchInputModeState(null);
     setAiModeDecorActive(false);
     updateSiteSearchPrefixLayout();
   }
@@ -11152,7 +11113,10 @@
         const key = String(item && item.key ? item.key : '').toLowerCase();
         return key && !disabledKeys.includes(key);
       });
-      siteSearchProvidersCache = mergeCustomProvidersLocal(baseItems, customItems);
+      siteSearchProvidersCache = mergeCustomProvidersLocal(
+        baseItems.map(normalizeSiteSearchProvider).filter(Boolean),
+        customItems.map(normalizeSiteSearchProvider).filter(Boolean)
+      );
       if (latestQuery) {
         requestSuggestions(latestQuery, { immediate: true });
       }

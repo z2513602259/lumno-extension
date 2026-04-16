@@ -12,7 +12,7 @@
     "message": "外观"
   },
   "settings_tab_shortcuts": {
-    "message": "站内搜索"
+    "message": "搜索快捷"
   },
   "settings_tab_blacklist": {
     "message": "黑名单"
@@ -392,6 +392,12 @@
   "shortcuts_group_custom": {
     "message": "自定义"
   },
+  "shortcuts_group_site_search": {
+    "message": "站内搜索"
+  },
+  "shortcuts_group_ai": {
+    "message": "AI"
+  },
   "blacklist_section_title": {
     "message": "搜索与最近访问黑名单"
   },
@@ -500,6 +506,9 @@
   "shortcuts_badge_builtin": {
     "message": "内置"
   },
+  "shortcuts_badge_ai": {
+    "message": "AI"
+  },
   "shortcuts_label_key": {
     "message": "触发词"
   },
@@ -542,8 +551,14 @@
   "shortcuts_empty_custom": {
     "message": "暂未添加自定义站内搜索"
   },
+  "shortcuts_empty_custom_ai": {
+    "message": "暂未添加自定义 AI"
+  },
   "shortcuts_empty_builtin": {
     "message": "暂无内置站内搜索"
+  },
+  "shortcuts_empty_builtin_ai": {
+    "message": "暂无内置 AI"
   },
   "toast_saved": {
     "message": "已保存"

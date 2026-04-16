@@ -4662,7 +4662,9 @@ function sanitizeSiteSearchProviders(items) {
         name: item.name || item.key,
         template: template,
         action: String(item.action || '').trim(),
-        submitStrategy: String(item.submitStrategy || '').trim()
+        submitStrategy: String(item.submitStrategy || '').trim(),
+        category: getSiteSearchProviderCategory(item),
+        inputMode: getSiteSearchProviderInputMode(item)
       };
     })
     .filter((item) => {
@@ -4764,6 +4766,33 @@ function isInteractiveSiteSearchProvider(provider) {
     provider &&
     provider.action === 'openAndSubmit' &&
     provider.submitStrategy === 'geminiPrompt'
+  );
+}
+
+function normalizeSiteSearchProviderCategory(value) {
+  return String(value || '').trim().toLowerCase() === 'ai' ? 'ai' : 'siteSearch';
+}
+
+function getSiteSearchProviderCategory(provider) {
+  if (provider && (provider.category || provider.kind)) {
+    return normalizeSiteSearchProviderCategory(provider.category || provider.kind);
+  }
+  return isInteractiveSiteSearchProvider(provider) ? 'ai' : 'siteSearch';
+}
+
+function getSiteSearchProviderInputMode(provider) {
+  const raw = String(provider && provider.inputMode ? provider.inputMode : '').trim().toLowerCase();
+  if (raw) {
+    return raw;
+  }
+  return getSiteSearchProviderCategory(provider) === 'ai' ? 'ai' : 'siteSearch';
+}
+
+function shouldLockToProviderOnly(provider, query) {
+  return Boolean(
+    provider &&
+    String(query || '').trim() &&
+    getSiteSearchProviderCategory(provider) === 'ai'
   );
 }
 
@@ -7939,11 +7968,17 @@ async function getSearchSuggestions(query) {
     applyOverlaySizeForPageZoom(overlayElement);
   }
 
+  let aiModeDecor = null;
+
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
     clearOverlayEnterAnimationFrames();
     stopOverlayViewportSizeSync();
     stopOverlayAntiTranslateObserver();
+    if (aiModeDecor && typeof aiModeDecor.destroy === 'function') {
+      aiModeDecor.destroy();
+      aiModeDecor = null;
+    }
     if (overlayElement) {
       overlayElement.remove();
     }
@@ -8080,6 +8115,9 @@ async function getSearchSuggestions(query) {
       const previousResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
       applyOverlayThemeVariables(overlay, mode);
       const nextResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
+      if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
+        aiModeDecor.setTheme('auto');
+      }
       suggestionItems.forEach((item) => {
         if (item && item._xTheme) {
           applyThemeVariables(item, item._xTheme);
@@ -8727,7 +8765,7 @@ async function getSearchSuggestions(query) {
       { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
       { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
       { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-      { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
+      { key: 'gm', aliases: ['gemini'], name: 'Gemini', category: 'ai', inputMode: 'ai', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
       { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
       { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
       { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -8750,7 +8788,6 @@ async function getSearchSuggestions(query) {
     const defaultCaretColor = searchInput.style.caretColor || '#7DB7FF';
     let baseInputPaddingLeft = null;
     const prefixGap = 6;
-    let aiModeDecor = null;
 
     function mixColor(color, target, amount) {
       return [
@@ -10632,99 +10669,51 @@ async function getSearchSuggestions(query) {
       if (aiModeDecor) {
         return aiModeDecor;
       }
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const panel = document.createElement('div');
-      panel.setAttribute('aria-hidden', 'true');
-      panel.style.cssText = `
-        all: unset !important;
-        position: absolute !important;
-        inset: 0 !important;
-        border-radius: 28px !important;
-        background:
-          radial-gradient(circle at 12% 14%, rgba(56, 189, 248, 0.15), transparent 34%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)) !important;
-        border: 1px solid rgba(125, 211, 252, 0.16) !important;
-        box-sizing: border-box !important;
-        pointer-events: none !important;
-        opacity: 0 !important;
-        transition: opacity 180ms ease !important;
-        z-index: 0 !important;
-      `;
-      const beam = document.createElement('div');
-      beam.setAttribute('aria-hidden', 'true');
-      beam.style.cssText = `
-        all: unset !important;
-        position: absolute !important;
-        inset: 0 !important;
-        padding: 1px !important;
-        border-radius: 28px !important;
-        box-sizing: border-box !important;
-        background:
-          conic-gradient(
-            from 0deg,
-            transparent 0deg,
-            transparent 238deg,
-            rgba(56, 189, 248, 0.00) 256deg,
-            rgba(56, 189, 248, 0.92) 285deg,
-            rgba(45, 212, 191, 0.96) 308deg,
-            rgba(251, 191, 36, 0.88) 328deg,
-            rgba(56, 189, 248, 0.00) 350deg,
-            transparent 360deg
-          ) !important;
-        -webkit-mask:
-          linear-gradient(#000 0 0) content-box,
-          linear-gradient(#000 0 0) !important;
-        -webkit-mask-composite: xor !important;
-        mask-composite: exclude !important;
-        opacity: 0 !important;
-        transition: opacity 180ms ease !important;
-        pointer-events: none !important;
-        z-index: 1 !important;
-      `;
-      overlay.insertBefore(panel, overlay.firstChild);
-      overlay.insertBefore(beam, overlay.firstChild);
-      let beamAnimation = null;
-      if (!reduceMotion && typeof beam.animate === 'function') {
-        beamAnimation = beam.animate(
-          [
-            { transform: 'rotate(0deg)' },
-            { transform: 'rotate(360deg)' }
-          ],
-          {
-            duration: 3200,
-            iterations: Infinity,
-            easing: 'linear'
-          }
-        );
-        beamAnimation.pause();
+      if (typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function') {
+        return null;
       }
-      aiModeDecor = {
-        panel: panel,
-        beam: beam,
-        beamAnimation: beamAnimation
-      };
+      aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
+        target: overlay,
+        themeTarget: overlay,
+        borderRadius: 28,
+        borderWidth: 1,
+        spread: 0,
+        duration: 2.4,
+        hueRange: 13,
+        strength: 0.82,
+        theme: 'auto',
+        active: false
+      });
       return aiModeDecor;
     }
 
     function setAiModeDecorActive(active) {
       const decor = ensureAiModeDecor();
-      const isActive = Boolean(active);
-      decor.panel.style.setProperty('opacity', isActive ? '1' : '0', 'important');
-      decor.beam.style.setProperty('opacity', isActive ? '1' : '0', 'important');
-      overlay.style.setProperty(
-        'box-shadow',
-        isActive
-          ? '0 24px 88px rgba(16, 185, 129, 0.18), 0 10px 36px rgba(56, 189, 248, 0.16), var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15))'
-          : 'var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15))',
-        'important'
-      );
-      if (decor.beamAnimation) {
-        if (isActive) {
-          decor.beamAnimation.play();
-        } else {
-          decor.beamAnimation.pause();
-        }
+      if (!decor) {
+        return;
       }
+      decor.setTheme('auto');
+      decor.setActive(Boolean(active));
+    }
+
+    function setSiteSearchInputModeState(provider) {
+      const category = provider ? getSiteSearchProviderCategory(provider) : '';
+      const inputMode = provider ? getSiteSearchProviderInputMode(provider) : '';
+      [overlay, inputContainer, searchInput, siteSearchPrefix].forEach((element) => {
+        if (!element || !element.dataset) {
+          return;
+        }
+        if (category) {
+          element.dataset.providerCategory = category;
+        } else {
+          delete element.dataset.providerCategory;
+        }
+        if (inputMode) {
+          element.dataset.inputMode = inputMode;
+        } else {
+          delete element.dataset.inputMode;
+        }
+      });
     }
 
     function getBaseInputPaddingLeft() {
@@ -10766,6 +10755,7 @@ async function getSearchSuggestions(query) {
       siteSearchPrefix.style.setProperty('display', 'none', 'important');
       searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
       searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
+      setSiteSearchInputModeState(null);
       setAiModeDecorActive(false);
       updateSiteSearchPrefixLayout();
     }
@@ -10775,7 +10765,8 @@ async function getSearchSuggestions(query) {
         site: getSiteSearchDisplayName(provider)
       });
       setInputModePrefix(prefixText, theme);
-      setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
+      setSiteSearchInputModeState(provider);
+      setAiModeDecorActive(getSiteSearchProviderCategory(provider) === 'ai');
     }
 
     function setOpenTabsSearchPrefix(theme) {
@@ -11330,18 +11321,18 @@ async function getSearchSuggestions(query) {
         chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
           const items = response && Array.isArray(response.items) ? response.items : [];
           if (items.length > 0) {
-            siteSearchProvidersCache = items;
-            resolve(items);
+            siteSearchProvidersCache = sanitizeSiteSearchProviders(items);
+            resolve(siteSearchProvidersCache);
             return;
           }
           Promise.all([localFallback, customFallback, disabledFallback])
             .then(([localItems, customItems, disabledKeys]) => {
-            const baseItems = localItems.length > 0 ? localItems : defaultSiteSearchProviders;
+            const baseItems = sanitizeSiteSearchProviders(localItems.length > 0 ? localItems : defaultSiteSearchProviders);
             const filteredBase = baseItems.filter((item) => {
               const key = String(item && item.key ? item.key : '').toLowerCase();
               return key && !disabledKeys.includes(key);
             });
-            const merged = mergeCustomProvidersLocal(filteredBase, customItems);
+            const merged = mergeCustomProvidersLocal(filteredBase, sanitizeSiteSearchProviders(customItems));
             siteSearchProvidersCache = merged;
             resolve(merged);
           });
@@ -11368,7 +11359,10 @@ async function getSearchSuggestions(query) {
           const key = String(item && item.key ? item.key : '').toLowerCase();
           return key && !disabledKeys.includes(key);
         });
-        siteSearchProvidersCache = mergeCustomProvidersLocal(baseItems, customItems);
+        siteSearchProvidersCache = mergeCustomProvidersLocal(
+          sanitizeSiteSearchProviders(baseItems),
+          sanitizeSiteSearchProviders(customItems)
+        );
         if (latestOverlayQuery) {
           chrome.runtime.sendMessage({
             action: 'getSearchSuggestions',
@@ -13583,6 +13577,9 @@ async function getSearchSuggestions(query) {
           }
         }
         allSuggestions = filterOverlayBlacklistedSuggestions(allSuggestions, query);
+        if (shouldLockToProviderOnly(siteSearchState, query)) {
+          allSuggestions = allSuggestions.filter((item) => item && item.type === 'siteSearch').slice(0, 1);
+        }
         const onlyKeywordSuggestions = allSuggestions.length > 0 &&
           allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
 
