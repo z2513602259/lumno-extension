@@ -2311,6 +2311,7 @@
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
     { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
+    { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
     { key: 'so', aliases: ['baidu', 'bd'], name: '百度', template: 'https://www.baidu.com/s?wd={query}' },
     { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
     { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -7787,6 +7788,36 @@
     return template.replace(/\{query\}/g, encodeURIComponent(query));
   }
 
+  function isInteractiveSiteSearchProvider(provider) {
+    return Boolean(
+      provider &&
+      provider.action === 'openAndSubmit' &&
+      provider.submitStrategy === 'geminiPrompt'
+    );
+  }
+
+  function runSiteSearchProviderQuery(provider, query, disposition) {
+    const trimmedQuery = String(query || '').trim();
+    if (!provider || !trimmedQuery) {
+      return false;
+    }
+    if (isInteractiveSiteSearchProvider(provider)) {
+      chrome.runtime.sendMessage({
+        action: 'runSiteSearchProviderQuery',
+        provider: provider,
+        query: trimmedQuery,
+        disposition: disposition || 'currentTab'
+      });
+      return true;
+    }
+    const siteUrl = buildSearchUrl(provider.template, trimmedQuery);
+    if (!siteUrl) {
+      return false;
+    }
+    navigateToUrl(siteUrl);
+    return true;
+  }
+
   function getProviderIcon(provider) {
     if (provider && provider.icon) {
       return provider.icon;
@@ -9007,7 +9038,8 @@
             }),
             url: inlineUrl,
             favicon: getProviderIcon(inlineCandidate.provider),
-            provider: inlineCandidate.provider
+            provider: inlineCandidate.provider,
+            searchQuery: inlineCandidate.query
           };
         }
       }
@@ -9039,7 +9071,8 @@
             }),
             url: siteUrl,
             favicon: getProviderIcon(siteSearchState),
-            provider: siteSearchState
+            provider: siteSearchState,
+            searchQuery: query
           });
         }
       }
@@ -9130,7 +9163,13 @@
         applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason);
         const inlineAutoHighlight = Boolean(inlineSuggestion && primaryHighlightIndex === 0);
         inlineSearchState = inlineSuggestion
-          ? { url: inlineSuggestion.url, rawInput: rawTagInput, isAuto: inlineAutoHighlight }
+          ? {
+            url: inlineSuggestion.url,
+            rawInput: rawTagInput,
+            isAuto: inlineAutoHighlight,
+            provider: inlineSuggestion.provider || null,
+            query: inlineSuggestion.searchQuery || ''
+          }
           : null;
         const resolvedProvider = mergedProvider || siteSearchTrigger;
         siteSearchTriggerState = resolvedProvider
@@ -9813,6 +9852,10 @@
             inputParts.input.focus();
             return;
           }
+          if (suggestion.provider && suggestion.searchQuery) {
+            runSiteSearchProviderQuery(suggestion.provider, suggestion.searchQuery, 'currentTab');
+            return;
+          }
           if (suggestion.forceSearch && suggestion.searchQuery) {
             navigateToQuery(suggestion.searchQuery, true);
             return;
@@ -10237,6 +10280,9 @@
           inputParts.input.focus();
           return true;
         }
+        if (selectedSuggestion.provider && selectedSuggestion.searchQuery) {
+          return runSiteSearchProviderQuery(selectedSuggestion.provider, selectedSuggestion.searchQuery, 'currentTab');
+        }
         if (selectedSuggestion.forceSearch && selectedSuggestion.searchQuery) {
           navigateToQuery(selectedSuggestion.searchQuery, true);
           return true;
@@ -10260,17 +10306,22 @@
         }
       }
       if (siteSearchState) {
-        const siteUrl = buildSearchUrl(siteSearchState.template, query);
-        if (siteUrl) {
-          navigateToUrl(siteUrl);
+        if (runSiteSearchProviderQuery(siteSearchState, query, 'currentTab')) {
           return;
         }
       }
       const currentRawInput = (latestRawQuery || inputParts.input.value || '').trim();
       if (inlineSearchState && inlineSearchState.isAuto &&
-          inlineSearchState.url && inlineSearchState.rawInput === currentRawInput) {
-        navigateToUrl(inlineSearchState.url);
-        return;
+          inlineSearchState.rawInput === currentRawInput) {
+        if (inlineSearchState.provider && inlineSearchState.query) {
+          if (runSiteSearchProviderQuery(inlineSearchState.provider, inlineSearchState.query, 'currentTab')) {
+            return;
+          }
+        }
+        if (inlineSearchState.url) {
+          navigateToUrl(inlineSearchState.url);
+          return;
+        }
       }
       if (autocompleteState && autocompleteState.url) {
         navigateToUrl(autocompleteState.url);
@@ -10768,6 +10819,7 @@
   const defaultCaretColor = searchInput.style.caretColor || '#7DB7FF';
   let baseInputPaddingLeft = null;
   const prefixGap = 6;
+  let aiModeDecor = null;
 
   const siteSearchPrefix = document.createElement('span');
   siteSearchPrefix.id = '_x_extension_newtab_site_search_prefix_2024_unique_';
@@ -10787,6 +10839,165 @@
     z-index: 1 !important;
   `;
   inputContainer.appendChild(siteSearchPrefix);
+  inputContainer.style.setProperty('position', 'relative', 'important');
+  inputContainer.style.setProperty('z-index', '2', 'important');
+  suggestionsContainer.style.setProperty('position', 'relative', 'important');
+  suggestionsContainer.style.setProperty('z-index', '2', 'important');
+
+  function ensureAiModeDecor() {
+    if (aiModeDecor) {
+      return aiModeDecor;
+    }
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const panel = document.createElement('div');
+    panel.setAttribute('aria-hidden', 'true');
+      panel.style.cssText = `
+      all: unset !important;
+      position: absolute !important;
+      inset: 0 !important;
+      border-radius: 24px !important;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(56, 189, 248, 0.14), transparent 34%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)) !important;
+      border: 1px solid rgba(125, 211, 252, 0.14) !important;
+      box-sizing: border-box !important;
+      pointer-events: none !important;
+      opacity: 0 !important;
+      transition: opacity 180ms ease !important;
+      z-index: 0 !important;
+    `;
+    const beam = document.createElement('div');
+    beam.setAttribute('aria-hidden', 'true');
+    beam.style.cssText = `
+      all: unset !important;
+      position: absolute !important;
+      inset: 0 !important;
+      padding: 1px !important;
+      border-radius: 24px !important;
+      box-sizing: border-box !important;
+      background:
+        conic-gradient(
+          from 0deg,
+          transparent 0deg,
+          transparent 300deg,
+          rgba(56, 189, 248, 0.00) 317deg,
+          rgba(56, 189, 248, 0.98) 327deg,
+          rgba(45, 212, 191, 1) 334deg,
+          rgba(251, 191, 36, 0.95) 340deg,
+          rgba(56, 189, 248, 0.00) 348deg,
+          transparent 360deg
+        ) !important;
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0) !important;
+      -webkit-mask-composite: xor !important;
+      mask-composite: exclude !important;
+      opacity: 0 !important;
+      transition: opacity 180ms ease !important;
+      pointer-events: none !important;
+      z-index: 1 !important;
+    `;
+    const beamGlow = document.createElement('div');
+    beamGlow.setAttribute('aria-hidden', 'true');
+    beamGlow.style.cssText = `
+      all: unset !important;
+      position: absolute !important;
+      inset: -8px !important;
+      padding: 8px !important;
+      border-radius: 30px !important;
+      box-sizing: border-box !important;
+      background:
+        conic-gradient(
+          from 0deg,
+          transparent 0deg,
+          transparent 294deg,
+          rgba(56, 189, 248, 0.00) 310deg,
+          rgba(56, 189, 248, 0.38) 322deg,
+          rgba(45, 212, 191, 0.52) 332deg,
+          rgba(251, 191, 36, 0.34) 340deg,
+          rgba(56, 189, 248, 0.00) 352deg,
+          transparent 360deg
+        ) !important;
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0) !important;
+      -webkit-mask-composite: xor !important;
+      mask-composite: exclude !important;
+      filter: blur(10px) saturate(140%) !important;
+      opacity: 0 !important;
+      transition: opacity 180ms ease !important;
+      pointer-events: none !important;
+      z-index: 0 !important;
+    `;
+    searchLayer.insertBefore(panel, searchLayer.firstChild);
+    searchLayer.insertBefore(beamGlow, searchLayer.firstChild);
+    searchLayer.insertBefore(beam, searchLayer.firstChild);
+    let beamAnimation = null;
+    let beamGlowAnimation = null;
+    if (!reduceMotion && typeof beam.animate === 'function') {
+      beamAnimation = beam.animate(
+        [
+          { transform: 'rotate(0deg)' },
+          { transform: 'rotate(360deg)' }
+        ],
+        {
+          duration: 1800,
+          iterations: Infinity,
+          easing: 'linear'
+        }
+      );
+      beamAnimation.pause();
+      beamGlowAnimation = beamGlow.animate(
+        [
+          { transform: 'rotate(0deg) scale(1)' },
+          { transform: 'rotate(360deg) scale(1)' }
+        ],
+        {
+          duration: 1800,
+          iterations: Infinity,
+          easing: 'linear'
+        }
+      );
+      beamGlowAnimation.pause();
+    }
+    aiModeDecor = {
+      panel: panel,
+      beamGlow: beamGlow,
+      beam: beam,
+      beamAnimation: beamAnimation,
+      beamGlowAnimation: beamGlowAnimation
+    };
+    return aiModeDecor;
+  }
+
+  function setAiModeDecorActive(active) {
+    const decor = ensureAiModeDecor();
+    const isActive = Boolean(active);
+    decor.panel.style.setProperty('opacity', isActive ? '1' : '0', 'important');
+    decor.beamGlow.style.setProperty('opacity', isActive ? '0.95' : '0', 'important');
+    decor.beam.style.setProperty('opacity', isActive ? '1' : '0', 'important');
+    searchLayer.style.setProperty(
+      'box-shadow',
+      isActive
+        ? '0 24px 68px rgba(16, 185, 129, 0.16), 0 10px 30px rgba(56, 189, 248, 0.14), var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))'
+        : 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))',
+      'important'
+    );
+    if (decor.beamAnimation) {
+      if (isActive) {
+        decor.beamAnimation.play();
+      } else {
+        decor.beamAnimation.pause();
+      }
+    }
+    if (decor.beamGlowAnimation) {
+      if (isActive) {
+        decor.beamGlowAnimation.play();
+      } else {
+        decor.beamGlowAnimation.pause();
+      }
+    }
+  }
 
   function getBaseInputPaddingLeft() {
     if (baseInputPaddingLeft === null) {
@@ -10822,6 +11033,7 @@
     if (resolvedTheme && resolvedTheme.placeholderText) {
       searchInput.style.setProperty('caret-color', resolvedTheme.placeholderText, 'important');
     }
+    setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
     updateSiteSearchPrefixLayout();
   }
 
@@ -10830,6 +11042,7 @@
     siteSearchPrefix.style.setProperty('display', 'none', 'important');
     searchInput.placeholder = defaultPlaceholder;
     searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
+    setAiModeDecorActive(false);
     updateSiteSearchPrefixLayout();
   }
 

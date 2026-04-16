@@ -20,6 +20,14 @@
       "template": "https://github.com/search?q={query}"
     },
     {
+      "key": "gm",
+      "aliases": ["gemini"],
+      "name": "Gemini",
+      "template": "https://gemini.google.com/app",
+      "action": "openAndSubmit",
+      "submitStrategy": "geminiPrompt"
+    },
+    {
       "key": "so",
       "aliases": ["baidu", "bd"],
       "name": "Baidu",

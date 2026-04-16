@@ -2105,6 +2105,271 @@ if (chrome && chrome.tabs && chrome.tabs.onMoved) {
   });
 }
 
+function waitForTabComplete(tabId, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timeoutId = null;
+    const finish = (tab, error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      chrome.tabs.onUpdated.removeListener(handleUpdated);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(tab || null);
+    };
+    const handleUpdated = (updatedTabId, changeInfo, tab) => {
+      if (updatedTabId !== tabId) {
+        return;
+      }
+      if (changeInfo && changeInfo.status === 'complete') {
+        finish(tab || null);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(handleUpdated);
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        finish(null, new Error(chrome.runtime.lastError.message || 'tab-unavailable'));
+        return;
+      }
+      if (tab && tab.status === 'complete') {
+        finish(tab);
+      }
+    });
+    timeoutId = setTimeout(() => {
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          finish(null, new Error(chrome.runtime.lastError.message || 'tab-unavailable'));
+          return;
+        }
+        finish(tab || null);
+      });
+    }, Math.max(1000, Number(timeoutMs) || 15000));
+  });
+}
+
+function submitGeminiPromptInTab(tabId, prompt) {
+  return new Promise((resolve) => {
+    chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: async (rawPrompt) => {
+        const promptText = String(rawPrompt || '').trim();
+        if (!promptText) {
+          return { ok: false, reason: 'empty-prompt' };
+        }
+        const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+        const isVisible = (element) => {
+          if (!element) {
+            return false;
+          }
+          const style = window.getComputedStyle(element);
+          if (style.display === 'none' || style.visibility === 'hidden') {
+            return false;
+          }
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+        const isActionableButton = (element) => {
+          if (!isVisible(element) || element.disabled) {
+            return false;
+          }
+          const style = window.getComputedStyle(element);
+          const ariaDisabled = String(element.getAttribute('aria-disabled') || '').toLowerCase();
+          return (
+            ariaDisabled !== 'true' &&
+            style.pointerEvents !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            style.opacity !== '0'
+          );
+        };
+        const editorSelectors = [
+          '.ql-editor[contenteditable="true"][role="textbox"]',
+          '[contenteditable="true"][role="textbox"][aria-label*="Gemini"]',
+          '[contenteditable="true"][role="textbox"][aria-label*="gemini"]',
+          '[contenteditable="true"][data-placeholder*="Gemini"]',
+          '[contenteditable="true"][data-placeholder*="gemini"]',
+          'rich-textarea .ql-editor[contenteditable="true"]',
+          'textarea[aria-label*="Gemini"]',
+          'textarea[aria-label*="gemini"]',
+          'div[role="textbox"][contenteditable="true"]',
+          'textarea'
+        ];
+        const sendButtonSelectors = [
+          'button[aria-label="发送"]',
+          'button[aria-label="Send"]',
+          'button[aria-label*="发送"]',
+          'button[aria-label*="提交"]',
+          'button[aria-label*="Send"]',
+          'button[aria-label*="send" i]',
+          'button[aria-label*="submit" i]'
+        ];
+        const escapeHtml = (value) => value
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        const dispatchInput = (element) => {
+          element.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: promptText,
+            inputType: 'insertText'
+          }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const findEditor = () => {
+          for (const selector of editorSelectors) {
+            const editor = Array.from(document.querySelectorAll(selector)).find(isVisible);
+            if (editor) {
+              return editor;
+            }
+          }
+          return null;
+        };
+        const findSendButton = () => {
+          for (const selector of sendButtonSelectors) {
+            const button = Array.from(document.querySelectorAll(selector))
+              .find((item) => isVisible(item));
+            if (button) {
+              return button;
+            }
+          }
+          return null;
+        };
+        const setPrompt = (editor) => {
+          editor.focus();
+          if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
+            editor.value = promptText;
+            dispatchInput(editor);
+            return editor.value === promptText;
+          }
+          const selection = window.getSelection();
+          if (selection) {
+            const range = document.createRange();
+            range.selectNodeContents(editor);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          if (typeof document.execCommand === 'function') {
+            document.execCommand('insertText', false, promptText);
+          }
+          const currentText = String(editor.innerText || editor.textContent || '').trim();
+          if (currentText !== promptText) {
+            editor.innerHTML = `<p>${escapeHtml(promptText)}</p>`;
+          }
+          dispatchInput(editor);
+          return String(editor.innerText || editor.textContent || '').trim() === promptText;
+        };
+        const pressEnter = (editor) => {
+          ['keydown', 'keypress', 'keyup'].forEach((type) => {
+            editor.dispatchEvent(new KeyboardEvent(type, {
+              key: 'Enter',
+              code: 'Enter',
+              bubbles: true,
+              cancelable: true
+            }));
+          });
+        };
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const editor = findEditor();
+          if (!editor) {
+            await sleep(400);
+            continue;
+          }
+          const populated = setPrompt(editor);
+          if (!populated) {
+            await sleep(250);
+            continue;
+          }
+          for (let sendAttempt = 0; sendAttempt < 24; sendAttempt += 1) {
+            const sendButton = findSendButton();
+            if (sendButton && isActionableButton(sendButton)) {
+              sendButton.click();
+              return { ok: true, method: 'button' };
+            }
+            await sleep(sendAttempt < 4 ? 150 : 250);
+          }
+          pressEnter(editor);
+          return { ok: true, method: 'enter' };
+        }
+        return { ok: false, reason: 'editor-not-found' };
+      },
+      args: [prompt]
+    }, (results) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve({ ok: false, reason: chrome.runtime.lastError.message || 'execute-script-failed' });
+        return;
+      }
+      const result = Array.isArray(results) && results[0] ? results[0].result : null;
+      resolve(result && typeof result === 'object' ? result : { ok: false, reason: 'empty-script-result' });
+    });
+  });
+}
+
+function runInteractiveSiteSearchProvider(provider, query, sender, disposition) {
+  const prompt = String(query || '').trim();
+  const entryUrl = getSiteSearchProviderEntryUrl(provider);
+  const targetDisposition = disposition === 'currentTab' ? 'currentTab' : 'newTab';
+  return new Promise((resolve) => {
+    if (!entryUrl || !prompt || !isInteractiveSiteSearchProvider(provider)) {
+      resolve({ ok: false, reason: 'invalid-provider-request' });
+      return;
+    }
+    const finish = (result) => {
+      resolve(result && typeof result === 'object' ? result : { ok: false, reason: 'unknown' });
+    };
+    const handleReadyTab = (tab) => {
+      if (!tab || typeof tab.id !== 'number') {
+        finish({ ok: false, reason: 'tab-unavailable' });
+        return;
+      }
+      waitForTabComplete(tab.id, 15000)
+        .catch(() => tab)
+        .then(() => submitGeminiPromptInTab(tab.id, prompt))
+        .then((result) => {
+          finish({
+            ok: Boolean(result && result.ok),
+            tabId: tab.id,
+            url: entryUrl,
+            method: result && result.method ? result.method : '',
+            reason: result && result.reason ? result.reason : ''
+          });
+        })
+        .catch((error) => {
+          finish({
+            ok: false,
+            tabId: tab.id,
+            url: entryUrl,
+            reason: error && error.message ? error.message : 'interactive-site-search-failed'
+          });
+        });
+    };
+    if (targetDisposition === 'currentTab' && sender && sender.tab && typeof sender.tab.id === 'number') {
+      chrome.tabs.update(sender.tab.id, { url: entryUrl, active: true }, (tab) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          finish({ ok: false, reason: chrome.runtime.lastError.message || 'tab-update-failed' });
+          return;
+        }
+        handleReadyTab(tab);
+      });
+      return;
+    }
+    chrome.tabs.create({ url: entryUrl, active: true }, (tab) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        finish({ ok: false, reason: chrome.runtime.lastError.message || 'tab-create-failed' });
+        return;
+      }
+      handleReadyTab(tab);
+    });
+  });
+}
+
 // Listen for messages from content script to switch tabs
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === 'switchToTab') {
@@ -2981,6 +3246,16 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === 'getSiteSearchProviders') {
     loadSiteSearchProviders().then((items) => {
       sendResponse({ items: items });
+    });
+    return true;
+  } else if (request.action === 'runSiteSearchProviderQuery') {
+    runInteractiveSiteSearchProvider(
+      request.provider,
+      request.query,
+      sender,
+      request.disposition
+    ).then((result) => {
+      sendResponse(result);
     });
     return true;
   } else if (request.action === 'getShortcutRules') {
@@ -4379,13 +4654,26 @@ function sanitizeSiteSearchProviders(items) {
   }
   return items
     .filter((item) => item && item.key && item.template)
-    .map((item) => ({
-      key: String(item.key).trim(),
-      aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
-      name: item.name || item.key,
-      template: normalizeSiteSearchTemplate(item.template)
-    }))
-    .filter((item) => item.key && item.template && item.template.includes('{query}'));
+    .map((item) => {
+      const template = normalizeSiteSearchTemplate(item.template);
+      return {
+        key: String(item.key).trim(),
+        aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
+        name: item.name || item.key,
+        template: template,
+        action: String(item.action || '').trim(),
+        submitStrategy: String(item.submitStrategy || '').trim()
+      };
+    })
+    .filter((item) => {
+      if (!item.key || !item.template) {
+        return false;
+      }
+      if (item.template.includes('{query}')) {
+        return true;
+      }
+      return item.action === 'openAndSubmit' && item.submitStrategy === 'geminiPrompt';
+    });
 }
 
 function loadCustomSiteSearchProviders() {
@@ -4462,10 +4750,28 @@ function isUrlBlockedBySearchBlacklist(url, items) {
 
 function buildBlacklistProbeUrlFromTemplate(template, query) {
   const rawTemplate = String(template || '');
-  if (!rawTemplate || !rawTemplate.includes('{query}')) {
+  if (!rawTemplate) {
     return '';
   }
+  if (!rawTemplate.includes('{query}')) {
+    return rawTemplate;
+  }
   return rawTemplate.replace(/\{query\}/g, encodeURIComponent(String(query || '')));
+}
+
+function isInteractiveSiteSearchProvider(provider) {
+  return Boolean(
+    provider &&
+    provider.action === 'openAndSubmit' &&
+    provider.submitStrategy === 'geminiPrompt'
+  );
+}
+
+function getSiteSearchProviderEntryUrl(provider) {
+  if (!provider || !provider.template) {
+    return '';
+  }
+  return String(provider.template).replace(/\{query\}/g, '');
 }
 
 function isSuggestionBlockedBySearchBlacklist(suggestion, items, queryForProvider) {
@@ -6653,8 +6959,11 @@ async function getSearchSuggestions(query) {
 
   function buildOverlayBlacklistProbeUrlFromTemplate(template, query) {
     const rawTemplate = String(template || '');
-    if (!rawTemplate || !rawTemplate.includes('{query}')) {
+    if (!rawTemplate) {
       return '';
+    }
+    if (!rawTemplate.includes('{query}')) {
+      return rawTemplate;
     }
     return rawTemplate.replace(/\{query\}/g, encodeURIComponent(String(query || '')));
   }
@@ -8418,6 +8727,7 @@ async function getSearchSuggestions(query) {
       { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
       { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
       { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
+      { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
       { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
       { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
       { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -8440,6 +8750,7 @@ async function getSearchSuggestions(query) {
     const defaultCaretColor = searchInput.style.caretColor || '#7DB7FF';
     let baseInputPaddingLeft = null;
     const prefixGap = 6;
+    let aiModeDecor = null;
 
     function mixColor(color, target, amount) {
       return [
@@ -10314,6 +10625,107 @@ async function getSearchSuggestions(query) {
       z-index: 1 !important;
     `;
     inputContainer.appendChild(siteSearchPrefix);
+    inputContainer.style.setProperty('position', 'relative', 'important');
+    inputContainer.style.setProperty('z-index', '2', 'important');
+
+    function ensureAiModeDecor() {
+      if (aiModeDecor) {
+        return aiModeDecor;
+      }
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const panel = document.createElement('div');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.style.cssText = `
+        all: unset !important;
+        position: absolute !important;
+        inset: 0 !important;
+        border-radius: 28px !important;
+        background:
+          radial-gradient(circle at 12% 14%, rgba(56, 189, 248, 0.15), transparent 34%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)) !important;
+        border: 1px solid rgba(125, 211, 252, 0.16) !important;
+        box-sizing: border-box !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        transition: opacity 180ms ease !important;
+        z-index: 0 !important;
+      `;
+      const beam = document.createElement('div');
+      beam.setAttribute('aria-hidden', 'true');
+      beam.style.cssText = `
+        all: unset !important;
+        position: absolute !important;
+        inset: 0 !important;
+        padding: 1px !important;
+        border-radius: 28px !important;
+        box-sizing: border-box !important;
+        background:
+          conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            transparent 238deg,
+            rgba(56, 189, 248, 0.00) 256deg,
+            rgba(56, 189, 248, 0.92) 285deg,
+            rgba(45, 212, 191, 0.96) 308deg,
+            rgba(251, 191, 36, 0.88) 328deg,
+            rgba(56, 189, 248, 0.00) 350deg,
+            transparent 360deg
+          ) !important;
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0) !important;
+        -webkit-mask-composite: xor !important;
+        mask-composite: exclude !important;
+        opacity: 0 !important;
+        transition: opacity 180ms ease !important;
+        pointer-events: none !important;
+        z-index: 1 !important;
+      `;
+      overlay.insertBefore(panel, overlay.firstChild);
+      overlay.insertBefore(beam, overlay.firstChild);
+      let beamAnimation = null;
+      if (!reduceMotion && typeof beam.animate === 'function') {
+        beamAnimation = beam.animate(
+          [
+            { transform: 'rotate(0deg)' },
+            { transform: 'rotate(360deg)' }
+          ],
+          {
+            duration: 3200,
+            iterations: Infinity,
+            easing: 'linear'
+          }
+        );
+        beamAnimation.pause();
+      }
+      aiModeDecor = {
+        panel: panel,
+        beam: beam,
+        beamAnimation: beamAnimation
+      };
+      return aiModeDecor;
+    }
+
+    function setAiModeDecorActive(active) {
+      const decor = ensureAiModeDecor();
+      const isActive = Boolean(active);
+      decor.panel.style.setProperty('opacity', isActive ? '1' : '0', 'important');
+      decor.beam.style.setProperty('opacity', isActive ? '1' : '0', 'important');
+      overlay.style.setProperty(
+        'box-shadow',
+        isActive
+          ? '0 24px 88px rgba(16, 185, 129, 0.18), 0 10px 36px rgba(56, 189, 248, 0.16), var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15))'
+          : 'var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15))',
+        'important'
+      );
+      if (decor.beamAnimation) {
+        if (isActive) {
+          decor.beamAnimation.play();
+        } else {
+          decor.beamAnimation.pause();
+        }
+      }
+    }
 
     function getBaseInputPaddingLeft() {
       if (baseInputPaddingLeft === null) {
@@ -10354,6 +10766,7 @@ async function getSearchSuggestions(query) {
       siteSearchPrefix.style.setProperty('display', 'none', 'important');
       searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
       searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
+      setAiModeDecorActive(false);
       updateSiteSearchPrefixLayout();
     }
 
@@ -10362,6 +10775,7 @@ async function getSearchSuggestions(query) {
         site: getSiteSearchDisplayName(provider)
       });
       setInputModePrefix(prefixText, theme);
+      setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
     }
 
     function setOpenTabsSearchPrefix(theme) {
@@ -10804,6 +11218,39 @@ async function getSearchSuggestions(query) {
         return '';
       }
       return template.replace(/\{query\}/g, encodeURIComponent(query));
+    }
+
+    function isInteractiveSiteSearchProvider(provider) {
+      return Boolean(
+        provider &&
+        provider.action === 'openAndSubmit' &&
+        provider.submitStrategy === 'geminiPrompt'
+      );
+    }
+
+    function openSiteSearchProviderQuery(provider, query) {
+      const trimmedQuery = String(query || '').trim();
+      if (!provider || !trimmedQuery) {
+        return false;
+      }
+      if (isInteractiveSiteSearchProvider(provider)) {
+        chrome.runtime.sendMessage({
+          action: 'runSiteSearchProviderQuery',
+          provider: provider,
+          query: trimmedQuery,
+          disposition: 'newTab'
+        });
+        return true;
+      }
+      const siteUrl = buildSearchUrl(provider.template, trimmedQuery);
+      if (!siteUrl) {
+        return false;
+      }
+      chrome.runtime.sendMessage({
+        action: 'createTab',
+        url: siteUrl
+      });
+      return true;
     }
 
     function getProviderIcon(provider) {
@@ -11709,7 +12156,9 @@ async function getSearchSuggestions(query) {
               searchInput.focus();
               return;
             }
-            if (shouldSwitchMatchedTabSuggestion(selectedSuggestion, activeSuggestionIndex)) {
+            if (selectedSuggestion.provider && selectedSuggestion.searchQuery) {
+              openSiteSearchProviderQuery(selectedSuggestion.provider, selectedSuggestion.searchQuery);
+            } else if (shouldSwitchMatchedTabSuggestion(selectedSuggestion, activeSuggestionIndex)) {
               chrome.runtime.sendMessage({
                 action: 'switchToTab',
                 tabId: selectedSuggestion._xMatchedTabId
@@ -11749,12 +12198,7 @@ async function getSearchSuggestions(query) {
           document.removeEventListener('keydown', captureTabHandler, true);
         } else if (query) {
           if (siteSearchState) {
-            const siteUrl = buildSearchUrl(siteSearchState.template, query);
-            if (siteUrl) {
-              chrome.runtime.sendMessage({
-                action: 'createTab',
-                url: siteUrl
-              });
+            if (openSiteSearchProviderQuery(siteSearchState, query)) {
               removeOverlay(overlay);
               document.removeEventListener('click', clickOutsideHandler);
               document.removeEventListener('keydown', keydownHandler);
@@ -11764,16 +12208,27 @@ async function getSearchSuggestions(query) {
           }
           const currentRawInput = (latestRawInputValue || searchInput.value || '').trim();
           if (inlineSearchState && inlineSearchState.isAuto &&
-              inlineSearchState.url && inlineSearchState.rawInput === currentRawInput) {
-            chrome.runtime.sendMessage({
-              action: 'createTab',
-              url: inlineSearchState.url
-            });
-            removeOverlay(overlay);
-            document.removeEventListener('click', clickOutsideHandler);
-            document.removeEventListener('keydown', keydownHandler);
-            document.removeEventListener('keydown', captureTabHandler, true);
-            return;
+              inlineSearchState.rawInput === currentRawInput) {
+            if (inlineSearchState.provider && inlineSearchState.query) {
+              if (openSiteSearchProviderQuery(inlineSearchState.provider, inlineSearchState.query)) {
+                removeOverlay(overlay);
+                document.removeEventListener('click', clickOutsideHandler);
+                document.removeEventListener('keydown', keydownHandler);
+                document.removeEventListener('keydown', captureTabHandler, true);
+                return;
+              }
+            }
+            if (inlineSearchState.url) {
+              chrome.runtime.sendMessage({
+                action: 'createTab',
+                url: inlineSearchState.url
+              });
+              removeOverlay(overlay);
+              document.removeEventListener('click', clickOutsideHandler);
+              document.removeEventListener('keydown', keydownHandler);
+              document.removeEventListener('keydown', captureTabHandler, true);
+              return;
+            }
           }
           if (autocompleteState && autocompleteState.url) {
             chrome.runtime.sendMessage({
@@ -13088,7 +13543,8 @@ async function getSearchSuggestions(query) {
               }),
               url: inlineUrl,
               favicon: getProviderIcon(inlineCandidate.provider),
-              provider: inlineCandidate.provider
+              provider: inlineCandidate.provider,
+              searchQuery: inlineCandidate.query
             };
           }
         }
@@ -13121,7 +13577,8 @@ async function getSearchSuggestions(query) {
               }),
               url: siteUrl,
               favicon: getProviderIcon(siteSearchState),
-              provider: siteSearchState
+              provider: siteSearchState,
+              searchQuery: query
             });
           }
         }
@@ -13243,7 +13700,13 @@ async function getSearchSuggestions(query) {
           applyAutocomplete(allSuggestions, primarySuggestion, primaryHighlightReason);
           const inlineAutoHighlight = Boolean(inlineSuggestion && primaryHighlightIndex === 0);
           inlineSearchState = inlineSuggestion
-            ? { url: inlineSuggestion.url, rawInput: rawTagInputForInline, isAuto: inlineAutoHighlight }
+            ? {
+              url: inlineSuggestion.url,
+              rawInput: rawTagInputForInline,
+              isAuto: inlineAutoHighlight,
+              provider: inlineSuggestion.provider || null,
+              query: inlineSuggestion.searchQuery || ''
+            }
             : null;
           const resolvedProvider = mergedProvider || siteSearchTrigger;
           siteSearchTriggerState = resolvedProvider
@@ -14159,6 +14622,15 @@ async function getSearchSuggestions(query) {
               document.removeEventListener('keydown', captureTabHandler, true);
               return;
             }
+            if (suggestion.provider && suggestion.searchQuery) {
+              if (openSiteSearchProviderQuery(suggestion.provider, suggestion.searchQuery)) {
+                removeOverlay(overlay);
+                document.removeEventListener('click', clickOutsideHandler);
+                document.removeEventListener('keydown', keydownHandler);
+                document.removeEventListener('keydown', captureTabHandler, true);
+              }
+              return;
+            }
             if (suggestion.forceSearch && suggestion.searchQuery) {
               chrome.runtime.sendMessage({
                 action: 'searchOrNavigate',
@@ -14204,6 +14676,15 @@ async function getSearchSuggestions(query) {
             if (suggestion.type === 'modeSwitch') {
               applyThemeModeChange(suggestion.nextMode);
               searchInput.focus();
+              return;
+            }
+            if (suggestion.provider && suggestion.searchQuery) {
+              if (openSiteSearchProviderQuery(suggestion.provider, suggestion.searchQuery)) {
+                removeOverlay(overlay);
+                document.removeEventListener('click', clickOutsideHandler);
+                document.removeEventListener('keydown', keydownHandler);
+                document.removeEventListener('keydown', captureTabHandler, true);
+              }
               return;
             }
             if (shouldSwitchMatchedTabSuggestion(suggestion, index)) {
@@ -14323,6 +14804,8 @@ async function getSearchSuggestions(query) {
       font: inherit !important;
       vertical-align: baseline !important;
     `;
+    suggestionsContainer.style.setProperty('position', 'relative', 'important');
+    suggestionsContainer.style.setProperty('z-index', '2', 'important');
 
     overlay.appendChild(inputContainer);
     overlay.appendChild(suggestionsContainer);
