@@ -4912,8 +4912,8 @@ function getFallbackHistoryItemsCached() {
   return callChromeApiWithTimeout((done) => {
     chrome.history.search({
       text: '',
-      maxResults: 240,
-      startTime: Date.now() - (90 * 24 * 60 * 60 * 1000)
+      maxResults: 600,
+      startTime: Date.now() - (365 * 24 * 60 * 60 * 1000)
     }, (items) => {
       const list = Array.isArray(items) ? items : [];
       historyFallbackCache = {
@@ -5035,21 +5035,1266 @@ function getTitlePinyinMatchScore(title, normalizedQuery) {
   };
 }
 
+const SEARCH_POLICY = {
+  lookupWindowDays: 180,
+  fallbackHistoryWindowDays: 365,
+  lookupMaxResults: 120,
+  fallbackHistoryMaxResults: 600,
+  maxEngineSuggestions: 5,
+  candidatePoolLimit: 20,
+  finalSuggestionLimit: 12,
+  fallbackTopSiteLimit: 5,
+  topSiteRepresentativeHostLimit: 1,
+  topSiteRepresentativeClusterLimit: 1,
+  primaryHostLimit: 3,
+  primaryClusterLimit: 1,
+  secondaryHostLimit: 5,
+  secondaryClusterLimit: 2
+};
+
+const SEARCH_DEDUP_IGNORED_QUERY_PARAM_NAMES = new Set([
+  'entry',
+  'reason',
+  'ref',
+  'ref_src',
+  'source',
+  'from',
+  'from_source',
+  'feature',
+  'feature_source',
+  'campaign',
+  'campaign_id',
+  'campaign_source',
+  'channel',
+  'via',
+  'trk',
+  'track',
+  'tracking',
+  'tracking_id',
+  'spm',
+  'si'
+]);
+
+const SEARCH_SETTINGS_INTENT_TERMS = new Set([
+  'setting',
+  'settings',
+  'option',
+  'options',
+  'config',
+  'configure',
+  'preference',
+  'preferences',
+  'prefs',
+  '设置',
+  '选项',
+  '配置',
+  '偏好',
+  '管理'
+]);
+
+const SEARCH_PATH_INTENT_TERMS = new Set([
+  'release',
+  'releases',
+  'issue',
+  'issues',
+  'pull',
+  'pulls',
+  'docs',
+  'doc',
+  'wiki',
+  'guide',
+  'guides',
+  'pricing',
+  'price',
+  'download',
+  'admin',
+  'bookmark',
+  'bookmarks',
+  'chat',
+  'message',
+  'messages',
+  'dm',
+  'dms',
+  'setting',
+  'settings',
+  'profile',
+  'account',
+  'notification',
+  'notifications',
+  '设置',
+  '通知',
+  '文档',
+  '价格',
+  '下载',
+  '发布'
+]);
+
+const SEARCH_INFORMATIONAL_TERMS = new Set([
+  'how',
+  'what',
+  'why',
+  'when',
+  'where',
+  'tutorial',
+  'tutorials',
+  'guide',
+  'guides',
+  'learn',
+  'docs',
+  'doc',
+  'help',
+  'review',
+  'reviews',
+  'compare',
+  'comparison',
+  'price',
+  'pricing',
+  'news',
+  '下载',
+  '教程',
+  '文档',
+  '帮助',
+  '对比',
+  '价格',
+  '评测',
+  '为什么',
+  '怎么',
+  '如何'
+]);
+
+const SEARCH_HOME_TITLE_TERMS = new Set([
+  'home',
+  'homepage',
+  'overview',
+  'workspace',
+  'console',
+  'dashboard',
+  '首页',
+  '主页',
+  '概览',
+  '控制台',
+  '工作台'
+]);
+
+const SEARCH_SITE_CONFIG = {
+  'lumno.kubai.design': {
+    ignoreAllSearchParamsPaths: new Set(['/', '/release', '/onboarding'])
+  },
+  'analytics.google.com': {
+    directNavigationUrl: 'https://analytics.google.com/analytics/web/',
+    directNavigationTitle: 'Google Analytics | 首页'
+  },
+  'github.com': {
+    repoAreaCategories: new Map([
+      ['issues', 'repo-issues'],
+      ['pulls', 'repo-pulls'],
+      ['discussions', 'repo-discussions'],
+      ['actions', 'repo-actions'],
+      ['wiki', 'repo-wiki'],
+      ['releases', 'repo-releases']
+    ])
+  },
+  'x.com': {
+    directNavigationUrl: 'https://x.com/',
+    directNavigationTitle: 'X'
+  }
+};
+
+function shouldIgnoreSearchDedupQueryParam(paramName) {
+  const normalized = String(paramName || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return normalized.startsWith('utm_') || SEARCH_DEDUP_IGNORED_QUERY_PARAM_NAMES.has(normalized);
+}
+
+function buildSearchDedupUrlKey(url) {
+  if (!url || typeof url !== 'string') {
+    return '';
+  }
+  try {
+    const parsed = new URL(url);
+    parsed.protocol = String(parsed.protocol || '').toLowerCase();
+    parsed.hostname = normalizeHost(parsed.hostname);
+    if ((parsed.protocol === 'http:' && parsed.port === '80') || (parsed.protocol === 'https:' && parsed.port === '443')) {
+      parsed.port = '';
+    }
+    parsed.hash = '';
+    const normalizedPathname = parsed.pathname !== '/'
+      ? (parsed.pathname.replace(/\/+$/, '') || '/')
+      : '/';
+    parsed.pathname = normalizedPathname;
+    const normalizedHost = normalizeHost(parsed.hostname);
+    const siteConfig = SEARCH_SITE_CONFIG[normalizedHost] || null;
+    const ignoreAllSearchParamsPaths = siteConfig && siteConfig.ignoreAllSearchParamsPaths
+      ? siteConfig.ignoreAllSearchParamsPaths
+      : null;
+    const shouldIgnoreAllSearchParams = Boolean(
+      ignoreAllSearchParamsPaths && ignoreAllSearchParamsPaths.has(normalizedPathname)
+    );
+    const nextParams = new URLSearchParams();
+    if (!shouldIgnoreAllSearchParams) {
+      Array.from(parsed.searchParams.entries())
+        .filter(([key]) => !shouldIgnoreSearchDedupQueryParam(key))
+        .sort(([keyA, valueA], [keyB, valueB]) => {
+          if (keyA === keyB) {
+            return String(valueA).localeCompare(String(valueB));
+          }
+          return String(keyA).localeCompare(String(keyB));
+        })
+        .forEach(([key, value]) => {
+          nextParams.append(key, value);
+        });
+    }
+    parsed.search = nextParams.toString() ? `?${nextParams.toString()}` : '';
+    return parsed.toString();
+  } catch (e) {
+    return String(url).trim().toLowerCase();
+  }
+}
+
+function shouldReplaceDedupedSearchItem(candidate, existing) {
+  if (!existing) {
+    return true;
+  }
+  const candidateVisit = Number(candidate && candidate.lastVisitTime) || 0;
+  const existingVisit = Number(existing && existing.lastVisitTime) || 0;
+  if (candidateVisit !== existingVisit) {
+    return candidateVisit > existingVisit;
+  }
+  const candidateTyped = Number(candidate && candidate.typedCount) || 0;
+  const existingTyped = Number(existing && existing.typedCount) || 0;
+  if (candidateTyped !== existingTyped) {
+    return candidateTyped > existingTyped;
+  }
+  const candidateVisitCount = Number(candidate && candidate.visitCount) || 0;
+  const existingVisitCount = Number(existing && existing.visitCount) || 0;
+  if (candidateVisitCount !== existingVisitCount) {
+    return candidateVisitCount > existingVisitCount;
+  }
+  const candidateTitleLength = String(candidate && candidate.title || '').trim().length;
+  const existingTitleLength = String(existing && existing.title || '').trim().length;
+  return candidateTitleLength > existingTitleLength;
+}
+
+function normalizeSearchDedupTitle(title) {
+  return String(title || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildSearchDedupEntryKey(item) {
+  if (!item) {
+    return '';
+  }
+  const urlKey = typeof item.url === 'string' && item.url
+    ? buildSearchDedupUrlKey(item.url)
+    : '';
+  const titleKey = normalizeSearchDedupTitle(item.title);
+  if (urlKey && titleKey) {
+    return `url:${urlKey}::title:${titleKey}`;
+  }
+  if (urlKey) {
+    return `url:${urlKey}`;
+  }
+  if (titleKey) {
+    return `title:${titleKey}`;
+  }
+  return `id:${item.id || ''}:${String(item.title || '').trim()}`;
+}
+
+const SEARCH_UTILITY_SEGMENTS = new Set([
+  'settings',
+  'setting',
+  'preferences',
+  'preference',
+  'prefs',
+  'profile',
+  'profiles',
+  'account',
+  'accounts',
+  'notification',
+  'notifications',
+  'activity',
+  'activities',
+  'like',
+  'likes',
+  'admin',
+  'dashboard',
+  'manage',
+  'management',
+  'billing',
+  'payment',
+  'payments'
+]);
+
+const SEARCH_ACTION_SEGMENTS = new Set([
+  'new',
+  'edit',
+  'create',
+  'update',
+  'delete',
+  'compose'
+]);
+
+function splitSearchTerms(value) {
+  return Array.from(new Set(
+    String(value || '')
+      .toLowerCase()
+      .split(/[^a-z0-9\u4e00-\u9fff]+/i)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  ));
+}
+
+function buildSearchQueryContext(query) {
+  const lookupQuery = String(query || '');
+  const queryLower = lookupQuery.trim().toLowerCase();
+  const normalizedPinyinQuery = shouldUseTitlePinyinMatch(lookupQuery)
+    ? normalizeAsciiQueryForPinyin(lookupQuery)
+    : '';
+  const queryTerms = splitSearchTerms(queryLower);
+  if (queryLower && !queryTerms.includes(queryLower)) {
+    queryTerms.unshift(queryLower);
+  }
+  return {
+    lookupQuery,
+    queryLower,
+    normalizedPinyinQuery,
+    useTitlePinyinMatch: Boolean(normalizedPinyinQuery),
+    queryTerms,
+    intentType: classifySearchIntent(lookupQuery, queryTerms),
+    hasSettingsIntent: queryTerms.some((term) => SEARCH_SETTINGS_INTENT_TERMS.has(term)),
+    hasInformationalIntent: queryTerms.some((term) => SEARCH_INFORMATIONAL_TERMS.has(term))
+  };
+}
+
+function hasSearchHomeTitle(title) {
+  const titleTerms = splitSearchTerms(String(title || '').toLowerCase());
+  return titleTerms.some((term) => SEARCH_HOME_TITLE_TERMS.has(term));
+}
+
+function isSearchLikelyBrandProductQuery(context) {
+  if (!context || context.intentType !== 'object') {
+    return false;
+  }
+  if (context.hasInformationalIntent || context.hasSettingsIntent) {
+    return false;
+  }
+  if (!Array.isArray(context.queryTerms) || context.queryTerms.length !== 2) {
+    return false;
+  }
+  return context.queryLower.length <= 28;
+}
+
+function isSearchLikelyDirectNavigationQuery(context) {
+  if (!context || context.hasInformationalIntent) {
+    return false;
+  }
+  return context.intentType === 'brand' || isSearchLikelyBrandProductQuery(context);
+}
+
+function getSearchBrandHostMatchScore(host, context) {
+  if (!host || !context || context.intentType !== 'brand') {
+    return 0;
+  }
+  const query = String(context.queryLower || '').trim();
+  if (!query) {
+    return 0;
+  }
+  const hostLabels = normalizeHost(host).split('.').filter(Boolean);
+  let score = 0;
+  hostLabels.forEach((label) => {
+    if (label === query) {
+      score = Math.max(score, 100);
+      return;
+    }
+    if (query.length >= 2 && label.startsWith(query)) {
+      score = Math.max(score, 60);
+    }
+  });
+  return score;
+}
+
+function getSearchNavigationRepresentativeSignal(item, context) {
+  if (!item || !item.url) {
+    return 0;
+  }
+  const info = getSearchSuggestionClusterInfo(item.url);
+  const titleLower = String(item.title || '').toLowerCase();
+  const hasHomeTitle = hasSearchHomeTitle(titleLower);
+  let signal = 0;
+
+  if (info.category === 'site-root' || info.category === 'repo-root') {
+    signal += 4;
+  } else if (info.category === 'section' || info.category === 'landing') {
+    signal += 3;
+  } else if (hasHomeTitle && info.category !== 'utility' && info.category !== 'action') {
+    signal += 3;
+  } else if (info.category === 'content' && info.depth <= 2) {
+    signal += 1;
+  }
+
+  if (info.category === 'utility' || info.category === 'action' || info.category === 'user') {
+    signal -= 3;
+  } else if (info.category === 'content' && info.depth >= 2 && !hasHomeTitle) {
+    signal -= 1;
+  }
+
+  if (titleLower === context.queryLower) {
+    signal += 4;
+  } else if (titleLower.startsWith(context.queryLower)) {
+    signal += 3;
+  } else if (context.queryTerms.every((term) => term && titleLower.includes(term))) {
+    signal += 2;
+  }
+
+  try {
+    const hostLabels = normalizeHost(new URL(item.url).hostname).split('.').filter(Boolean);
+    context.queryTerms.forEach((term) => {
+      if (!term) {
+        return;
+      }
+      if (hostLabels.includes(term)) {
+        signal += 2;
+        return;
+      }
+      if (term.length >= 2 && hostLabels.some((label) => label.startsWith(term))) {
+        signal += 1;
+      }
+    });
+  } catch (e) {
+    // Ignore invalid URL.
+  }
+
+  if (item.type === 'topSite' || item.isTopSite) {
+    signal += 1;
+  } else if (item.type === 'bookmark') {
+    signal += 1;
+  }
+
+  return signal;
+}
+
+function getSearchDirectNavigationAdjustment(item, sourceType, context) {
+  if (!isSearchLikelyDirectNavigationQuery(context) || !item || !item.url) {
+    return 0;
+  }
+  const info = getSearchSuggestionClusterInfo(item.url);
+  const hasHomeTitle = hasSearchHomeTitle(item.title);
+  const representativeSignal = getSearchNavigationRepresentativeSignal(item, context);
+  let adjustment = 0;
+
+  if (context.intentType === 'brand') {
+    if (info.category === 'site-root' || info.category === 'repo-root') {
+      adjustment += 70;
+    } else if (info.category === 'section' || info.category === 'landing') {
+      adjustment += 32;
+    } else if (hasHomeTitle) {
+      adjustment += 42;
+    } else if (info.category === 'content' && info.depth >= 2) {
+      adjustment -= 28;
+    }
+  } else if (isSearchLikelyBrandProductQuery(context)) {
+    if (info.category === 'site-root' || info.category === 'repo-root') {
+      adjustment += 34;
+    } else if (info.category === 'section' || info.category === 'landing' || hasHomeTitle) {
+      adjustment += 28;
+    } else if (info.category === 'content' && info.depth >= 2) {
+      adjustment -= 12;
+    }
+  }
+
+  if (representativeSignal >= 6) {
+    adjustment += 18;
+  } else if (representativeSignal <= 0) {
+    adjustment -= 12;
+  }
+
+  if ((info.category === 'utility' || info.category === 'action' || info.category === 'user') && !context.hasSettingsIntent) {
+    adjustment -= 36;
+  }
+
+  if (sourceType === 'topSite' && (info.category === 'site-root' || hasHomeTitle)) {
+    adjustment += 10;
+  }
+
+  return adjustment;
+}
+
+function getSearchEngineSuggestionScore(context, localSuggestions) {
+  const candidates = Array.isArray(localSuggestions) ? localSuggestions : [];
+  const hasStrongLocalDirectMatch = candidates.some((suggestion) => (
+    suggestion &&
+    suggestion.type !== 'googleSuggest' &&
+    getSearchNavigationRepresentativeSignal(suggestion, context) >= 6
+  ));
+
+  if (context.intentType === 'brand') {
+    return hasStrongLocalDirectMatch ? 18 : 48;
+  }
+  if (isSearchLikelyBrandProductQuery(context)) {
+    return hasStrongLocalDirectMatch ? 34 : 78;
+  }
+  if (context.intentType === 'path' || context.intentType === 'revisit') {
+    return 52;
+  }
+  if (context.hasInformationalIntent) {
+    return 220;
+  }
+  return 160;
+}
+
+function looksLikeVersionSegment(segment) {
+  const value = String(segment || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  return /^v?\d+(\.\d+){1,3}([.-][a-z0-9]+)?$/i.test(value);
+}
+
+function looksLikeOpaqueIdSegment(segment) {
+  const value = String(segment || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  if (/^\d+$/.test(value)) {
+    return true;
+  }
+  if (/^[0-9a-f]{8,}$/i.test(value)) {
+    return true;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f-]{8,}$/i.test(value)) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeClusterSegment(segment) {
+  const value = String(segment || '').trim().toLowerCase();
+  if (!value) {
+    return '';
+  }
+  if (looksLikeVersionSegment(value)) {
+    return ':version';
+  }
+  if (looksLikeOpaqueIdSegment(value)) {
+    return ':id';
+  }
+  return value;
+}
+
+function getSearchSuggestionClusterInfo(url) {
+  if (!url) {
+    return {
+      host: '',
+      category: 'unknown',
+      clusterKey: '',
+      depth: 0,
+      path: '/'
+    };
+  }
+  try {
+    const parsed = new URL(url);
+    const host = normalizeHost(parsed.hostname);
+    const path = parsed.pathname !== '/' ? (parsed.pathname.replace(/\/+$/, '') || '/') : '/';
+    const rawSegments = path.split('/').filter(Boolean).map((item) => decodeURIComponent(item).toLowerCase());
+    const segments = rawSegments.map(normalizeClusterSegment);
+    const first = segments[0] || '';
+    const second = segments[1] || '';
+    const third = segments[2] || '';
+
+    const siteConfig = SEARCH_SITE_CONFIG[host] || null;
+    if (host === 'github.com' && segments.length >= 2) {
+      const repoBase = `${host}/${segments[0]}/${segments[1]}`;
+      if (segments.length === 2) {
+        return { host, category: 'repo-root', clusterKey: repoBase, depth: segments.length, path };
+      }
+      const repoAreaCategories = siteConfig && siteConfig.repoAreaCategories
+        ? siteConfig.repoAreaCategories
+        : null;
+      if (repoAreaCategories && repoAreaCategories.has(third)) {
+        return { host, category: repoAreaCategories.get(third), clusterKey: `${repoBase}/${third}`, depth: segments.length, path };
+      }
+      if (third === 'tree' || third === 'blob') {
+        const area = segments[4] || segments[3] || 'root';
+        return { host, category: 'repo-code', clusterKey: `${repoBase}/code/${area}`, depth: segments.length, path };
+      }
+      return { host, category: 'repo-child', clusterKey: `${repoBase}/${third || 'root'}`, depth: segments.length, path };
+    }
+
+    if (segments.length === 0) {
+      return { host, category: 'site-root', clusterKey: `${host}/`, depth: 0, path };
+    }
+
+    if (SEARCH_UTILITY_SEGMENTS.has(first)) {
+      return { host, category: 'utility', clusterKey: `${host}/utility/${first}`, depth: segments.length, path };
+    }
+
+    if (SEARCH_ACTION_SEGMENTS.has(first)) {
+      return { host, category: 'action', clusterKey: `${host}/action/${first}`, depth: segments.length, path };
+    }
+
+    if ((first === 'u' || first === 'user' || first === 'users' || first === 'profile' || first === 'profiles') && second) {
+      return { host, category: 'user', clusterKey: `${host}/user/${second}`, depth: segments.length, path };
+    }
+
+    if (first === 'release' || first === 'releases' || first === 'onboarding' || first === 'changelog') {
+      return { host, category: 'landing', clusterKey: `${host}/${first}`, depth: segments.length, path };
+    }
+
+    if (first === 'docs' || first === 'doc' || first === 'wiki' || first === 'help' || first === 'guide' || first === 'guides') {
+      const docKey = second || 'root';
+      return { host, category: 'docs', clusterKey: `${host}/${first}/${docKey}`, depth: segments.length, path };
+    }
+
+    if (segments.length === 1) {
+      return { host, category: 'section', clusterKey: `${host}/${first}`, depth: segments.length, path };
+    }
+
+    return { host, category: 'content', clusterKey: `${host}/${first}/${second}`, depth: segments.length, path };
+  } catch (e) {
+    return {
+      host: '',
+      category: 'unknown',
+      clusterKey: String(url).trim().toLowerCase(),
+      depth: 0,
+      path: '/'
+    };
+  }
+}
+
+function looksLikeNavigationQuery(query) {
+  const value = String(query || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  if (value.includes('://')) {
+    return true;
+  }
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+([/#?].*)?$/i.test(value)) {
+    return true;
+  }
+  return false;
+}
+
+function classifySearchIntent(query, queryTerms) {
+  const raw = String(query || '').trim().toLowerCase();
+  const terms = Array.isArray(queryTerms) ? queryTerms.filter(Boolean) : [];
+  if (looksLikeNavigationQuery(raw)) {
+    return 'navigation';
+  }
+
+  if (terms.some((term) => SEARCH_PATH_INTENT_TERMS.has(term))) {
+    return 'path';
+  }
+
+  if (terms.some((term) => looksLikeVersionSegment(term)) || /v?\d+(\.\d+){1,3}/i.test(raw)) {
+    return 'revisit';
+  }
+
+  if (terms.length >= 2) {
+    if (terms.some((term) => /\d/.test(term))) {
+      return 'revisit';
+    }
+    return 'object';
+  }
+
+  if (terms.length === 1) {
+    return 'brand';
+  }
+
+  return 'object';
+}
+
+function getSearchSourceAdjustment(sourceType, intentType) {
+  const source = String(sourceType || '');
+  const intent = String(intentType || 'object');
+
+  if (intent === 'navigation' || intent === 'brand') {
+    if (source === 'bookmark') {
+      return 24;
+    }
+    if (source === 'topSite') {
+      return 20;
+    }
+    if (source === 'history') {
+      return 4;
+    }
+  }
+
+  if (intent === 'path' || intent === 'revisit') {
+    if (source === 'history') {
+      return 18;
+    }
+    if (source === 'bookmark') {
+      return 10;
+    }
+    if (source === 'topSite') {
+      return 8;
+    }
+  }
+
+  if (intent === 'object') {
+    if (source === 'bookmark') {
+      return 18;
+    }
+    if (source === 'history') {
+      return 12;
+    }
+    if (source === 'topSite') {
+      return 10;
+    }
+  }
+
+  return 0;
+}
+
+function matchesSearchQueryText(item, context) {
+  if (!item || !item.url) {
+    return false;
+  }
+  const titleLower = item.title ? item.title.toLowerCase() : '';
+  const urlLower = item.url.toLowerCase();
+  if (titleLower.includes(context.queryLower) || urlLower.includes(context.queryLower)) {
+    return true;
+  }
+  return context.queryTerms.some((term) => (
+    term &&
+    (titleLower.includes(term) || urlLower.includes(term))
+  ));
+}
+
+function matchesSearchTitlePinyin(item, context) {
+  if (!context.useTitlePinyinMatch || !item || !item.title) {
+    return false;
+  }
+  return getTitlePinyinMatchScore(item.title, context.normalizedPinyinQuery).score > 0;
+}
+
+function getSearchSuggestionCategoryAdjustment(item, queryTerms, hasSettingsIntent) {
+  if (!item || !item.url) {
+    return 0;
+  }
+  const info = getSearchSuggestionClusterInfo(item.url);
+  const querySet = new Set(Array.isArray(queryTerms) ? queryTerms : []);
+  const hasActionIntent = querySet.has('new') || querySet.has('edit') || querySet.has('create') || querySet.has('settings') || querySet.has('设置');
+  let adjustment = 0;
+
+  if (info.category === 'site-root' || info.category === 'repo-root') {
+    adjustment += 18;
+  } else if (info.category === 'section') {
+    adjustment += 8;
+  } else if (info.category === 'landing' || info.category === 'docs') {
+    adjustment += 10;
+  }
+
+  if (item.type === 'topSite' || item.isTopSite) {
+    if (info.category === 'site-root' || info.category === 'repo-root') {
+      adjustment += 20;
+    } else if (info.category === 'section' || info.category === 'landing') {
+      adjustment += 10;
+    } else {
+      adjustment += 4;
+    }
+  }
+
+  if (info.depth >= 3 && info.category !== 'docs' && info.category !== 'repo-code') {
+    adjustment -= Math.min(16, (info.depth - 2) * 4);
+  }
+
+  if (info.category === 'utility') {
+    adjustment -= hasSettingsIntent ? 10 : 95;
+  }
+
+  if (info.category === 'action') {
+    adjustment -= hasActionIntent ? 8 : 80;
+  }
+
+  if (info.category === 'repo-code') {
+    adjustment -= 18;
+  }
+
+  if (info.category === 'repo-child' && info.depth >= 4) {
+    adjustment -= 14;
+  }
+
+  return adjustment;
+}
+
+function getOwnExtensionUtilityPenalty(item, hasSettingsIntent) {
+  if (!item || !item.url || !isOwnExtensionUrl(item.url) || hasSettingsIntent) {
+    return 0;
+  }
+  try {
+    const parsedUrl = new URL(item.url);
+    const pathnameLower = String(parsedUrl.pathname || '').toLowerCase();
+    if (pathnameLower.endsWith('/options.html') || pathnameLower.endsWith('options.html')) {
+      return 110;
+    }
+  } catch (e) {
+    return 0;
+  }
+  return 0;
+}
+
+function getRecentPopularityBoost(suggestion) {
+  if (!suggestion) {
+    return 0;
+  }
+  let boost = 0;
+  const visitCount = Number(suggestion.visitCount) > 0 ? Number(suggestion.visitCount) : 0;
+  const typedCount = Number(suggestion.typedCount) > 0 ? Number(suggestion.typedCount) : 0;
+  if (visitCount > 0) {
+    boost += Math.min(10, Math.log2(visitCount + 1) * 2.5);
+  }
+  if (typedCount > 0) {
+    boost += Math.min(6, typedCount * 1.25);
+  }
+  const lastVisitTime = Number(suggestion.lastVisitTime) || 0;
+  if (lastVisitTime > 0) {
+    const hoursSinceVisit = (Date.now() - lastVisitTime) / (1000 * 60 * 60);
+    if (hoursSinceVisit < 2) boost += 10;
+    else if (hoursSinceVisit < 24) boost += 6;
+    else if (hoursSinceVisit < 72) boost += 3;
+  }
+  return boost;
+}
+
+function getSearchSuggestionSourceRank(suggestion) {
+  if (!suggestion) {
+    return 0;
+  }
+  if (suggestion.type === 'bookmark') {
+    return 3;
+  }
+  if (suggestion.type === 'history') {
+    return 2;
+  }
+  if (suggestion.type === 'topSite' || suggestion.isTopSite) {
+    return 1;
+  }
+  return 0;
+}
+
+function compareSearchSuggestions(a, b) {
+  const scoreDiff = ((b.score || 0) + getRecentPopularityBoost(b)) -
+    ((a.score || 0) + getRecentPopularityBoost(a));
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+  const sourceRankDiff = getSearchSuggestionSourceRank(b) - getSearchSuggestionSourceRank(a);
+  if (sourceRankDiff !== 0) {
+    return sourceRankDiff;
+  }
+  const visitDiff = (Number(b.visitCount) || 0) - (Number(a.visitCount) || 0);
+  if (visitDiff !== 0) {
+    return visitDiff;
+  }
+  const aVisit = a.lastVisitTime || 0;
+  const bVisit = b.lastVisitTime || 0;
+  return bVisit - aVisit;
+}
+
+function createSearchSuggestion(item, sourceType, score, extras) {
+  return {
+    type: sourceType,
+    title: item.title || item.url,
+    url: item.url,
+    favicon: extras && extras.favicon ? extras.favicon : '',
+    score,
+    lastVisitTime: Number(item.lastVisitTime) || 0,
+    visitCount: Number(item.visitCount) || 0,
+    typedCount: Number(item.typedCount) || 0,
+    reasons: extras && Array.isArray(extras.reasons) ? extras.reasons : [],
+    ...(extras || {})
+  };
+}
+
+function buildSearchSuggestionReasons(item, sourceType, context) {
+  const reasons = [];
+  if (sourceType === 'bookmark') {
+    reasons.push('来源：书签');
+  } else if (sourceType === 'topSite') {
+    reasons.push('来源：常用站点');
+  } else if (sourceType === 'history') {
+    reasons.push('来源：浏览历史');
+  }
+  const pinyinMatch = getTitlePinyinMatchScore(item && item.title, context.normalizedPinyinQuery);
+  if (pinyinMatch.reason === 'initials-exact' || pinyinMatch.reason === 'initials-prefix') {
+    reasons.push('标题首字母匹配');
+  } else if (pinyinMatch.score > 0) {
+    reasons.push('标题拼音匹配');
+  }
+  if (item && item.lastVisitTime) {
+    const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
+    if (hoursSinceVisit < 24) {
+      reasons.push('最近 24 小时访问');
+    } else if (hoursSinceVisit < 72) {
+      reasons.push('最近 3 天访问');
+    }
+  }
+  const visitCount = Number(item && item.visitCount) || 0;
+  if (visitCount > 1) {
+    reasons.push(`访问 ${visitCount} 次`);
+  }
+  return reasons.slice(0, 3);
+}
+
+function buildSearchBrandDirectSuggestion(candidates, context) {
+  if (context.intentType !== 'brand' || context.hasInformationalIntent) {
+    return null;
+  }
+  const hostGroups = new Map();
+  (Array.isArray(candidates) ? candidates : []).forEach((suggestion) => {
+    if (!suggestion || !suggestion.url || suggestion.type === 'googleSuggest') {
+      return;
+    }
+    const info = getSearchSuggestionClusterInfo(suggestion.url);
+    if (!info.host) {
+      return;
+    }
+    const list = hostGroups.get(info.host) || [];
+    list.push(suggestion);
+    hostGroups.set(info.host, list);
+  });
+
+  let bestGroup = null;
+  hostGroups.forEach((group, host) => {
+    const hostScore = getSearchBrandHostMatchScore(host, context);
+    if (hostScore <= 0) {
+      return;
+    }
+    const sourceSuggestion = group
+      .slice()
+      .sort((a, b) => {
+        const signalDiff = getSearchNavigationRepresentativeSignal(b, context) -
+          getSearchNavigationRepresentativeSignal(a, context);
+        if (signalDiff !== 0) {
+          return signalDiff;
+        }
+        return (b.score || 0) - (a.score || 0);
+      })[0];
+    const hasRepresentative = group.some((suggestion) => {
+      const info = getSearchSuggestionClusterInfo(suggestion && suggestion.url);
+      return info.category === 'site-root' ||
+        info.category === 'repo-root' ||
+        info.category === 'section' ||
+        info.category === 'landing' ||
+        hasSearchHomeTitle(suggestion && suggestion.title);
+    });
+    const totalScore = hostScore +
+      Math.max(0, getSearchNavigationRepresentativeSignal(sourceSuggestion, context)) +
+      Math.min(8, group.length * 2);
+    if (!bestGroup || totalScore > bestGroup.totalScore) {
+      bestGroup = {
+        host,
+        sourceSuggestion,
+        hasRepresentative,
+        totalScore
+      };
+    }
+  });
+
+  if (!bestGroup || bestGroup.hasRepresentative || !bestGroup.sourceSuggestion) {
+    return null;
+  }
+
+  const siteConfig = SEARCH_SITE_CONFIG[bestGroup.host] || null;
+  const directUrl = siteConfig && siteConfig.directNavigationUrl
+    ? siteConfig.directNavigationUrl
+    : `https://${bestGroup.host}/`;
+  const directTitle = siteConfig && siteConfig.directNavigationTitle
+    ? siteConfig.directNavigationTitle
+    : (bestGroup.sourceSuggestion.title || bestGroup.host);
+  const sourceType = bestGroup.sourceSuggestion.type === 'bookmark'
+    ? 'bookmark'
+    : ((bestGroup.sourceSuggestion.type === 'topSite' || bestGroup.sourceSuggestion.isTopSite) ? 'topSite' : 'history');
+  const directItem = {
+    title: directTitle,
+    url: directUrl,
+    lastVisitTime: bestGroup.sourceSuggestion.lastVisitTime || 0,
+    visitCount: Number(bestGroup.sourceSuggestion.visitCount) || 0,
+    typedCount: Number(bestGroup.sourceSuggestion.typedCount) || 0
+  };
+  const baseScore = calculateSearchRelevanceScore(directItem, sourceType, context);
+  if (baseScore <= 0) {
+    return null;
+  }
+  const reasons = ['站点直达']
+    .concat(buildSearchSuggestionReasons(directItem, sourceType, context))
+    .slice(0, 3);
+  return createSearchSuggestion(directItem, sourceType, baseScore + 36, {
+    favicon: buildSearchSuggestionFavicon(directUrl),
+    reasons,
+    isTopSite: true,
+    isSyntheticDirect: true
+  });
+}
+
+function calculateSearchRelevanceScore(item, sourceType, context) {
+  const titleLower = item.title ? item.title.toLowerCase() : '';
+  const urlLower = item.url.toLowerCase();
+  let hostname = '';
+  let hostLabels = [];
+  let titleTokens = [];
+  let pathTokens = [];
+  let textScore = 0;
+  let behaviorScore = 0;
+  let sourceScore = 0;
+
+  if (titleLower === context.queryLower) textScore += 140;
+  if (titleLower.startsWith(context.queryLower)) textScore += 70;
+
+  titleTokens = splitSearchTerms(titleLower);
+  if (titleTokens.includes(context.queryLower)) {
+    textScore += 45;
+  }
+
+  context.queryTerms.forEach((word) => {
+    if (!word) {
+      return;
+    }
+    if (titleTokens.includes(word)) {
+      textScore += 24;
+      return;
+    }
+    if (titleTokens.some((token) => token.startsWith(word))) {
+      textScore += 14;
+      return;
+    }
+    if (titleLower.includes(word)) textScore += 8;
+  });
+
+  if (titleLower.includes(context.queryLower)) textScore += 24;
+
+  try {
+    hostname = normalizeHost(new URL(item.url).hostname);
+    hostLabels = hostname.split('.').filter(Boolean);
+    if (hostname.includes(context.queryLower)) textScore += 14;
+    if (hostname.startsWith(context.queryLower)) textScore += 20;
+    if (hostLabels.includes(context.queryLower)) {
+      textScore += 42;
+    }
+    context.queryTerms.forEach((word) => {
+      if (!word) {
+        return;
+      }
+      if (hostLabels.includes(word)) {
+        textScore += 28;
+        return;
+      }
+      if (hostLabels.some((label) => label.startsWith(word))) {
+        textScore += 16;
+        return;
+      }
+      if (hostname.includes(word)) {
+        textScore += 8;
+      }
+    });
+  } catch (e) {
+    // Ignore invalid URL.
+  }
+
+  if (urlLower.includes(context.queryLower)) textScore += 10;
+  try {
+    const parsedUrl = new URL(item.url);
+    const pathnameLower = String(parsedUrl.pathname || '').toLowerCase();
+    const decodedPathnameLower = decodeURIComponent(pathnameLower);
+    const pathSegments = decodedPathnameLower.split('/').filter(Boolean);
+    pathSegments.forEach((segment) => {
+      const segmentTokens = segment.split(/[^a-z0-9\u4e00-\u9fff]+/i).filter(Boolean);
+      if (segmentTokens.length > 0) {
+        pathTokens.push(...segmentTokens);
+      }
+    });
+    if (decodedPathnameLower && context.queryTerms.length > 0) {
+      context.queryTerms.forEach((word) => {
+        if (!word) {
+          return;
+        }
+        if (pathTokens.includes(word)) {
+          textScore += 32;
+          return;
+        }
+        if (pathTokens.some((token) => token.startsWith(word))) {
+          textScore += 18;
+          return;
+        }
+        if (pathTokens.some((token) => token.includes(word))) {
+          textScore += 10;
+          return;
+        }
+        if (decodedPathnameLower.includes(word)) {
+          textScore += 8;
+        }
+      });
+    }
+  } catch (e) {
+    // Ignore invalid URL parsing/decoding errors.
+  }
+
+  textScore += getTitlePinyinMatchScore(item.title, context.normalizedPinyinQuery).score;
+
+  if (hostname && shouldBlockFaviconForHost(hostname)) {
+    if (titleLower === context.queryLower) textScore += 60;
+    else if (titleLower.startsWith(context.queryLower)) textScore += 42;
+    else if (titleLower.includes(context.queryLower)) textScore += 24;
+    else if (urlLower.includes(context.queryLower)) textScore += 20;
+  }
+
+  if (textScore <= 0) {
+    return 0;
+  }
+
+  if (item.lastVisitTime) {
+    const daysSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60 * 24);
+    if (daysSinceVisit < 1) behaviorScore += 10;
+    else if (daysSinceVisit < 7) behaviorScore += 5;
+    else if (daysSinceVisit < 30) behaviorScore += 2;
+  }
+
+  const visitCount = Number(item.visitCount) > 0 ? Number(item.visitCount) : 0;
+  const typedCount = Number(item.typedCount) > 0 ? Number(item.typedCount) : 0;
+  if (visitCount > 0) {
+    behaviorScore += Math.min(18, Math.log2(visitCount + 1) * 4);
+  }
+  if (typedCount > 0) {
+    behaviorScore += Math.min(12, typedCount * 2);
+  }
+  if (item.lastVisitTime) {
+    const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
+    if (hoursSinceVisit < 2) behaviorScore += 20;
+    else if (hoursSinceVisit < 24) behaviorScore += 14;
+    else if (hoursSinceVisit < 72) behaviorScore += 8;
+  }
+
+  if (sourceType === 'bookmark') {
+    sourceScore += 12;
+  } else if (sourceType === 'history') {
+    sourceScore += 4;
+  } else if (sourceType === 'topSite') {
+    sourceScore += 6;
+  }
+  sourceScore += getSearchSourceAdjustment(sourceType, context.intentType);
+
+  return textScore +
+    behaviorScore +
+    sourceScore +
+    getSearchSuggestionCategoryAdjustment(item, context.queryTerms, context.hasSettingsIntent) +
+    getSearchDirectNavigationAdjustment(item, sourceType, context) -
+    getOwnExtensionUtilityPenalty(item, context.hasSettingsIntent);
+}
+
+function buildSearchSuggestionFavicon(url) {
+  if (isOwnExtensionUrl(url)) {
+    return getOwnExtensionFaviconUrl();
+  }
+  try {
+    const urlObj = new URL(url);
+    const host = normalizeHost(urlObj.hostname);
+    return shouldBlockFaviconForHost(host) ? '' : getGoogleFaviconUrl(host);
+  } catch (e) {
+    const fallbackHost = extractHostFromInput(url);
+    return shouldBlockFaviconForHost(fallbackHost) ? '' : url + '/favicon.ico';
+  }
+}
+
+function collectSearchMatches(items, context, searchBlacklistItems) {
+  return (Array.isArray(items) ? items : []).filter((item) => (
+    (matchesSearchQueryText(item, context) || matchesSearchTitlePinyin(item, context)) &&
+    !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems)
+  ));
+}
+
+function applySearchSuggestionHostDiversity(list) {
+  const candidates = Array.isArray(list) ? list : [];
+  const selected = [];
+  const selectedKeys = new Set();
+  const hostCounts = new Map();
+  const clusterCounts = new Map();
+  const hostHasTopSiteRepresentative = new Set();
+
+  const tryTake = (suggestion, hostLimit, clusterLimit) => {
+    if (!suggestion) {
+      return false;
+    }
+    const dedupKey = buildSearchDedupEntryKey(suggestion);
+    if (!dedupKey || selectedKeys.has(dedupKey)) {
+      return false;
+    }
+    const info = getSearchSuggestionClusterInfo(suggestion.url);
+    const hostKey = info.host || '__nohost__';
+    const clusterKey = info.clusterKey || dedupKey;
+    const currentHostCount = hostCounts.get(hostKey) || 0;
+    const currentClusterCount = clusterCounts.get(clusterKey) || 0;
+    if (currentHostCount >= hostLimit || currentClusterCount >= clusterLimit) {
+      return false;
+    }
+    selected.push(suggestion);
+    selectedKeys.add(dedupKey);
+    hostCounts.set(hostKey, currentHostCount + 1);
+    clusterCounts.set(clusterKey, currentClusterCount + 1);
+    return true;
+  };
+
+  candidates.forEach((suggestion) => {
+    if (!suggestion || !(suggestion.type === 'topSite' || suggestion.isTopSite)) {
+      return;
+    }
+    const info = getSearchSuggestionClusterInfo(suggestion.url);
+    const hostKey = info.host || '__nohost__';
+    if (hostHasTopSiteRepresentative.has(hostKey)) {
+      return;
+    }
+    const isRepresentativeCategory =
+      info.category === 'site-root' ||
+      info.category === 'repo-root' ||
+      info.category === 'section' ||
+      info.category === 'landing';
+    if (!isRepresentativeCategory) {
+      return;
+    }
+    if (tryTake(
+      suggestion,
+      SEARCH_POLICY.topSiteRepresentativeHostLimit,
+      SEARCH_POLICY.topSiteRepresentativeClusterLimit
+    )) {
+      hostHasTopSiteRepresentative.add(hostKey);
+    }
+  });
+
+  candidates.forEach((suggestion) => {
+    tryTake(suggestion, SEARCH_POLICY.primaryHostLimit, SEARCH_POLICY.primaryClusterLimit);
+  });
+
+  if (selected.length < SEARCH_POLICY.finalSuggestionLimit) {
+    candidates.forEach((suggestion) => {
+      tryTake(suggestion, SEARCH_POLICY.secondaryHostLimit, SEARCH_POLICY.secondaryClusterLimit);
+    });
+  }
+
+  return selected.slice(0, SEARCH_POLICY.finalSuggestionLimit);
+}
+
 function mergeItemsByUrl(itemGroups) {
   const merged = [];
-  const seenKeys = new Set();
+  const mergedIndexByKey = new Map();
   (Array.isArray(itemGroups) ? itemGroups : []).forEach((items) => {
     (Array.isArray(items) ? items : []).forEach((item) => {
       if (!item) {
         return;
       }
-      const urlKey = typeof item.url === 'string' && item.url
-        ? `url:${item.url}`
-        : `id:${item.id || ''}:${item.title || ''}`;
-      if (seenKeys.has(urlKey)) {
+      const urlKey = buildSearchDedupEntryKey(item);
+      const existingIndex = mergedIndexByKey.get(urlKey);
+      if (typeof existingIndex === 'number') {
+        if (shouldReplaceDedupedSearchItem(item, merged[existingIndex])) {
+          merged[existingIndex] = item;
+        }
         return;
       }
-      seenKeys.add(urlKey);
+      mergedIndexByKey.set(urlKey, merged.length);
       merged.push(item);
     });
   });
@@ -5059,15 +6304,12 @@ function mergeItemsByUrl(itemGroups) {
 // Function to get search suggestions from history and top sites
 async function getSearchSuggestions(query) {
   const suggestions = [];
-  const lookupQuery = String(query || '');
-  const queryLower = String(lookupQuery || '').trim().toLowerCase();
-  const normalizedPinyinQuery = shouldUseTitlePinyinMatch(lookupQuery)
-    ? normalizeAsciiQueryForPinyin(lookupQuery)
-    : '';
-  const useTitlePinyinMatch = Boolean(normalizedPinyinQuery);
-  const lookupStartTime = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  const context = buildSearchQueryContext(query);
+  if (!context.queryLower) {
+    return [];
+  }
+  const lookupStartTime = Date.now() - (SEARCH_POLICY.lookupWindowDays * 24 * 60 * 60 * 1000);
   const lookupEndTime = Date.now();
-  const lookupMaxResults = 50;
 
   try {
     const [
@@ -5081,15 +6323,15 @@ async function getSearchSuggestions(query) {
     ] = await Promise.all([
       withTimeout(
         fetchSearchSuggestionsForEngine(query)
-        .then((items) => (Array.isArray(items) ? items.slice(0, 5) : []))
+        .then((items) => (Array.isArray(items) ? items.slice(0, SEARCH_POLICY.maxEngineSuggestions) : []))
         .catch(() => []),
         SEARCH_ENGINE_SUGGEST_TIMEOUT_MS,
         []
       ),
       callChromeApiWithTimeout((done) => {
         chrome.history.search({
-          text: lookupQuery,
-          maxResults: lookupMaxResults,
+          text: context.lookupQuery,
+          maxResults: SEARCH_POLICY.lookupMaxResults,
           startTime: lookupStartTime,
           endTime: lookupEndTime
         }, done);
@@ -5102,50 +6344,149 @@ async function getSearchSuggestions(query) {
       getAllBookmarksCached(),
       loadSearchBlacklistItems()
     ]);
-    const matchesLookupText = (item) => {
-      if (!item || !item.url) {
-        return false;
-      }
-      const titleLower = item.title ? item.title.toLowerCase() : '';
-      const urlLower = item.url.toLowerCase();
-      return Boolean(queryLower) && (titleLower.includes(queryLower) || urlLower.includes(queryLower));
-    };
-    const matchesTitlePinyin = (item) => {
-      if (!useTitlePinyinMatch || !item || !item.title) {
-        return false;
-      }
-      return getTitlePinyinMatchScore(item.title, normalizedPinyinQuery).score > 0;
-    };
-
-    let historyItems = mergeItemsByUrl([
+    const fallbackHistoryMatches = collectSearchMatches(fallbackHistoryItems, context, searchBlacklistItems);
+    const historyItems = mergeItemsByUrl([
       Array.isArray(historyItemsRaw) ? historyItemsRaw : [],
-      useTitlePinyinMatch
-        ? (Array.isArray(fallbackHistoryItems) ? fallbackHistoryItems.filter((item) => matchesTitlePinyin(item)) : [])
-        : []
+      fallbackHistoryMatches
     ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
-    if (historyItems.length === 0 && lookupQuery && lookupQuery.trim().length > 0) {
-      historyItems = Array.isArray(fallbackHistoryItems)
-        ? fallbackHistoryItems.filter((item) => (
-          (matchesLookupText(item) || matchesTitlePinyin(item)) &&
-          !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems)
-        ))
-        : [];
-    }
+    const bookmarkTextMatches = collectSearchMatches(allBookmarks, context, searchBlacklistItems);
     const bookmarks = mergeItemsByUrl([
       Array.isArray(bookmarksRaw) ? bookmarksRaw : [],
-      useTitlePinyinMatch
-        ? (Array.isArray(allBookmarks) ? allBookmarks.filter((item) => matchesTitlePinyin(item)) : [])
-        : []
+      bookmarkTextMatches
     ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
 
+    const bookmarkNodeMap = (Array.isArray(bookmarks) && bookmarks.length > 0)
+      ? await getBookmarkNodeMapCached()
+      : new Map();
+
+    const rootFolderTitles = new Set([
+      'Bookmarks bar',
+      'Other bookmarks',
+      'Mobile bookmarks',
+      '书签栏',
+      '其他书签',
+      '移动设备书签'
+    ]);
+    const suggestionIndexByKey = new Map();
+    const fallbackTopSites = [];
+
+    function buildBookmarkPath(bookmark) {
+      const pathParts = [];
+      let parentId = bookmark && bookmark.parentId ? bookmark.parentId : bookmark && bookmark.id;
+      while (parentId) {
+        const node = bookmarkNodeMap.get(parentId);
+        if (!node) {
+          break;
+        }
+        const isRootFolder = !node.parentId && rootFolderTitles.has(node.title);
+        if (!node.hasUrl && node.title && !isRootFolder) {
+          pathParts.unshift(node.title);
+        }
+        parentId = node.parentId;
+      }
+      return pathParts.join('/');
+    }
+
+    function upsertSuggestion(item, sourceType, extras) {
+      if (!item || !item.url) {
+        return null;
+      }
+      const itemKey = buildSearchDedupEntryKey(item);
+      const baseScore = calculateSearchRelevanceScore(item, sourceType, context);
+      if (baseScore <= 0) {
+        return null;
+      }
+      const normalizedExtras = extras && typeof extras === 'object' ? { ...extras } : {};
+      const scoreAdjustment = Number(normalizedExtras.scoreAdjustment) || 0;
+      delete normalizedExtras.scoreAdjustment;
+      const suggestion = createSearchSuggestion(item, sourceType, baseScore + scoreAdjustment, {
+        favicon: buildSearchSuggestionFavicon(item.url),
+        reasons: buildSearchSuggestionReasons(item, sourceType, context),
+        ...normalizedExtras
+      });
+      const existingIndex = suggestionIndexByKey.get(itemKey);
+      if (typeof existingIndex === 'number') {
+        suggestions[existingIndex] = suggestion;
+      } else {
+        suggestionIndexByKey.set(itemKey, suggestions.length);
+        suggestions.push(suggestion);
+      }
+      return suggestion;
+    }
+
+    historyItems.forEach((item) => {
+      if (!item || !item.title || isSearchEngineResultUrl(item.url)) {
+        return;
+      }
+      upsertSuggestion(item, 'history');
+    });
+
+    (Array.isArray(topSites) ? topSites : []).forEach((site) => {
+      if (!site || !site.url || isUrlBlockedBySearchBlacklist(site.url, searchBlacklistItems)) {
+        return;
+      }
+      const itemKey = buildSearchDedupEntryKey(site);
+      const existingIndex = suggestionIndexByKey.get(itemKey);
+      if (typeof existingIndex === 'number') {
+        const existing = suggestions[existingIndex];
+        suggestions[existingIndex] = {
+          ...existing,
+          isTopSite: true,
+          score: (existing.score || 0) + 6
+        };
+        return;
+      }
+
+      const titleLower = site.title ? site.title.toLowerCase() : '';
+      let scoreAdjustment = 4;
+      try {
+        const hostname = normalizeHost(new URL(site.url).hostname);
+        if (hostname.startsWith(context.queryLower)) {
+          scoreAdjustment += 8;
+        }
+      } catch (e) {
+        // Ignore invalid URLs.
+      }
+      if (titleLower.startsWith(context.queryLower)) {
+        scoreAdjustment += 6;
+      }
+      const suggestion = upsertSuggestion(site, 'topSite', { isTopSite: true, scoreAdjustment });
+      if (!suggestion) {
+        fallbackTopSites.push(site);
+      }
+    });
+
+    bookmarks.forEach((bookmark) => {
+      if (!bookmark || !bookmark.url) {
+        return;
+      }
+      upsertSuggestion(bookmark, 'bookmark', {
+        path: buildBookmarkPath(bookmark),
+        scoreAdjustment: 4
+      });
+    });
+
+    const brandDirectSuggestion = buildSearchBrandDirectSuggestion(suggestions, context);
+    if (brandDirectSuggestion) {
+      const directKey = buildSearchDedupEntryKey(brandDirectSuggestion);
+      const existingIndex = suggestionIndexByKey.get(directKey);
+      if (typeof existingIndex === 'number') {
+        suggestions[existingIndex] = brandDirectSuggestion;
+      } else {
+        suggestionIndexByKey.set(directKey, suggestions.length);
+        suggestions.push(brandDirectSuggestion);
+      }
+    }
+
+    const engineSuggestionScore = getSearchEngineSuggestionScore(context, suggestions);
     engineSuggestions.forEach((suggestion) => {
-      if (suggestion && suggestion !== lookupQuery) {
+      if (suggestion && suggestion !== context.lookupQuery) {
         const suggestionItem = {
           type: 'googleSuggest',
           title: suggestion,
           url: buildDefaultSearchUrl(suggestion),
           favicon: getDefaultSearchEngineFaviconUrl(),
-          score: 200,
+          score: engineSuggestionScore,
           searchQuery: suggestion,
           forceSearch: true,
           reasons: ['来源：搜索建议']
@@ -5156,471 +6497,32 @@ async function getSearchSuggestions(query) {
       }
     });
 
-    const bookmarkNodeMap = (Array.isArray(bookmarks) && bookmarks.length > 0)
-      ? await getBookmarkNodeMapCached()
-      : new Map();
-    
-    const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
-    const rootFolderTitles = new Set([
-      'Bookmarks bar',
-      'Other bookmarks',
-      'Mobile bookmarks',
-      '书签栏',
-      '其他书签',
-      '移动设备书签'
-    ]);
-    
-    // Helper function to calculate relevance score
-    function calculateRelevanceScore(item) {
-      const titleLower = item.title ? item.title.toLowerCase() : '';
-      const urlLower = item.url.toLowerCase();
-      let hostname = '';
-      let textScore = 0;
-      let pinyinTitleScore = 0;
-      let behaviorScore = 0;
-      
-      // Exact title match (highest priority)
-      if (titleLower === queryLower) textScore += 100;
-      
-      // Title starts with query
-      if (titleLower.startsWith(queryLower)) textScore += 50;
-      
-      // Query words in title
-      queryWords.forEach(word => {
-        if (titleLower.includes(word)) textScore += 20;
-      });
-      
-      // Partial title match
-      if (titleLower.includes(queryLower)) textScore += 15;
-      
-      // URL domain match
-      try {
-        hostname = normalizeHost(new URL(item.url).hostname);
-        if (hostname.includes(queryLower)) textScore += 10;
-        if (hostname.startsWith(queryLower)) textScore += 20;
-      } catch (e) {
-        // Invalid URL, skip domain scoring
-      }
-      
-      // URL path match: boost token-level hits so "/release/"-like keywords rank higher.
-      if (urlLower.includes(queryLower)) textScore += 8;
-      try {
-        const parsedUrl = new URL(item.url);
-        const pathnameLower = String(parsedUrl.pathname || '').toLowerCase();
-        const decodedPathnameLower = decodeURIComponent(pathnameLower);
-        const pathSegments = decodedPathnameLower.split('/').filter(Boolean);
-        const pathTokens = [];
-        pathSegments.forEach((segment) => {
-          const segmentTokens = segment.split(/[^a-z0-9\u4e00-\u9fff]+/i).filter(Boolean);
-          if (segmentTokens.length > 0) {
-            pathTokens.push(...segmentTokens);
-          }
-        });
-        if (decodedPathnameLower && queryWords.length > 0) {
-          queryWords.forEach((word) => {
-            if (!word) {
-              return;
-            }
-            if (pathTokens.includes(word)) {
-              textScore += 30;
-              return;
-            }
-            const hasPrefixToken = pathTokens.some((token) => token.startsWith(word));
-            if (hasPrefixToken) {
-              textScore += 20;
-              return;
-            }
-            const hasPartialToken = pathTokens.some((token) => token.includes(word));
-            if (hasPartialToken) {
-              textScore += 12;
-              return;
-            }
-            if (decodedPathnameLower.includes(word)) {
-              textScore += 8;
-            }
-          });
-        }
-      } catch (e) {
-        // Ignore invalid URL parsing/decoding errors.
-      }
+    suggestions.sort(compareSearchSuggestions);
 
-      pinyinTitleScore = getTitlePinyinMatchScore(item.title, normalizedPinyinQuery).score;
-      textScore += pinyinTitleScore;
-
-      // Local-network/dev pages should surface earlier for quick workflows.
-      if (hostname && shouldBlockFaviconForHost(hostname)) {
-        if (titleLower === queryLower) textScore += 90;
-        else if (titleLower.startsWith(queryLower)) textScore += 70;
-        else if (titleLower.includes(queryLower)) textScore += 45;
-        else if (urlLower.includes(queryLower)) textScore += 20;
-      }
-
-      // Do not surface generic high-frequency sites for natural-language searches
-      // unless there is at least some textual match against title/url/hostname/path.
-      if (textScore <= 0) {
-        return 0;
-      }
-      
-      // Recency bonus (for history items)
-      if (item.lastVisitTime) {
-        const daysSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60 * 24);
-        if (daysSinceVisit < 1) behaviorScore += 10;
-        else if (daysSinceVisit < 7) behaviorScore += 5;
-        else if (daysSinceVisit < 30) behaviorScore += 2;
-      }
-
-      // Visit-frequency and strong recency boosts for history ranking.
-      const visitCount = Number(item.visitCount) > 0 ? Number(item.visitCount) : 0;
-      const typedCount = Number(item.typedCount) > 0 ? Number(item.typedCount) : 0;
-      if (visitCount > 0) {
-        behaviorScore += Math.min(24, Math.log2(visitCount + 1) * 6);
-      }
-      if (typedCount > 0) {
-        behaviorScore += Math.min(12, typedCount * 2);
-      }
-      if (item.lastVisitTime) {
-        const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
-        if (hoursSinceVisit < 2) behaviorScore += 28;
-        else if (hoursSinceVisit < 24) behaviorScore += 18;
-        else if (hoursSinceVisit < 72) behaviorScore += 10;
-      }
-      return textScore + behaviorScore;
-    }
-
-    function buildSuggestionReasons(item, sourceType) {
-      const reasons = [];
-      if (sourceType === 'bookmark') {
-        reasons.push('来源：书签');
-      } else if (sourceType === 'topSite') {
-        reasons.push('来源：常用站点');
-      } else if (sourceType === 'history') {
-        reasons.push('来源：浏览历史');
-      }
-      const pinyinMatch = getTitlePinyinMatchScore(item && item.title, normalizedPinyinQuery);
-      if (pinyinMatch.reason === 'initials-exact' || pinyinMatch.reason === 'initials-prefix') {
-        reasons.push('标题首字母匹配');
-      } else if (pinyinMatch.score > 0) {
-        reasons.push('标题拼音匹配');
-      }
-      if (item && item.lastVisitTime) {
-        const hoursSinceVisit = (Date.now() - item.lastVisitTime) / (1000 * 60 * 60);
-        if (hoursSinceVisit < 24) {
-          reasons.push('最近 24 小时访问');
-        } else if (hoursSinceVisit < 72) {
-          reasons.push('最近 3 天访问');
-        }
-      }
-      const visitCount = Number(item && item.visitCount) || 0;
-      if (visitCount > 1) {
-        reasons.push(`访问 ${visitCount} 次`);
-      }
-      return reasons.slice(0, 3);
-    }
-
-    // Process history items with scoring
-    const processedUrls = new Set();
-    const suggestionByUrl = new Map();
-    const suggestionIndexByUrl = new Map();
-    historyItems.forEach(item => {
-      if (isSearchEngineResultUrl(item.url)) {
-        return;
-      }
-      if (item.title && !processedUrls.has(item.url)) {
-        const score = calculateRelevanceScore(item);
-        if (score > 0) {
-          // Get favicon URL using Google's favicon service (more reliable)
-        let faviconUrl = '';
-        if (isOwnExtensionUrl(item.url)) {
-          faviconUrl = getOwnExtensionFaviconUrl();
-        } else {
-          try {
-            const urlObj = new URL(item.url);
-            const host = normalizeHost(urlObj.hostname);
-            faviconUrl = shouldBlockFaviconForHost(host) ? '' : getGoogleFaviconUrl(host);
-          } catch (e) {
-            // Fallback to direct favicon URL (skip local network)
-            const fallbackHost = extractHostFromInput(item.url);
-            faviconUrl = shouldBlockFaviconForHost(fallbackHost) ? '' : item.url + '/favicon.ico';
-          }
-        }
-        
-          const suggestion = {
-            type: 'history',
-            title: item.title,
-            url: item.url,
-            favicon: faviconUrl,
-            score: score,
-            lastVisitTime: item.lastVisitTime || 0,
-            visitCount: Number(item.visitCount) || 0,
-            typedCount: Number(item.typedCount) || 0,
-            reasons: buildSuggestionReasons(item, 'history')
-          };
-          suggestions.push(suggestion);
-          processedUrls.add(item.url);
-          suggestionByUrl.set(item.url, suggestion);
-          suggestionIndexByUrl.set(item.url, suggestions.length - 1);
-        }
-      }
-    });
-    
-    // Process top sites with scoring
-    const fallbackTopSites = [];
-    topSites.forEach(site => {
-      if (isUrlBlockedBySearchBlacklist(site && site.url, searchBlacklistItems)) {
-        return;
-      }
-      if (!site || !site.url || processedUrls.has(site.url)) {
-        if (site && site.url) {
-          const existing = suggestionByUrl.get(site.url);
-          if (existing) {
-            existing.isTopSite = true;
-            existing.score = (existing.score || 0) + 10;
-          }
-        }
-        return;
-      }
-      const score = calculateRelevanceScore(site);
-      let adjustedScore = score;
-      if (score > 0) {
-        adjustedScore += 20; // Boost top sites so they surface earlier
-        const titleLower = site.title ? site.title.toLowerCase() : '';
-        try {
-          const hostname = normalizeHost(new URL(site.url).hostname);
-          if (hostname.startsWith(queryLower)) {
-            adjustedScore += 15;
-          }
-        } catch (e) {
-          // Ignore invalid URLs
-        }
-        if (titleLower.startsWith(queryLower)) {
-          adjustedScore += 10;
-        }
-      }
-      if (score > 0) {
-        let faviconUrl = '';
-        if (isOwnExtensionUrl(site.url)) {
-          faviconUrl = getOwnExtensionFaviconUrl();
-        } else {
-          try {
-            const urlObj = new URL(site.url);
-            const host = normalizeHost(urlObj.hostname);
-            faviconUrl = shouldBlockFaviconForHost(host) ? '' : getGoogleFaviconUrl(host);
-          } catch (e) {
-            const fallbackHost = extractHostFromInput(site.url);
-            faviconUrl = shouldBlockFaviconForHost(fallbackHost) ? '' : site.url + '/favicon.ico';
-          }
-        }
-        
-        const suggestion = {
-          type: 'topSite',
-          title: site.title || site.url,
-          url: site.url,
-          favicon: faviconUrl,
-          score: adjustedScore,
-          reasons: buildSuggestionReasons(site, 'topSite')
-        };
-        suggestions.push(suggestion);
-        processedUrls.add(site.url);
-        suggestionByUrl.set(site.url, suggestion);
-        suggestionIndexByUrl.set(site.url, suggestions.length - 1);
-      } else {
-        fallbackTopSites.push(site);
-      }
-    });
-    
-    // Process bookmarks with scoring
-    bookmarks.forEach(bookmark => {
-      if (!bookmark.url) {
-        return;
-      }
-      const existingSuggestion = suggestionByUrl.get(bookmark.url);
-      const shouldReplaceExisting = existingSuggestion && existingSuggestion.type !== 'bookmark';
-      if (!processedUrls.has(bookmark.url) || shouldReplaceExisting) {
-        const score = calculateRelevanceScore(bookmark);
-        // Boost bookmark score slightly to prioritize them
-        if (score > 0) {
-          const adjustedScore = score + 5; // Bonus for bookmarks
-          
-          // Get favicon URL using Google's favicon service
-          let faviconUrl = '';
-          if (isOwnExtensionUrl(bookmark.url)) {
-            faviconUrl = getOwnExtensionFaviconUrl();
-          } else {
-            try {
-              const urlObj = new URL(bookmark.url);
-              const host = normalizeHost(urlObj.hostname);
-              faviconUrl = shouldBlockFaviconForHost(host) ? '' : getGoogleFaviconUrl(host);
-            } catch (e) {
-              // Fallback to direct favicon URL (skip local network)
-              const fallbackHost = extractHostFromInput(bookmark.url);
-              faviconUrl = shouldBlockFaviconForHost(fallbackHost) ? '' : bookmark.url + '/favicon.ico';
-            }
-          }
-          
-          const pathParts = [];
-          let parentId = bookmark.id;
-          if (bookmark.parentId) {
-            parentId = bookmark.parentId;
-          }
-          while (parentId) {
-            const node = bookmarkNodeMap.get(parentId);
-            if (!node) {
-              break;
-            }
-            const isRootFolder = !node.parentId && rootFolderTitles.has(node.title);
-            if (!node.hasUrl && node.title && !isRootFolder) {
-              pathParts.unshift(node.title);
-            }
-            parentId = node.parentId;
-          }
-          const bookmarkPath = pathParts.join('/');
-
-          const suggestion = {
-            type: 'bookmark',
-            title: bookmark.title || bookmark.url,
-            url: bookmark.url,
-            favicon: faviconUrl,
-            path: bookmarkPath,
-            score: adjustedScore,
-            reasons: buildSuggestionReasons(bookmark, 'bookmark')
-          };
-          const existingIndex = suggestionIndexByUrl.get(bookmark.url);
-          if (shouldReplaceExisting && typeof existingIndex === 'number') {
-            suggestions[existingIndex] = suggestion;
-            suggestionIndexByUrl.set(bookmark.url, existingIndex);
-          } else {
-            suggestions.push(suggestion);
-            suggestionIndexByUrl.set(bookmark.url, suggestions.length - 1);
-          }
-          processedUrls.add(bookmark.url);
-          suggestionByUrl.set(bookmark.url, suggestion);
-        }
-      }
-    });
-    
-    function getRecentPopularityBoost(suggestion) {
-      if (!suggestion) {
-        return 0;
-      }
-      let boost = 0;
-      const visitCount = Number(suggestion.visitCount) > 0 ? Number(suggestion.visitCount) : 0;
-      const typedCount = Number(suggestion.typedCount) > 0 ? Number(suggestion.typedCount) : 0;
-      if (visitCount > 0) {
-        boost += Math.min(16, Math.log2(visitCount + 1) * 4);
-      }
-      if (typedCount > 0) {
-        boost += Math.min(8, typedCount * 1.5);
-      }
-      const lastVisitTime = Number(suggestion.lastVisitTime) || 0;
-      if (lastVisitTime > 0) {
-        const hoursSinceVisit = (Date.now() - lastVisitTime) / (1000 * 60 * 60);
-        if (hoursSinceVisit < 2) boost += 16;
-        else if (hoursSinceVisit < 24) boost += 10;
-        else if (hoursSinceVisit < 72) boost += 6;
-      }
-      return boost;
-    }
-
-    // Sort by top site, then relevance + recent-popularity boost, then recency.
-    suggestions.sort((a, b) => {
-      const aTop = a.isTopSite || a.type === 'topSite';
-      const bTop = b.isTopSite || b.type === 'topSite';
-      if (aTop !== bTop) {
-        return aTop ? -1 : 1;
-      }
-      const scoreDiff = ((b.score || 0) + getRecentPopularityBoost(b)) -
-        ((a.score || 0) + getRecentPopularityBoost(a));
-      if (scoreDiff !== 0) {
-        return scoreDiff;
-      }
-      const visitDiff = (Number(b.visitCount) || 0) - (Number(a.visitCount) || 0);
-      if (visitDiff !== 0) {
-        return visitDiff;
-      }
-      const aVisit = a.lastVisitTime || 0;
-      const bVisit = b.lastVisitTime || 0;
-      return bVisit - aVisit;
-    });
-    
-    // Remove duplicates and limit results
     const uniqueSuggestions = [];
-    const seenSuggestionUrls = new Set();
-    for (let i = 0; i < suggestions.length && uniqueSuggestions.length < 12; i += 1) {
+    const seenSuggestionKeys = new Set();
+    for (let i = 0; i < suggestions.length && uniqueSuggestions.length < SEARCH_POLICY.candidatePoolLimit; i += 1) {
       const suggestion = suggestions[i];
-      const suggestionUrl = suggestion && suggestion.url ? suggestion.url : '';
-      if (!suggestionUrl || seenSuggestionUrls.has(suggestionUrl)) {
+      const suggestionKey = buildSearchDedupEntryKey(suggestion);
+      if (!suggestionKey || seenSuggestionKeys.has(suggestionKey)) {
         continue;
       }
-      seenSuggestionUrls.add(suggestionUrl);
+      seenSuggestionKeys.add(suggestionKey);
       uniqueSuggestions.push(suggestion);
     }
-    
-    // Also remove duplicates by title to avoid similar entries
-    const dedupedByTitle = [];
-    const titleIndexMap = new Map();
-    uniqueSuggestions.forEach((suggestion) => {
-      const titleKey = (suggestion.title || '').toLowerCase();
-      if (!titleKey) {
-        dedupedByTitle.push(suggestion);
-        return;
-      }
-      if (!titleIndexMap.has(titleKey)) {
-        titleIndexMap.set(titleKey, dedupedByTitle.length);
-        dedupedByTitle.push(suggestion);
-        return;
-      }
-      const existingIndex = titleIndexMap.get(titleKey);
-      const existing = dedupedByTitle[existingIndex];
-      if (suggestion.type === 'bookmark' && existing.type !== 'bookmark') {
-        dedupedByTitle[existingIndex] = suggestion;
-      }
-    });
-    let finalSuggestions = filterBlacklistedSuggestions(dedupedByTitle, searchBlacklistItems, lookupQuery);
 
-    const hostCounts = new Map();
-    finalSuggestions = finalSuggestions.filter((suggestion) => {
-      if (!suggestion.url) {
-        return true;
-      }
-      let hostname = '';
-      try {
-        hostname = normalizeHost(new URL(suggestion.url).hostname);
-      } catch (e) {
-        return true;
-      }
-      const current = hostCounts.get(hostname) || 0;
-      if (current >= 2) {
-        return false;
-      }
-      hostCounts.set(hostname, current + 1);
-      return true;
-    }).slice(0, 8);
+    let finalSuggestions = applySearchSuggestionHostDiversity(
+      filterBlacklistedSuggestions(uniqueSuggestions, searchBlacklistItems, context.lookupQuery)
+    );
 
     if (finalSuggestions.length === 0 && fallbackTopSites.length > 0) {
-      const fallbackResults = fallbackTopSites.slice(0, 3).map((site, index) => {
-        let faviconUrl = '';
-        if (isOwnExtensionUrl(site.url)) {
-          faviconUrl = getOwnExtensionFaviconUrl();
-        } else {
-          try {
-            const urlObj = new URL(site.url);
-            const host = normalizeHost(urlObj.hostname);
-            faviconUrl = shouldBlockFaviconForHost(host) ? '' : getGoogleFaviconUrl(host);
-          } catch (e) {
-            const fallbackHost = extractHostFromInput(site.url);
-            faviconUrl = shouldBlockFaviconForHost(fallbackHost) ? '' : site.url + '/favicon.ico';
-          }
-        }
-        return {
-          type: 'topSite',
-          title: site.title || site.url,
-          url: site.url,
-          favicon: faviconUrl,
-          score: 1 - index,
+      const fallbackResults = fallbackTopSites
+        .slice(0, SEARCH_POLICY.fallbackTopSiteLimit)
+        .map((site, index) => createSearchSuggestion(site, 'topSite', 1 - index, {
+          favicon: buildSearchSuggestionFavicon(site.url),
           reasons: ['来源：常用站点']
-        };
-      });
-      finalSuggestions = filterBlacklistedSuggestions(fallbackResults, searchBlacklistItems, lookupQuery);
+        }));
+      finalSuggestions = filterBlacklistedSuggestions(fallbackResults, searchBlacklistItems, context.lookupQuery);
     }
     
     return finalSuggestions;
@@ -6844,6 +7746,7 @@ async function getSearchSuggestions(query) {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
+      overflow: hidden !important;
       contain: layout style !important;
       box-sizing: border-box !important;
       margin: 0 !important;
