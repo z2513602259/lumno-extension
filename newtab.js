@@ -92,6 +92,9 @@
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
   let aiModeDecor = null;
+  let aiModeDecorFrame = null;
+  let aiModeDecorFrameObserver = null;
+  let aiModeDecorFrameResizeHandler = null;
   let wordmarkContainer = null;
   let wordmarkImageEl = null;
   let pageNoticeBanner = null;
@@ -2315,7 +2318,7 @@
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
     { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-    { key: 'gm', aliases: ['gemini'], name: 'Gemini', category: 'ai', inputMode: 'ai', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
+    { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
     { key: 'so', aliases: ['baidu', 'bd'], name: '百度', template: 'https://www.baidu.com/s?wd={query}' },
     { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
     { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -7800,57 +7803,6 @@
     );
   }
 
-  function normalizeSiteSearchProviderCategory(value) {
-    return String(value || '').trim().toLowerCase() === 'ai' ? 'ai' : 'siteSearch';
-  }
-
-  function getSiteSearchProviderCategory(provider) {
-    if (provider && (provider.category || provider.kind)) {
-      return normalizeSiteSearchProviderCategory(provider.category || provider.kind);
-    }
-    return isInteractiveSiteSearchProvider(provider) ? 'ai' : 'siteSearch';
-  }
-
-  function getSiteSearchProviderInputMode(provider) {
-    const raw = String(provider && provider.inputMode ? provider.inputMode : '').trim().toLowerCase();
-    if (raw) {
-      return raw;
-    }
-    return getSiteSearchProviderCategory(provider) === 'ai' ? 'ai' : 'siteSearch';
-  }
-
-  function normalizeSiteSearchProvider(item) {
-    if (!item || !item.key || !item.template) {
-      return null;
-    }
-    const template = normalizeSiteSearchTemplate(item.template);
-    const normalized = {
-      key: String(item.key).trim(),
-      aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
-      name: item.name || item.key,
-      template: template,
-      action: String(item.action || '').trim(),
-      submitStrategy: String(item.submitStrategy || '').trim(),
-      category: getSiteSearchProviderCategory(item),
-      inputMode: getSiteSearchProviderInputMode(item)
-    };
-    if (!normalized.key || !normalized.template) {
-      return null;
-    }
-    if (!normalized.template.includes('{query}') && !isInteractiveSiteSearchProvider(normalized)) {
-      return null;
-    }
-    return normalized;
-  }
-
-  function shouldLockToProviderOnly(provider, query) {
-    return Boolean(
-      provider &&
-      String(query || '').trim() &&
-      getSiteSearchProviderCategory(provider) === 'ai'
-    );
-  }
-
   function runSiteSearchProviderQuery(provider, query, disposition) {
     const trimmedQuery = String(query || '').trim();
     if (!provider || !trimmedQuery) {
@@ -7947,24 +7899,18 @@
       chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
         const items = response && Array.isArray(response.items) ? response.items : [];
         if (items.length > 0) {
-          const normalizedItems = items.map(normalizeSiteSearchProvider).filter(Boolean);
-          siteSearchProvidersCache = normalizedItems;
-          resolve(normalizedItems);
+          siteSearchProvidersCache = items;
+          resolve(items);
           return;
         }
         Promise.all([localFallback, customFallback, disabledFallback])
           .then(([localItems, customItems, disabledKeys]) => {
-          const baseItems = (localItems.length > 0 ? localItems : defaultSiteSearchProviders)
-            .map(normalizeSiteSearchProvider)
-            .filter(Boolean);
+          const baseItems = localItems.length > 0 ? localItems : defaultSiteSearchProviders;
           const filteredBase = baseItems.filter((item) => {
             const key = String(item && item.key ? item.key : '').toLowerCase();
             return key && !disabledKeys.includes(key);
           });
-          const merged = mergeCustomProvidersLocal(
-            filteredBase,
-            customItems.map(normalizeSiteSearchProvider).filter(Boolean)
-          );
+          const merged = mergeCustomProvidersLocal(filteredBase, customItems);
           siteSearchProvidersCache = merged;
           resolve(merged);
         });
@@ -9138,10 +9084,6 @@
         }
       }
       allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
-      if (shouldLockToProviderOnly(siteSearchState, query)) {
-        allSuggestions = allSuggestions.filter((item) => item && item.type === 'siteSearch').slice(0, 1);
-      }
-
       const onlyKeywordSuggestions = allSuggestions.length > 0 &&
         allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
 
@@ -10914,11 +10856,60 @@
     if (typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function') {
       return null;
     }
+    if (!aiModeDecorFrame) {
+      aiModeDecorFrame = document.createElement('div');
+      aiModeDecorFrame.id = '_x_extension_newtab_ai_mode_decor_frame_2026_unique_';
+      aiModeDecorFrame.setAttribute('aria-hidden', 'true');
+      aiModeDecorFrame.style.cssText = `
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        box-sizing: border-box !important;
+        border-radius: 28px !important;
+        pointer-events: none !important;
+        overflow: visible !important;
+        z-index: 4 !important;
+      `;
+      document.body.appendChild(aiModeDecorFrame);
+    }
+
+    const syncAiModeDecorFrame = () => {
+      if (!aiModeDecorFrame || !root) {
+        return;
+      }
+      const rect = root.getBoundingClientRect();
+      aiModeDecorFrame.style.setProperty('left', `${rect.left + window.scrollX}px`, 'important');
+      aiModeDecorFrame.style.setProperty('top', `${rect.top + window.scrollY}px`, 'important');
+      aiModeDecorFrame.style.setProperty('width', `${rect.width}px`, 'important');
+      aiModeDecorFrame.style.setProperty('height', `${rect.height}px`, 'important');
+      aiModeDecorFrame.style.setProperty('border-radius', window.getComputedStyle(root).borderRadius || '28px', 'important');
+    };
+
+    syncAiModeDecorFrame();
+    if (!aiModeDecorFrameObserver && typeof window.ResizeObserver === 'function') {
+      aiModeDecorFrameObserver = new window.ResizeObserver(() => {
+        syncAiModeDecorFrame();
+      });
+      aiModeDecorFrameObserver.observe(root);
+      aiModeDecorFrameObserver.observe(document.body);
+    }
+    if (!aiModeDecorFrameResizeHandler) {
+      aiModeDecorFrameResizeHandler = () => {
+        syncAiModeDecorFrame();
+      };
+      window.addEventListener('resize', aiModeDecorFrameResizeHandler);
+      window.addEventListener('scroll', aiModeDecorFrameResizeHandler, true);
+    }
+
     aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
-      target: root,
+      target: aiModeDecorFrame,
       themeTarget: document.body || root,
       borderRadius: 28,
       borderWidth: 1,
+      edgeOffset: 0,
+      zIndex: 1,
       spread: 0,
       duration: 2.4,
       hueRange: 13,
@@ -10936,26 +10927,6 @@
     }
     decor.setTheme('auto');
     decor.setActive(Boolean(active));
-  }
-
-  function setSiteSearchInputModeState(provider) {
-    const category = provider ? getSiteSearchProviderCategory(provider) : '';
-    const inputMode = provider ? getSiteSearchProviderInputMode(provider) : '';
-    [root, inputContainer, searchInput, siteSearchPrefix].forEach((element) => {
-      if (!element || !element.dataset) {
-        return;
-      }
-      if (category) {
-        element.dataset.providerCategory = category;
-      } else {
-        delete element.dataset.providerCategory;
-      }
-      if (inputMode) {
-        element.dataset.inputMode = inputMode;
-      } else {
-        delete element.dataset.inputMode;
-      }
-    });
   }
 
   function getBaseInputPaddingLeft() {
@@ -10992,8 +10963,7 @@
     if (resolvedTheme && resolvedTheme.placeholderText) {
       searchInput.style.setProperty('caret-color', resolvedTheme.placeholderText, 'important');
     }
-    setSiteSearchInputModeState(provider);
-    setAiModeDecorActive(getSiteSearchProviderCategory(provider) === 'ai');
+    setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
     updateSiteSearchPrefixLayout();
   }
 
@@ -11002,7 +10972,6 @@
     siteSearchPrefix.style.setProperty('display', 'none', 'important');
     searchInput.placeholder = defaultPlaceholder;
     searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
-    setSiteSearchInputModeState(null);
     setAiModeDecorActive(false);
     updateSiteSearchPrefixLayout();
   }

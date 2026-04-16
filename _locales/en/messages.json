@@ -12,7 +12,7 @@
     "message": "Appearance"
   },
   "settings_tab_shortcuts": {
-    "message": "Search Shortcuts"
+    "message": "Site Search"
   },
   "settings_tab_blacklist": {
     "message": "Blacklist"
@@ -392,12 +392,6 @@
   "shortcuts_group_custom": {
     "message": "Custom"
   },
-  "shortcuts_group_site_search": {
-    "message": "Site Search"
-  },
-  "shortcuts_group_ai": {
-    "message": "AI"
-  },
   "blacklist_section_title": {
     "message": "Search and Recent Blacklist"
   },
@@ -506,9 +500,6 @@
   "shortcuts_badge_builtin": {
     "message": "Built-in"
   },
-  "shortcuts_badge_ai": {
-    "message": "AI"
-  },
   "shortcuts_label_key": {
     "message": "Keyword"
   },
@@ -551,14 +542,8 @@
   "shortcuts_empty_custom": {
     "message": "No custom site searches yet"
   },
-  "shortcuts_empty_custom_ai": {
-    "message": "No custom AI shortcuts yet"
-  },
   "shortcuts_empty_builtin": {
     "message": "No built-in site searches"
-  },
-  "shortcuts_empty_builtin_ai": {
-    "message": "No built-in AI shortcuts"
   },
   "toast_saved": {
     "message": "Saved"

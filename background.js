@@ -4662,9 +4662,7 @@ function sanitizeSiteSearchProviders(items) {
         name: item.name || item.key,
         template: template,
         action: String(item.action || '').trim(),
-        submitStrategy: String(item.submitStrategy || '').trim(),
-        category: getSiteSearchProviderCategory(item),
-        inputMode: getSiteSearchProviderInputMode(item)
+        submitStrategy: String(item.submitStrategy || '').trim()
       };
     })
     .filter((item) => {
@@ -4766,33 +4764,6 @@ function isInteractiveSiteSearchProvider(provider) {
     provider &&
     provider.action === 'openAndSubmit' &&
     provider.submitStrategy === 'geminiPrompt'
-  );
-}
-
-function normalizeSiteSearchProviderCategory(value) {
-  return String(value || '').trim().toLowerCase() === 'ai' ? 'ai' : 'siteSearch';
-}
-
-function getSiteSearchProviderCategory(provider) {
-  if (provider && (provider.category || provider.kind)) {
-    return normalizeSiteSearchProviderCategory(provider.category || provider.kind);
-  }
-  return isInteractiveSiteSearchProvider(provider) ? 'ai' : 'siteSearch';
-}
-
-function getSiteSearchProviderInputMode(provider) {
-  const raw = String(provider && provider.inputMode ? provider.inputMode : '').trim().toLowerCase();
-  if (raw) {
-    return raw;
-  }
-  return getSiteSearchProviderCategory(provider) === 'ai' ? 'ai' : 'siteSearch';
-}
-
-function shouldLockToProviderOnly(provider, query) {
-  return Boolean(
-    provider &&
-    String(query || '').trim() &&
-    getSiteSearchProviderCategory(provider) === 'ai'
   );
 }
 
@@ -8765,7 +8736,7 @@ async function getSearchSuggestions(query) {
       { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
       { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
       { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-      { key: 'gm', aliases: ['gemini'], name: 'Gemini', category: 'ai', inputMode: 'ai', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
+      { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
       { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
       { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
       { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -10677,6 +10648,7 @@ async function getSearchSuggestions(query) {
         themeTarget: overlay,
         borderRadius: 28,
         borderWidth: 1,
+        zIndex: 1,
         spread: 0,
         duration: 2.4,
         hueRange: 13,
@@ -10694,26 +10666,6 @@ async function getSearchSuggestions(query) {
       }
       decor.setTheme('auto');
       decor.setActive(Boolean(active));
-    }
-
-    function setSiteSearchInputModeState(provider) {
-      const category = provider ? getSiteSearchProviderCategory(provider) : '';
-      const inputMode = provider ? getSiteSearchProviderInputMode(provider) : '';
-      [overlay, inputContainer, searchInput, siteSearchPrefix].forEach((element) => {
-        if (!element || !element.dataset) {
-          return;
-        }
-        if (category) {
-          element.dataset.providerCategory = category;
-        } else {
-          delete element.dataset.providerCategory;
-        }
-        if (inputMode) {
-          element.dataset.inputMode = inputMode;
-        } else {
-          delete element.dataset.inputMode;
-        }
-      });
     }
 
     function getBaseInputPaddingLeft() {
@@ -10755,7 +10707,6 @@ async function getSearchSuggestions(query) {
       siteSearchPrefix.style.setProperty('display', 'none', 'important');
       searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
       searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
-      setSiteSearchInputModeState(null);
       setAiModeDecorActive(false);
       updateSiteSearchPrefixLayout();
     }
@@ -10765,8 +10716,7 @@ async function getSearchSuggestions(query) {
         site: getSiteSearchDisplayName(provider)
       });
       setInputModePrefix(prefixText, theme);
-      setSiteSearchInputModeState(provider);
-      setAiModeDecorActive(getSiteSearchProviderCategory(provider) === 'ai');
+      setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
     }
 
     function setOpenTabsSearchPrefix(theme) {
@@ -11321,18 +11271,18 @@ async function getSearchSuggestions(query) {
         chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
           const items = response && Array.isArray(response.items) ? response.items : [];
           if (items.length > 0) {
-            siteSearchProvidersCache = sanitizeSiteSearchProviders(items);
-            resolve(siteSearchProvidersCache);
+            siteSearchProvidersCache = items;
+            resolve(items);
             return;
           }
           Promise.all([localFallback, customFallback, disabledFallback])
             .then(([localItems, customItems, disabledKeys]) => {
-            const baseItems = sanitizeSiteSearchProviders(localItems.length > 0 ? localItems : defaultSiteSearchProviders);
+            const baseItems = localItems.length > 0 ? localItems : defaultSiteSearchProviders;
             const filteredBase = baseItems.filter((item) => {
               const key = String(item && item.key ? item.key : '').toLowerCase();
               return key && !disabledKeys.includes(key);
             });
-            const merged = mergeCustomProvidersLocal(filteredBase, sanitizeSiteSearchProviders(customItems));
+            const merged = mergeCustomProvidersLocal(filteredBase, customItems);
             siteSearchProvidersCache = merged;
             resolve(merged);
           });
@@ -11359,10 +11309,7 @@ async function getSearchSuggestions(query) {
           const key = String(item && item.key ? item.key : '').toLowerCase();
           return key && !disabledKeys.includes(key);
         });
-        siteSearchProvidersCache = mergeCustomProvidersLocal(
-          sanitizeSiteSearchProviders(baseItems),
-          sanitizeSiteSearchProviders(customItems)
-        );
+        siteSearchProvidersCache = mergeCustomProvidersLocal(baseItems, customItems);
         if (latestOverlayQuery) {
           chrome.runtime.sendMessage({
             action: 'getSearchSuggestions',
@@ -11371,8 +11318,6 @@ async function getSearchSuggestions(query) {
           }, function(response) {
             if (response && response.suggestions) {
               updateSearchSuggestions(response.suggestions, latestOverlayQuery);
-            } else {
-              updateSearchSuggestions([], latestOverlayQuery);
             }
           });
         }
@@ -11829,6 +11774,14 @@ async function getSearchSuggestions(query) {
     searchInput.addEventListener('input', function(event) {
       const rawValue = this.value;
       const query = rawValue.trim();
+      if (overlay && overlay.dataset) {
+        overlay.dataset.debugInputQuery = query;
+        overlay.dataset.debugInputRaw = rawValue;
+      }
+      console.log('[Lumno overlay debug] input', {
+        rawValue: rawValue,
+        query: query
+      });
       updateModeBadge(rawValue);
       const inputType = event && event.inputType;
       const isPaste = inputType === 'insertFromPaste';
@@ -11873,6 +11826,20 @@ async function getSearchSuggestions(query) {
           query: query,
           context: 'overlay'
         }, function(response) {
+          if (overlay && overlay.dataset) {
+            overlay.dataset.debugCallbackQuery = query;
+            overlay.dataset.debugCallbackCount = response && Array.isArray(response.suggestions)
+              ? String(response.suggestions.length)
+              : 'null';
+            overlay.dataset.debugCallbackLastError = chrome.runtime && chrome.runtime.lastError
+              ? String(chrome.runtime.lastError.message || 'lastError')
+              : '';
+          }
+          console.log('[Lumno overlay debug] suggestions callback', {
+            query: query,
+            hasLastError: Boolean(chrome.runtime && chrome.runtime.lastError),
+            responseCount: response && Array.isArray(response.suggestions) ? response.suggestions.length : null
+          });
           if (response && response.suggestions) {
             updateSearchSuggestions(response.suggestions, query);
           }
@@ -13414,6 +13381,16 @@ async function getSearchSuggestions(query) {
     }
 
     function updateSearchSuggestions(suggestions, query) {
+      if (overlay && overlay.dataset) {
+        overlay.dataset.debugUpdateQuery = query;
+        overlay.dataset.debugUpdateLatestQuery = latestOverlayQuery;
+        overlay.dataset.debugUpdateCount = Array.isArray(suggestions) ? String(suggestions.length) : 'null';
+      }
+      console.log('[Lumno overlay debug] updateSearchSuggestions', {
+        query: query,
+        latestOverlayQuery: latestOverlayQuery,
+        suggestionCount: Array.isArray(suggestions) ? suggestions.length : null
+      });
       if (query !== latestOverlayQuery) {
         return;
       }
@@ -13577,9 +13554,6 @@ async function getSearchSuggestions(query) {
           }
         }
         allSuggestions = filterOverlayBlacklistedSuggestions(allSuggestions, query);
-        if (shouldLockToProviderOnly(siteSearchState, query)) {
-          allSuggestions = allSuggestions.filter((item) => item && item.type === 'siteSearch').slice(0, 1);
-        }
         const onlyKeywordSuggestions = allSuggestions.length > 0 &&
           allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
 

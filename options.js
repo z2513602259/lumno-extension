@@ -70,7 +70,6 @@
   const customSelectWraps = Array.from(document.querySelectorAll('._x_extension_custom_select_2024_unique_'));
   const siteSearchCustomList = document.getElementById('_x_extension_site_search_custom_list_2024_unique_');
   const siteSearchBuiltinList = document.getElementById('_x_extension_site_search_builtin_list_2024_unique_');
-  const siteSearchBuiltinAiList = document.getElementById('_x_extension_site_search_builtin_ai_list_2026_unique_');
   const siteSearchKeyInput = document.getElementById('_x_extension_site_search_key_2024_unique_');
   const siteSearchNameInput = document.getElementById('_x_extension_site_search_name_2024_unique_');
   const siteSearchTemplateInput = document.getElementById('_x_extension_site_search_template_2024_unique_');
@@ -201,7 +200,7 @@
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
     { key: 'bb', aliases: ['bilibili', 'bili'], name: 'Bilibili', template: 'https://search.bilibili.com/all?keyword={query}' },
     { key: 'gh', aliases: ['github'], name: 'GitHub', template: 'https://github.com/search?q={query}' },
-    { key: 'gm', aliases: ['gemini'], name: 'Gemini', category: 'ai', inputMode: 'ai', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
+    { key: 'gm', aliases: ['gemini'], name: 'Gemini', template: 'https://gemini.google.com/app', action: 'openAndSubmit', submitStrategy: 'geminiPrompt' },
     { key: 'so', aliases: ['baidu', 'bd'], name: 'Baidu', template: 'https://www.baidu.com/s?wd={query}' },
     { key: 'bi', aliases: ['bing'], name: 'Bing', template: 'https://www.bing.com/search?q={query}' },
     { key: 'gg', aliases: ['google'], name: 'Google', template: 'https://www.google.com/search?q={query}' },
@@ -2493,60 +2492,6 @@
       .replace(/\{searchTerms\}/g, '{query}');
   }
 
-  function isInteractiveSiteSearchProvider(provider) {
-    return Boolean(
-      provider &&
-      provider.action === 'openAndSubmit' &&
-      provider.submitStrategy === 'geminiPrompt'
-    );
-  }
-
-  function normalizeSiteSearchProviderCategory(value) {
-    return String(value || '').trim().toLowerCase() === 'ai' ? 'ai' : 'siteSearch';
-  }
-
-  function getSiteSearchProviderCategory(provider) {
-    if (provider && (provider.category || provider.kind)) {
-      return normalizeSiteSearchProviderCategory(provider.category || provider.kind);
-    }
-    return isInteractiveSiteSearchProvider(provider) ? 'ai' : 'siteSearch';
-  }
-
-  function getSiteSearchProviderInputMode(provider) {
-    const raw = String(provider && provider.inputMode ? provider.inputMode : '').trim().toLowerCase();
-    if (raw) {
-      return raw;
-    }
-    return getSiteSearchProviderCategory(provider) === 'ai' ? 'ai' : 'siteSearch';
-  }
-
-  function normalizeSiteSearchProvider(item, options) {
-    const config = options && typeof options === 'object' ? options : {};
-    if (!item || !item.key || !item.template) {
-      return null;
-    }
-    const template = normalizeSiteSearchTemplate(item.template);
-    const category = config.forceCategory || getSiteSearchProviderCategory(item);
-    const inputMode = config.forceInputMode || (category === 'ai' ? getSiteSearchProviderInputMode(item) : 'siteSearch');
-    const normalized = {
-      key: String(item.key).trim(),
-      aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
-      name: item.name || item.key,
-      template: template,
-      action: String(item.action || '').trim(),
-      submitStrategy: String(item.submitStrategy || '').trim(),
-      category: category,
-      inputMode: inputMode
-    };
-    if (!normalized.key || !normalized.template) {
-      return null;
-    }
-    if (!normalized.template.includes('{query}') && !isInteractiveSiteSearchProvider(normalized)) {
-      return null;
-    }
-    return normalized;
-  }
-
   function isDuplicateTemplate(template, defaults) {
     const normalized = normalizeSiteSearchTemplate(String(template || '').trim());
     if (!normalized) {
@@ -3455,12 +3400,11 @@
   setBlacklistFormExpanded(false);
 
   function renderSiteSearchList() {
-    if (!siteSearchCustomList || !siteSearchBuiltinList || !siteSearchBuiltinAiList) {
+    if (!siteSearchCustomList || !siteSearchBuiltinList) {
       return;
     }
     siteSearchCustomList.innerHTML = '';
     siteSearchBuiltinList.innerHTML = '';
-    siteSearchBuiltinAiList.innerHTML = '';
     const builtinRowByTemplate = new Map();
     const customKeys = new Set(customSiteSearchProviders.map((item) => String(item.key || '').toLowerCase()));
     const displayDefaults = defaultSiteSearchProviders.filter((item) => {
@@ -3496,8 +3440,6 @@
       row.setAttribute('data-expanded', 'false');
       row.dataset.key = item.key || '';
       row.dataset.type = item._xIsCustom ? 'custom' : 'builtin';
-      row.dataset.providerCategory = getSiteSearchProviderCategory(item);
-      row.dataset.inputMode = getSiteSearchProviderInputMode(item);
       const normalizedTemplate = normalizeSiteSearchTemplate(String(item.template || '').trim());
       if (!item._xIsCustom && normalizedTemplate) {
         row.dataset.template = normalizedTemplate;
@@ -3514,15 +3456,9 @@
       badge.textContent = item._xIsCustom
         ? getMessage('shortcuts_badge_custom', '自定义')
         : getMessage('shortcuts_badge_builtin', '内置');
-      const kindBadge = document.createElement('div');
-      kindBadge.className = '_x_extension_shortcut_badge_2024_unique_';
-      kindBadge.textContent = getSiteSearchProviderCategory(item) === 'ai'
-        ? getMessage('shortcuts_badge_ai', 'AI')
-        : getMessage('shortcuts_group_site_search', '站内搜索');
       const titleText = document.createElement('span');
       titleText.textContent = getLocalizedBuiltinProviderName(item);
       title.appendChild(badge);
-      title.appendChild(kindBadge);
       if (item._xIsCustom && normalizedTemplate && builtinTemplateSet.has(normalizedTemplate)) {
         const duplicateTag = document.createElement('button');
         duplicateTag.type = 'button';
@@ -3709,17 +3645,11 @@
         }
         const templateRaw = String(templateInput.value || '').trim();
         const template = normalizeSiteSearchTemplate(templateRaw);
-        const nextProvider = normalizeSiteSearchProvider({
-          ...item,
-          key: nextKeyRaw,
-          name: String(nameInput.value || '').trim() || nextKeyRaw,
-          template: template,
-          aliases: normalizeAliases(aliasInput.value || '')
-        });
-        if (!nextProvider) {
+        if (!template || !template.includes('{query}')) {
           showToast(getMessage('toast_error_template', '搜索模板必须包含 {query}。'), true);
           return;
         }
+        const aliases = normalizeAliases(aliasInput.value || '');
         const normalizedKey = nextKeyRaw.toLowerCase();
         let next = customSiteSearchProviders.filter((entry) => String(entry.key || '').toLowerCase() !== normalizedKey);
         const previousKey = String(item.key || '').toLowerCase();
@@ -3728,7 +3658,10 @@
         }
         const shouldDisable = isDuplicateTemplate(template, defaultSiteSearchProviders);
         next.unshift({
-          ...nextProvider,
+          key: nextKeyRaw,
+          name: String(nameInput.value || '').trim() || nextKeyRaw,
+          template: template,
+          aliases: aliases,
           disabled: shouldDisable,
           disabledReason: shouldDisable ? 'duplicate' : ''
         });
@@ -3803,23 +3736,8 @@
       siteSearchBuiltinList.appendChild(empty);
     } else {
       displayDefaults.forEach((item) => {
-        renderItem(
-          { ...item, _xIsCustom: false },
-          getSiteSearchProviderCategory(item) === 'ai' ? siteSearchBuiltinAiList : siteSearchBuiltinList
-        );
+        renderItem({ ...item, _xIsCustom: false }, siteSearchBuiltinList);
       });
-    }
-    if (siteSearchBuiltinList.children.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = '_x_extension_settings_placeholder_2024_unique_';
-      empty.textContent = getMessage('shortcuts_empty_builtin', '暂无内置站内搜索');
-      siteSearchBuiltinList.appendChild(empty);
-    }
-    if (siteSearchBuiltinAiList.children.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = '_x_extension_settings_placeholder_2024_unique_';
-      empty.textContent = getMessage('shortcuts_empty_builtin_ai', '暂无内置 AI');
-      siteSearchBuiltinAiList.appendChild(empty);
     }
     initTooltips();
   }
@@ -3830,20 +3748,12 @@
       .then((resp) => resp.json())
       .then((data) => {
         const items = data && Array.isArray(data.items) ? data.items : [];
-        const normalized = items.map(normalizeSiteSearchProvider).filter(Boolean);
-        return normalized.length > 0
-          ? normalized
-          : fallbackSiteSearchProviders.map(normalizeSiteSearchProvider).filter(Boolean);
+        return items.length > 0 ? items : fallbackSiteSearchProviders;
       })
       .catch(() => new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
           const items = response && Array.isArray(response.items) ? response.items : [];
-          const normalized = items.map(normalizeSiteSearchProvider).filter(Boolean);
-          resolve(
-            normalized.length > 0
-              ? normalized
-              : fallbackSiteSearchProviders.map(normalizeSiteSearchProvider).filter(Boolean)
-          );
+          resolve(items.length > 0 ? items : fallbackSiteSearchProviders);
         });
       }));
   }
@@ -3864,14 +3774,7 @@
     const nameB = String(b.name || b.key || '').trim();
     const templateA = normalizeSiteSearchTemplate(String(a.template || '').trim());
     const templateB = normalizeSiteSearchTemplate(String(b.template || '').trim());
-    if (
-      nameA !== nameB ||
-      templateA !== templateB ||
-      getSiteSearchProviderCategory(a) !== getSiteSearchProviderCategory(b) ||
-      getSiteSearchProviderInputMode(a) !== getSiteSearchProviderInputMode(b) ||
-      String(a.action || '').trim() !== String(b.action || '').trim() ||
-      String(a.submitStrategy || '').trim() !== String(b.submitStrategy || '').trim()
-    ) {
+    if (nameA !== nameB || templateA !== templateB) {
       return false;
     }
     const aliasA = normalizeAliasList(a.aliases);
@@ -3899,10 +3802,7 @@
       }
       storageArea.get([SITE_SEARCH_STORAGE_KEY], (result) => {
         const items = Array.isArray(result[SITE_SEARCH_STORAGE_KEY]) ? result[SITE_SEARCH_STORAGE_KEY] : [];
-        resolve(items.map((item) => normalizeSiteSearchProvider(item, {
-          forceCategory: 'siteSearch',
-          forceInputMode: 'siteSearch'
-        })).filter(Boolean));
+        resolve(items);
       });
     });
   }
@@ -3936,16 +3836,12 @@
   }
 
   function saveCustomSiteSearchProviders(items) {
-    const normalized = (items || []).map((item) => normalizeSiteSearchProvider(item, {
-      forceCategory: 'siteSearch',
-      forceInputMode: 'siteSearch'
-    })).filter(Boolean);
     return new Promise((resolve) => {
       if (!storageArea) {
         resolve();
         return;
       }
-      storageArea.set({ [SITE_SEARCH_STORAGE_KEY]: normalized }, () => resolve());
+      storageArea.set({ [SITE_SEARCH_STORAGE_KEY]: items }, () => resolve());
     });
   }
 
@@ -4274,11 +4170,11 @@
   }
 
   function refreshSiteSearchProviders() {
-    if (!siteSearchCustomList || !siteSearchBuiltinList || !siteSearchBuiltinAiList) {
+    if (!siteSearchCustomList || !siteSearchBuiltinList) {
       return;
     }
     if (defaultSiteSearchProviders.length === 0) {
-      defaultSiteSearchProviders = fallbackSiteSearchProviders.map(normalizeSiteSearchProvider).filter(Boolean);
+      defaultSiteSearchProviders = fallbackSiteSearchProviders.slice();
       renderSiteSearchList();
     }
     Promise.all([
@@ -4286,7 +4182,7 @@
       loadCustomSiteSearchProviders(),
       loadDisabledSiteSearchKeys()
     ]).then(([defaults, custom, disabled]) => {
-      defaultSiteSearchProviders = defaults.map(normalizeSiteSearchProvider).filter(Boolean);
+      defaultSiteSearchProviders = defaults;
       const filteredCustom = filterRedundantCustomProviders(defaults, custom);
       const withoutDebug = filteredCustom.filter((item) => String(item.key || '').toLowerCase() !== DEBUG_DUPLICATE_CUSTOM_KEY);
       const didFilter = filteredCustom.length !== (custom || []).length;
@@ -4321,7 +4217,7 @@
     });
   }
 
-  if (siteSearchCustomList && siteSearchBuiltinList && siteSearchBuiltinAiList) {
+  if (siteSearchCustomList && siteSearchBuiltinList) {
     refreshSiteSearchProviders();
   }
   if (blacklistList) {
@@ -4363,9 +4259,6 @@
   }
   if (siteSearchBuiltinList) {
     siteSearchBuiltinList.addEventListener('click', handleSiteSearchListClick);
-  }
-  if (siteSearchBuiltinAiList) {
-    siteSearchBuiltinAiList.addEventListener('click', handleSiteSearchListClick);
   }
   document.addEventListener('click', (event) => {
     if (!activePopconfirm) {
@@ -4414,13 +4307,7 @@
         return;
       }
       const template = normalizeSiteSearchTemplate(templateRaw);
-      const nextProvider = normalizeSiteSearchProvider({
-        key: key,
-        name: name || key,
-        template: template,
-        aliases: aliases
-      });
-      if (!nextProvider) {
+      if (!template || !template.includes('{query}')) {
         setSiteSearchError(getMessage('toast_error_template', '搜索模板必须包含 {query}。'));
         return;
       }
@@ -4429,7 +4316,12 @@
       if (editingSiteSearchKey && editingSiteSearchKey.toLowerCase() !== normalizedKey) {
         next = next.filter((item) => String(item.key || '').toLowerCase() !== editingSiteSearchKey.toLowerCase());
       }
-      next.unshift(nextProvider);
+      next.unshift({
+        key: key,
+        name: name || key,
+        template: template,
+        aliases: aliases
+      });
       const lowerKey = normalizedKey;
       disabledSiteSearchKeys.delete(lowerKey);
       Promise.all([

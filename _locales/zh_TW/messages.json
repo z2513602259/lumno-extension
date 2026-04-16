@@ -12,7 +12,7 @@
     "message": "外觀"
   },
   "settings_tab_shortcuts": {
-    "message": "搜尋捷徑"
+    "message": "站內搜尋"
   },
   "settings_tab_blacklist": {
     "message": "黑名單"
@@ -383,12 +383,6 @@
   "shortcuts_group_custom": {
     "message": "自訂"
   },
-  "shortcuts_group_site_search": {
-    "message": "站內搜尋"
-  },
-  "shortcuts_group_ai": {
-    "message": "AI"
-  },
   "blacklist_section_title": {
     "message": "搜尋與最近訪問黑名單"
   },
@@ -497,9 +491,6 @@
   "shortcuts_badge_builtin": {
     "message": "內建"
   },
-  "shortcuts_badge_ai": {
-    "message": "AI"
-  },
   "shortcuts_duplicate_tag": {
     "message": "與內置重複"
   },
@@ -551,14 +542,8 @@
   "shortcuts_empty_custom": {
     "message": "尚未新增自訂站內搜尋"
   },
-  "shortcuts_empty_custom_ai": {
-    "message": "尚未新增自訂 AI"
-  },
   "shortcuts_empty_builtin": {
     "message": "沒有內建站內搜尋"
-  },
-  "shortcuts_empty_builtin_ai": {
-    "message": "目前沒有內建 AI"
   },
   "toast_saved": {
     "message": "已儲存"
