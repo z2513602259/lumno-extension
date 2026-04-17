@@ -213,7 +213,7 @@
     if (!wordmarkContainer) {
       return;
     }
-    wordmarkContainer.style.setProperty('display', newtabWordmarkVisible ? 'flex' : 'none', 'important');
+    wordmarkContainer.hidden = !newtabWordmarkVisible;
     updateSearchEntryLayout();
   }
 
@@ -228,13 +228,13 @@
       if (wordmarkImageEl.getAttribute('src') !== darkSrc) {
         wordmarkImageEl.setAttribute('src', darkSrc);
       }
-      wordmarkImageEl.style.setProperty('opacity', '0.9', 'important');
+      wordmarkImageEl.setAttribute('data-theme-variant', 'dark');
       return;
     }
     if (wordmarkImageEl.getAttribute('src') !== lightSrc) {
       wordmarkImageEl.setAttribute('src', lightSrc);
     }
-    wordmarkImageEl.style.setProperty('opacity', '0.82', 'important');
+    wordmarkImageEl.setAttribute('data-theme-variant', 'light');
   }
 
   function formatTabRankDebugText(tab) {
@@ -2183,13 +2183,13 @@
     }
     const shouldShow = isModeCommand(rawValue || '');
     if (!shouldShow) {
-      modeBadge.style.setProperty('display', 'none', 'important');
+      modeBadge.hidden = true;
       return;
     }
     modeBadge.textContent = formatMessage('mode_badge', '模式：{mode}', {
       mode: getThemeModeLabel(currentThemeMode)
     });
-    modeBadge.style.setProperty('display', 'inline-flex', 'important');
+    modeBadge.hidden = false;
   }
 
   function getNextThemeMode(mode) {
@@ -10926,32 +10926,8 @@
   }, true);
   modeBadge = document.createElement('div');
   modeBadge.id = '_x_extension_newtab_mode_badge_2024_unique_';
-  modeBadge.style.cssText = `
-    all: unset !important;
-    position: absolute !important;
-    right: 52px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    display: none !important;
-    align-items: center !important;
-    gap: 6px !important;
-    background: var(--x-nt-tag-bg, #F3F4F6) !important;
-    color: var(--x-nt-tag-text, #6B7280) !important;
-    border: 1px solid var(--x-nt-panel-border, rgba(0, 0, 0, 0.08)) !important;
-    border-radius: 999px !important;
-    padding: 4px 8px !important;
-    font-size: 11px !important;
-    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-    font-weight: 500 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-    max-width: 180px !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    box-sizing: border-box !important;
-    pointer-events: none !important;
-    z-index: 1 !important;
-  `;
+  modeBadge.className = 'x-nt-mode-badge';
+  modeBadge.hidden = true;
   inputParts.container.appendChild(modeBadge);
   const searchInput = inputParts.input;
   searchInputRef = searchInput;
@@ -10960,30 +10936,11 @@
   wordmarkContainer = document.createElement('div');
   wordmarkContainer.id = '_x_extension_newtab_wordmark_2026_unique_';
   wordmarkContainer.setAttribute('aria-hidden', 'true');
-  wordmarkContainer.style.cssText = `
-    all: unset !important;
-    width: 90vw !important;
-    max-width: var(--x-nt-search-max-width, 720px) !important;
-    min-height: 0 !important;
-    margin: 0 0 28px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
-    pointer-events: auto !important;
-    user-select: none !important;
-  `;
+  wordmarkContainer.className = 'x-nt-wordmark';
   const wordmarkButton = document.createElement('button');
   wordmarkButton.type = 'button';
   wordmarkButton.setAttribute('aria-label', t('settings_tab_appearance', '外观'));
-  wordmarkButton.style.cssText = `
-    all: unset !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    pointer-events: auto !important;
-  `;
+  wordmarkButton.className = 'x-nt-wordmark-button';
   wordmarkButton.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -10994,39 +10951,15 @@
   wordmarkImageEl.src = 'assets/images/lumno-wordmark.svg';
   wordmarkImageEl.alt = '';
   wordmarkImageEl.draggable = false;
-  wordmarkImageEl.style.cssText = `
-    width: 180px !important;
-    max-width: 52% !important;
-    height: auto !important;
-    display: block !important;
-    object-fit: contain !important;
-    opacity: 0.82 !important;
-    filter: none !important;
-    transform: translateY(0) !important;
-  `;
+  wordmarkImageEl.className = 'x-nt-wordmark-image';
+  wordmarkImageEl.setAttribute('data-theme-variant', 'light');
   wordmarkButton.appendChild(wordmarkImageEl);
   wordmarkContainer.appendChild(wordmarkButton);
   applyNewtabWordmarkVisibility();
   applyWordmarkThemeAppearance();
   searchLayer = document.createElement('div');
   searchLayer.id = '_x_extension_newtab_search_layer_2024_unique_';
-  searchLayer.style.cssText = `
-    all: unset !important;
-    position: relative !important;
-    width: 100% !important;
-    min-width: 100% !important;
-    min-height: 45px !important;
-    display: block !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    border-radius: 24px !important;
-    background: var(--x-nt-input-bg, rgba(255, 255, 255, 0.9)) !important;
-    border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06)) !important;
-    box-shadow: var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08)) !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    z-index: 12 !important;
-  `;
+  searchLayer.className = 'x-nt-search-layer';
 
   if (rightIcon) {
     rightIcon.style.setProperty('right', '14px', 'important');
@@ -11058,50 +10991,18 @@
   const siteSearchPrefix = document.createElement('span');
   siteSearchPrefix.id = '_x_extension_newtab_site_search_prefix_2024_unique_';
   siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
-  siteSearchPrefix.style.cssText = `
-    all: unset !important;
-    position: absolute !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    left: 50px !important;
-    display: none !important;
-    align-items: center !important;
-    max-width: 0 !important;
-    padding: 0 8px !important;
-    height: 22px !important;
-    border-radius: 8px !important;
-    border: none !important;
-    background: var(--x-ext-tag-bg, #EEF6FF) !important;
-    color: #FFFFFF !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    line-height: 1 !important;
-    pointer-events: none !important;
-    z-index: 1 !important;
-  `;
+  siteSearchPrefix.className = 'x-nt-site-search-prefix';
+  siteSearchPrefix.hidden = true;
   const siteSearchPrefixLabel = document.createElement('span');
   siteSearchPrefixLabel.setAttribute('translate', 'no');
   siteSearchPrefixLabel.setAttribute('lang', 'zxx');
   siteSearchPrefixLabel.setAttribute('data-no-translate', 'true');
   siteSearchPrefixLabel.classList.add('notranslate');
-  siteSearchPrefixLabel.style.cssText = `
-    all: unset !important;
-    display: block !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    line-height: 1 !important;
-  `;
+  siteSearchPrefixLabel.classList.add('x-nt-site-search-prefix-label');
   siteSearchPrefix.appendChild(siteSearchPrefixLabel);
   inputContainer.appendChild(siteSearchPrefix);
-  inputContainer.style.setProperty('position', 'relative', 'important');
-  inputContainer.style.setProperty('z-index', '2', 'important');
-  suggestionsContainer.style.setProperty('position', 'relative', 'important');
-  suggestionsContainer.style.setProperty('z-index', '2', 'important');
+  inputContainer.classList.add('x-nt-input-container');
+  suggestionsContainer.classList.add('x-nt-suggestions-layer');
 
   function ensureAiModeDecor() {
     if (aiModeDecor) {
@@ -11232,7 +11133,7 @@
   function updateSiteSearchPrefixLayout() {
     const basePadding = getBaseInputPaddingLeft();
     siteSearchPrefix.style.setProperty('left', `${basePadding}px`, 'important');
-    if (siteSearchPrefix.style.display === 'none') {
+    if (siteSearchPrefix.hidden) {
       siteSearchPrefix.style.setProperty('max-width', '0px', 'important');
       searchInput.style.setProperty('padding-left', `${basePadding}px`, 'important');
       return;
@@ -11250,7 +11151,7 @@
       site: getSiteSearchDisplayName(provider)
     });
     siteSearchPrefixLabel.textContent = prefixText;
-    siteSearchPrefix.style.setProperty('display', 'inline-flex', 'important');
+    siteSearchPrefix.hidden = false;
     const resolvedTheme = getThemeForMode(theme || defaultTheme);
     const accentRgb = resolvedTheme && (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
       ? (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
@@ -11285,7 +11186,7 @@
 
   function clearSiteSearchPrefix() {
     siteSearchPrefixLabel.textContent = '';
-    siteSearchPrefix.style.setProperty('display', 'none', 'important');
+    siteSearchPrefix.hidden = true;
     siteSearchPrefix.style.setProperty('background', 'var(--x-ext-tag-bg, #EEF6FF)', 'important');
     siteSearchPrefix.style.setProperty('color', '#FFFFFF', 'important');
     siteSearchPrefix.style.setProperty('border', 'none', 'important');

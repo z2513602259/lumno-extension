@@ -201,6 +201,121 @@
       body[data-nt-ready="1"] #_x_extension_newtab_root_2024_unique_ {
         visibility: visible;
       }
+      .x-nt-mode-badge {
+        position: absolute;
+        right: 52px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--x-nt-tag-bg, #f3f4f6);
+        color: var(--x-nt-tag-text, #6b7280);
+        border: 1px solid var(--x-nt-panel-border, rgba(0, 0, 0, 0.08));
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        font-weight: 500;
+        line-height: 1;
+        white-space: nowrap;
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-sizing: border-box;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .x-nt-wordmark {
+        width: 90vw;
+        max-width: var(--x-nt-search-max-width, 720px);
+        min-height: 0;
+        margin: 0 0 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        pointer-events: auto;
+        user-select: none;
+      }
+      .x-nt-wordmark-button {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .x-nt-wordmark-image {
+        width: 180px;
+        max-width: 52%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+        opacity: 0.82;
+        filter: none;
+        transform: translateY(0);
+      }
+      .x-nt-wordmark-image[data-theme-variant="dark"] {
+        opacity: 0.9;
+      }
+      .x-nt-search-layer {
+        position: relative;
+        width: 100%;
+        min-width: 100%;
+        min-height: 45px;
+        display: block;
+        box-sizing: border-box;
+        overflow: hidden;
+        border-radius: 24px;
+        background: var(--x-nt-input-bg, rgba(255, 255, 255, 0.9));
+        border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06));
+        box-shadow: var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08));
+        margin: 0;
+        padding: 0;
+        z-index: 12;
+      }
+      .x-nt-input-container {
+        position: relative;
+        z-index: 2;
+      }
+      .x-nt-suggestions-layer {
+        position: relative;
+        z-index: 2;
+      }
+      .x-nt-site-search-prefix {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 50px;
+        display: inline-flex;
+        align-items: center;
+        max-width: 0;
+        padding: 0 8px;
+        height: 22px;
+        border-radius: 8px;
+        border: none;
+        background: var(--x-ext-tag-bg, #eef6ff);
+        color: #ffffff;
+        box-sizing: border-box;
+        overflow: hidden;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .x-nt-site-search-prefix-label {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 1;
+      }
       #_x_extension_newtab_recent_sites_2024_unique_ {
         width: min(96vw, var(--x-nt-content-max-width, 1040px));
         position: relative;
