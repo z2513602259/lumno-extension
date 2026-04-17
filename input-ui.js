@@ -521,6 +521,10 @@
     const borderRadius = clampNumber(config.borderRadius, 36, 0, 999);
     const borderWidth = clampNumber(config.borderWidth, 1, 1, 6);
     const duration = clampNumber(config.duration, 1.96, 0.5, 30);
+    const hostInset = clampNumber(config.hostInset, borderWidth, 0, 80);
+    const beamRadius = clampNumber(config.beamRadius, borderRadius, 0, 1200);
+    const zIndex = Number.isFinite(Number(config.zIndex)) ? String(config.zIndex) : '3';
+    const strength = clampNumber(config.strength, 1, 0, 1);
     const preset = BORDER_BEAM_LINE_THEME_PRESETS[theme];
     const brightness = clampNumber(config.brightness, 1.3, 0.1, 5);
     const saturation = clampNumber(config.saturation, theme === 'dark' ? 1.2 : 0.96, 0.1, 5);
@@ -545,10 +549,26 @@
   inherits: true;
 }
 
+[data-beam-host="${id}"] {
+  position: absolute;
+  inset: -${hostInset}px;
+  display: block;
+  box-sizing: border-box;
+  border-radius: ${beamRadius}px;
+  pointer-events: none;
+  z-index: ${zIndex};
+  overflow: visible;
+}
+
 [data-beam="${id}"] {
   position: relative;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
   border-radius: ${borderRadius}px;
   overflow: hidden;
+  pointer-events: none;
+  --beam-strength: ${strength};
 }
 
 [data-beam="${id}"][data-active] {
@@ -1008,29 +1028,12 @@
     const host = document.createElement('div');
     applyNoTranslate(host);
     host.setAttribute('aria-hidden', 'true');
-    host.style.cssText = `
-      position: absolute !important;
-      inset: -${hostInset}px !important;
-      display: block !important;
-      box-sizing: border-box !important;
-      border-radius: ${beamRadius}px !important;
-      pointer-events: none !important;
-      z-index: ${zIndex} !important;
-      overflow: visible !important;
-    `;
+    host.setAttribute('data-beam-host', id);
 
     const beam = document.createElement('div');
     applyNoTranslate(beam);
     beam.setAttribute('aria-hidden', 'true');
     beam.setAttribute('data-beam', id);
-    beam.style.cssText = `
-      position: absolute !important;
-      inset: 0 !important;
-      display: block !important;
-      box-sizing: border-box !important;
-      pointer-events: none !important;
-      --beam-strength: ${clampNumber(config.strength, 1, 0, 1)} !important;
-    `;
 
     const bloom = document.createElement('div');
     applyNoTranslate(bloom);
@@ -1060,6 +1063,10 @@
         theme: resolvedTheme,
         borderRadius: beamRadius,
         borderWidth: borderWidth,
+        hostInset: hostInset,
+        beamRadius: beamRadius,
+        zIndex: zIndex,
+        strength: config.strength,
         duration: config.duration,
         brightness: config.brightness,
         saturation: config.saturation,
@@ -1166,6 +1173,7 @@
     const id = config.id;
     const theme = config.theme === 'dark' ? 'dark' : 'light';
     const borderRadius = clampNumber(config.borderRadius, 28, 0, 999);
+    const zIndex = Number.isFinite(Number(config.zIndex)) ? String(config.zIndex) : '4';
     const durationMs = Math.round(clampNumber(config.duration, 2280, 220, 6000));
     const durationCss = `var(--ai-sweep-duration-${id}, ${durationMs}ms)`;
     const arcBlendMode = 'screen';
@@ -1201,10 +1209,19 @@
   pointer-events: none;
   opacity: 0;
   contain: paint;
+  z-index: ${zIndex};
 }
 
 [data-ai-sweep="${id}"][data-playing] {
   opacity: 1;
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-svg] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 [data-ai-sweep="${id}"] [data-ai-sweep-carrier] {
@@ -1608,16 +1625,6 @@
     applyNoTranslate(host);
     host.setAttribute('aria-hidden', 'true');
     host.setAttribute('data-ai-sweep', id);
-    host.style.cssText = `
-      position: absolute !important;
-      inset: 0 !important;
-      display: block !important;
-      box-sizing: border-box !important;
-      border-radius: ${borderRadius}px !important;
-      pointer-events: none !important;
-      z-index: ${zIndex} !important;
-      overflow: hidden !important;
-    `;
 
     const carrier = document.createElement('div');
     applyNoTranslate(carrier);
@@ -1665,9 +1672,9 @@
     const filterSvg = createSvgElement('svg');
     filterSvg.setAttribute('aria-hidden', 'true');
     filterSvg.setAttribute('focusable', 'false');
+    filterSvg.setAttribute('data-ai-sweep-svg', 'true');
     filterSvg.setAttribute('width', '0');
     filterSvg.setAttribute('height', '0');
-    filterSvg.style.cssText = 'position:absolute !important;width:0 !important;height:0 !important;overflow:hidden !important;pointer-events:none !important;';
     const filter = createSvgElement('filter');
     filter.setAttribute('id', filterId);
     filter.setAttribute('x', '-18%');
@@ -1734,6 +1741,7 @@
         filterId: filterId,
         theme: resolvedTheme,
         borderRadius: borderRadius,
+        zIndex: zIndex,
         duration: durationMs
       });
       return resolvedTheme;
