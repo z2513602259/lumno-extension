@@ -272,7 +272,7 @@
         min-height: 45px;
         display: block;
         box-sizing: border-box;
-        overflow: hidden;
+        overflow: visible;
         border-radius: 24px;
         background: var(--x-nt-input-bg, rgba(255, 255, 255, 0.9));
         border: 1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06));
@@ -323,15 +323,21 @@
       }
       .x-nt-ai-mode-decor-frame {
         position: absolute;
-        left: 0;
-        top: 0;
-        width: 0;
-        height: 0;
+        inset: 0;
         box-sizing: border-box;
-        border-radius: 28px;
+        border-radius: inherit;
         pointer-events: none;
         overflow: visible;
-        z-index: 2;
+        z-index: 1;
+      }
+      .x-nt-ai-mode-sweep-frame {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        border-radius: inherit;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 1;
       }
       .x-nt-inline-icon {
         width: 16px;

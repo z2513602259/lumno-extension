@@ -104,6 +104,17 @@
     return document.createElementNS('http://www.w3.org/2000/svg', tagName);
   }
 
+  function getEffectStyleMount(target) {
+    if (!target || typeof target.getRootNode !== 'function') {
+      return document.head || document.documentElement;
+    }
+    const rootNode = target.getRootNode();
+    if (rootNode && typeof ShadowRoot !== 'undefined' && rootNode instanceof ShadowRoot) {
+      return rootNode;
+    }
+    return document.head || document.documentElement;
+  }
+
   function buildSearchInputShadowCss() {
     return `
       :host {
@@ -684,6 +695,8 @@
   position: relative;
   inset: 0;
   display: block;
+  width: 100%;
+  height: 100%;
   box-sizing: border-box;
   border-radius: ${borderRadius}px;
   overflow: hidden;
@@ -936,8 +949,13 @@
 
 [data-beam="${id}"] {
   position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
   border-radius: ${borderRadius}px;
   overflow: hidden;
+  pointer-events: none;
 }
 
 [data-beam="${id}"][data-active] {
@@ -1262,8 +1280,9 @@
       }
     }
 
+    const styleMount = getEffectStyleMount(target);
     updateTheme(config.theme || 'auto');
-    (document.head || document.documentElement).appendChild(style);
+    styleMount.appendChild(style);
     target.insertBefore(host, target.firstChild);
     updateAdaptiveSizing();
     if (typeof window.ResizeObserver === 'function') {
@@ -2030,8 +2049,9 @@
       }
     }
 
+    const styleMount = getEffectStyleMount(target);
     updateTheme(config.theme || 'auto');
-    (document.head || document.documentElement).appendChild(style);
+    styleMount.appendChild(style);
     target.insertBefore(host, target.firstChild);
 
     return {

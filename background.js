@@ -4672,7 +4672,7 @@ function sanitizeSiteSearchProviders(items) {
       if (item.template.includes('{query}')) {
         return true;
       }
-      return item.action === 'openAndSubmit' && item.submitStrategy === 'geminiPrompt';
+      return isAiSiteSearchProvider(item);
     });
 }
 
@@ -4759,12 +4759,42 @@ function buildBlacklistProbeUrlFromTemplate(template, query) {
   return rawTemplate.replace(/\{query\}/g, encodeURIComponent(String(query || '')));
 }
 
-function isInteractiveSiteSearchProvider(provider) {
+function hasOpenAndSubmitSiteSearchAction(provider) {
   return Boolean(
     provider &&
-    provider.action === 'openAndSubmit' &&
-    provider.submitStrategy === 'geminiPrompt'
+    String(provider.action || '').trim() === 'openAndSubmit'
   );
+}
+
+function isAiSiteSearchProvider(provider) {
+  if (!provider) {
+    return false;
+  }
+  if (hasOpenAndSubmitSiteSearchAction(provider)) {
+    return true;
+  }
+  const template = normalizeSiteSearchTemplate(provider.template);
+  return Boolean(template) && !template.includes('{query}');
+}
+
+function isInteractiveSiteSearchProvider(provider) {
+  return Boolean(
+    hasOpenAndSubmitSiteSearchAction(provider) &&
+    String(provider.submitStrategy || '').trim() === 'geminiPrompt'
+  );
+}
+
+function inheritSiteSearchProviderBehavior(provider, baseProvider) {
+  if (!provider) {
+    return provider;
+  }
+  return {
+    ...provider,
+    action: String(provider.action || (baseProvider && baseProvider.action) || '').trim(),
+    submitStrategy: String(
+      provider.submitStrategy || (baseProvider && baseProvider.submitStrategy) || ''
+    ).trim()
+  };
 }
 
 function getSiteSearchProviderEntryUrl(provider) {
@@ -4802,6 +4832,7 @@ function filterBlacklistedSuggestions(list, items, queryForProvider) {
 function mergeCustomProviders(baseItems, customItems) {
   const merged = [];
   const seen = new Set();
+  const baseMap = new Map((baseItems || []).map((item) => [String(item && item.key ? item.key : '').toLowerCase(), item]));
   customItems.forEach((item) => {
     if (item && item.disabled) {
       return;
@@ -4811,7 +4842,7 @@ function mergeCustomProviders(baseItems, customItems) {
       return;
     }
     seen.add(key);
-    merged.push(item);
+    merged.push(inheritSiteSearchProviderBehavior(item, baseMap.get(key)));
   });
   baseItems.forEach((item) => {
     const key = String(item.key || '').toLowerCase();
@@ -8161,6 +8192,8 @@ async function getSearchSuggestions(query) {
   let aiModeDecor = null;
   let aiModeSweep = null;
   let aiModeSweepActive = false;
+  let aiModeDecorFrame = null;
+  let aiModeSweepFrame = null;
   const AI_MODE_SWEEP_DURATION_MS = 1800;
 
   // Helper function to remove overlay and clean up styles
@@ -8178,6 +8211,8 @@ async function getSearchSuggestions(query) {
       aiModeSweep = null;
     }
     aiModeSweepActive = false;
+    aiModeDecorFrame = null;
+    aiModeSweepFrame = null;
     if (overlayElement) {
       overlayElement.remove();
     }
@@ -8312,6 +8347,9 @@ async function getSearchSuggestions(query) {
     const overlayPanel = document.createElement('div');
     overlayPanel.className = 'x-ov-panel';
     applyNoTranslate(overlayPanel);
+    const overlaySearchShell = document.createElement('div');
+    overlaySearchShell.className = 'x-ov-search-shell';
+    applyNoTranslate(overlaySearchShell);
 
 
     const applyOverlayTheme = (mode) => {
@@ -8387,12 +8425,42 @@ async function getSearchSuggestions(query) {
         display: flex;
         flex-direction: column;
         align-items: center;
-        overflow: hidden;
+        overflow: visible;
         border-radius: inherit;
         box-sizing: border-box;
         margin: 0;
         padding: 0;
         background: transparent;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-search-shell {
+        all: unset;
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-height: 56px;
+        display: block;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        border-radius: 28px;
+        overflow: visible;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-decor-frame {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        border-radius: inherit;
+        pointer-events: none;
+        overflow: visible;
+        z-index: 0;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-sweep-frame {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        border-radius: inherit;
+        pointer-events: none;
+        overflow: hidden;
       }
       #_x_extension_overlay_2024_unique_ .ri-icon {
         width: var(--ri-size, 16px);
@@ -9069,6 +9137,15 @@ async function getSearchSuggestions(query) {
     const inputChromeLayer = inputParts.chromeLayer || inputContainer;
     const rightIcon = inputParts.rightIcon;
     const overlayInputHeight = 56;
+    aiModeDecorFrame = document.createElement('div');
+    applyNoTranslate(aiModeDecorFrame);
+    aiModeDecorFrame.setAttribute('aria-hidden', 'true');
+    aiModeDecorFrame.className = 'x-ov-ai-mode-decor-frame';
+    aiModeSweepFrame = document.createElement('div');
+    applyNoTranslate(aiModeSweepFrame);
+    aiModeSweepFrame.setAttribute('aria-hidden', 'true');
+    aiModeSweepFrame.className = 'x-ov-ai-mode-sweep-frame';
+    aiModeDecorFrame.appendChild(aiModeSweepFrame);
     applyNoTranslate(searchInput);
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
@@ -11463,11 +11540,14 @@ async function getSearchSuggestions(query) {
       if (aiModeDecor) {
         return aiModeDecor;
       }
-      if (typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function') {
+      if (
+        !aiModeDecorFrame ||
+        typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function'
+      ) {
         return null;
       }
       aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
-        target: overlay,
+        target: aiModeDecorFrame,
         themeTarget: overlay,
         borderRadius: 28,
         borderWidth: 1,
@@ -11486,11 +11566,14 @@ async function getSearchSuggestions(query) {
       if (aiModeSweep) {
         return aiModeSweep;
       }
-      if (!overlay || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
+      if (
+        !aiModeSweepFrame ||
+        typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function'
+      ) {
         return null;
       }
       aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
-        target: overlay,
+        target: aiModeSweepFrame,
         themeTarget: overlay,
         borderRadius: 28,
         zIndex: 0,
@@ -11604,7 +11687,7 @@ async function getSearchSuggestions(query) {
         site: getSiteSearchDisplayName(provider)
       });
       setInputModePrefix(prefixText, theme);
-      setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
+      setAiModeDecorActive(isAiSiteSearchProvider(provider));
     }
 
     function setOpenTabsSearchPrefix(theme) {
@@ -12192,12 +12275,48 @@ async function getSearchSuggestions(query) {
       return template.replace(/\{query\}/g, encodeURIComponent(query));
     }
 
-    function isInteractiveSiteSearchProvider(provider) {
+    function hasOpenAndSubmitSiteSearchAction(provider) {
       return Boolean(
         provider &&
-        provider.action === 'openAndSubmit' &&
-        provider.submitStrategy === 'geminiPrompt'
+        String(provider.action || '').trim() === 'openAndSubmit'
       );
+    }
+
+    function normalizeSiteSearchTemplate(template) {
+      return String(template || '')
+        .trim()
+        .replace(/\{searchTerms\}/g, '{query}');
+    }
+
+    function isAiSiteSearchProvider(provider) {
+      if (!provider) {
+        return false;
+      }
+      if (hasOpenAndSubmitSiteSearchAction(provider)) {
+        return true;
+      }
+      const template = normalizeSiteSearchTemplate(provider.template);
+      return Boolean(template) && !template.includes('{query}');
+    }
+
+    function isInteractiveSiteSearchProvider(provider) {
+      return Boolean(
+        hasOpenAndSubmitSiteSearchAction(provider) &&
+        String(provider.submitStrategy || '').trim() === 'geminiPrompt'
+      );
+    }
+
+    function inheritSiteSearchProviderBehavior(provider, baseProvider) {
+      if (!provider) {
+        return provider;
+      }
+      return {
+        ...provider,
+        action: String(provider.action || (baseProvider && baseProvider.action) || '').trim(),
+        submitStrategy: String(
+          provider.submitStrategy || (baseProvider && baseProvider.submitStrategy) || ''
+        ).trim()
+      };
     }
 
     function shouldRestrictInteractiveSiteSearchSuggestions(provider, query) {
@@ -12252,6 +12371,7 @@ async function getSearchSuggestions(query) {
     function mergeCustomProvidersLocal(baseItems, customItems) {
       const merged = [];
       const seen = new Set();
+      const baseMap = new Map((baseItems || []).map((item) => [String(item && item.key ? item.key : '').toLowerCase(), item]));
       (customItems || []).forEach((item) => {
         if (item && item.disabled) {
           return;
@@ -12261,7 +12381,7 @@ async function getSearchSuggestions(query) {
           return;
         }
         seen.add(key);
-        merged.push(item);
+        merged.push(inheritSiteSearchProviderBehavior(item, baseMap.get(key)));
       });
       (baseItems || []).forEach((item) => {
         const key = String(item && item.key ? item.key : '').toLowerCase();
@@ -15108,7 +15228,9 @@ async function getSearchSuggestions(query) {
     };
     overlayPanel.addEventListener('wheel', handleOverlayWheel, { passive: false });
 
-    overlayPanel.appendChild(inputContainer);
+    overlaySearchShell.appendChild(aiModeDecorFrame);
+    overlaySearchShell.appendChild(inputContainer);
+    overlayPanel.appendChild(overlaySearchShell);
     overlayPanel.appendChild(suggestionsContainer);
     overlayShadowRoot.appendChild(overlayPanel);
     applyNoTranslateDeep(overlayPanel);

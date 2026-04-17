@@ -3036,6 +3036,56 @@
       .replace(/\{searchTerms\}/g, '{query}');
   }
 
+  function hasOpenAndSubmitSiteSearchAction(item) {
+    return Boolean(
+      item &&
+      String(item.action || '').trim() === 'openAndSubmit'
+    );
+  }
+
+  function isAiSiteSearchProvider(item) {
+    if (!item) {
+      return false;
+    }
+    if (hasOpenAndSubmitSiteSearchAction(item)) {
+      return true;
+    }
+    const template = normalizeSiteSearchTemplate(String(item.template || '').trim());
+    return Boolean(template) && !template.includes('{query}');
+  }
+
+  function normalizeSiteSearchProvider(item, baseItem) {
+    if (!item && !baseItem) {
+      return null;
+    }
+    const key = String((item && item.key) || (baseItem && baseItem.key) || '').trim();
+    const template = normalizeSiteSearchTemplate(
+      String((item && item.template) || (baseItem && baseItem.template) || '').trim()
+    );
+    if (!key || !template) {
+      return null;
+    }
+    const aliasSource = Array.isArray(item && item.aliases)
+      ? item.aliases
+      : Array.isArray(baseItem && baseItem.aliases)
+        ? baseItem.aliases
+        : [];
+    return {
+      key,
+      aliases: aliasSource.filter(Boolean),
+      name: String((item && item.name) || (baseItem && baseItem.name) || key).trim() || key,
+      template,
+      action: String((item && item.action) || (baseItem && baseItem.action) || '').trim(),
+      submitStrategy: String(
+        (item && item.submitStrategy) || (baseItem && baseItem.submitStrategy) || ''
+      ).trim(),
+      disabled: Boolean(item && item.disabled),
+      disabledReason: String((item && item.disabledReason) || '').trim(),
+      icon: String((item && item.icon) || (baseItem && baseItem.icon) || '').trim(),
+      iconUrl: String((item && item.iconUrl) || (baseItem && baseItem.iconUrl) || '').trim()
+    };
+  }
+
   function isDuplicateTemplate(template, defaults) {
     const normalized = normalizeSiteSearchTemplate(String(template || '').trim());
     if (!normalized) {
@@ -3956,19 +4006,9 @@
       const key = String(item.key || '').toLowerCase();
       return key && !customKeys.has(key) && !disabledSiteSearchKeys.has(key);
     });
-    const classicBuiltinProviders = displayDefaults.filter((item) => !isBuiltinAiSiteSearchProvider(item));
-    const aiBuiltinProviders = displayDefaults.filter((item) => isBuiltinAiSiteSearchProvider(item));
+    const classicBuiltinProviders = displayDefaults.filter((item) => !isAiSiteSearchProvider(item));
+    const aiBuiltinProviders = displayDefaults.filter((item) => isAiSiteSearchProvider(item));
     const builtinTemplateSet = new Set(defaultSiteSearchProviders.map((item) => normalizeSiteSearchTemplate(String(item.template || '').trim())).filter(Boolean));
-    function isBuiltinAiSiteSearchProvider(item) {
-      if (!item) {
-        return false;
-      }
-      if (String(item.action || '').trim() === 'openAndSubmit') {
-        return true;
-      }
-      const template = normalizeSiteSearchTemplate(String(item.template || '').trim());
-      return Boolean(template) && !template.includes('{query}');
-    }
     function canEditSiteSearchItem(item) {
       return Boolean(item);
     }
@@ -4015,12 +4055,12 @@
       badge.className = '_x_extension_shortcut_badge_2024_unique_';
       if (item._xIsCustom) {
         badge.textContent = getMessage('shortcuts_badge_custom', '自定义');
-      } else if (isBuiltinAiSiteSearchProvider(item)) {
+      } else if (isAiSiteSearchProvider(item)) {
         badge.textContent = getMessage('shortcuts_badge_builtin_ai', 'AI');
       } else {
         badge.textContent = getMessage('shortcuts_badge_builtin', '内置');
       }
-      const iconUrl = isBuiltinAiSiteSearchProvider(item) ? getCachedSiteSearchIconUrl(item) : '';
+      const iconUrl = isAiSiteSearchProvider(item) ? getCachedSiteSearchIconUrl(item) : '';
       const titleText = document.createElement('span');
       titleText.textContent = getLocalizedBuiltinProviderName(item);
       title.appendChild(badge);
@@ -4219,7 +4259,7 @@
       saveButton.addEventListener('click', () => {
         suspendSiteSearchRefresh(260);
         const nextKeyRaw = String(keyInput.value || '').trim();
-        const isBuiltinAiProvider = !item._xIsCustom && isBuiltinAiSiteSearchProvider(item);
+        const isBuiltinAiProvider = !item._xIsCustom && isAiSiteSearchProvider(item);
         if (!nextKeyRaw) {
           showToast(getMessage('shortcuts_error_key', '请填写触发词。'), true);
           return;
@@ -4242,16 +4282,20 @@
           next = next.filter((entry) => String(entry.key || '').toLowerCase() !== previousKey);
         }
         const shouldDisable = item._xIsCustom && isDuplicateTemplate(template, defaultSiteSearchProviders);
-        next.unshift({
+        const nextItem = normalizeSiteSearchProvider({
+          ...item,
           key: nextKeyRaw,
           name: String(nameInput.value || '').trim() || nextKeyRaw,
           template: template,
           aliases: aliases,
-          action: item._xIsCustom ? undefined : item.action,
-          submitStrategy: item._xIsCustom ? undefined : item.submitStrategy,
           disabled: shouldDisable,
           disabledReason: shouldDisable ? 'duplicate' : ''
         });
+        if (!nextItem) {
+          showToast(getMessage('toast_error', '操作失败，请重试'), true);
+          return;
+        }
+        next.unshift(nextItem);
         disabledSiteSearchKeys.delete(normalizedKey);
         Promise.all([
           saveCustomSiteSearchProviders(next),
@@ -4345,12 +4389,14 @@
       .then((resp) => resp.json())
       .then((data) => {
         const items = data && Array.isArray(data.items) ? data.items : [];
-        return items.length > 0 ? items : fallbackSiteSearchProviders;
+        const source = items.length > 0 ? items : fallbackSiteSearchProviders;
+        return source.map((item) => normalizeSiteSearchProvider(item)).filter(Boolean);
       })
       .catch(() => new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: 'getSiteSearchProviders' }, (response) => {
           const items = response && Array.isArray(response.items) ? response.items : [];
-          resolve(items.length > 0 ? items : fallbackSiteSearchProviders);
+          const source = items.length > 0 ? items : fallbackSiteSearchProviders;
+          resolve(source.map((item) => normalizeSiteSearchProvider(item)).filter(Boolean));
         });
       }));
   }
@@ -4374,6 +4420,13 @@
     if (nameA !== nameB || templateA !== templateB) {
       return false;
     }
+    const actionA = String(a.action || '').trim();
+    const actionB = String(b.action || '').trim();
+    const submitStrategyA = String(a.submitStrategy || '').trim();
+    const submitStrategyB = String(b.submitStrategy || '').trim();
+    if (actionA !== actionB || submitStrategyA !== submitStrategyB) {
+      return false;
+    }
     const aliasA = normalizeAliasList(a.aliases);
     const aliasB = normalizeAliasList(b.aliases);
     return JSON.stringify(aliasA) === JSON.stringify(aliasB);
@@ -4391,7 +4444,7 @@
     });
   }
 
-  function loadCustomSiteSearchProviders() {
+  function loadCustomSiteSearchProviders(baseItems) {
     return new Promise((resolve) => {
       if (!storageArea) {
         resolve([]);
@@ -4399,7 +4452,11 @@
       }
       storageArea.get([SITE_SEARCH_STORAGE_KEY], (result) => {
         const items = Array.isArray(result[SITE_SEARCH_STORAGE_KEY]) ? result[SITE_SEARCH_STORAGE_KEY] : [];
-        resolve(items);
+        const baseMap = new Map((baseItems || []).map((item) => [String(item && item.key ? item.key : '').toLowerCase(), item]));
+        resolve(items.map((item) => {
+          const key = String(item && item.key ? item.key : '').toLowerCase();
+          return normalizeSiteSearchProvider(item, baseMap.get(key));
+        }).filter(Boolean));
       });
     });
   }
@@ -4438,7 +4495,8 @@
         resolve();
         return;
       }
-      storageArea.set({ [SITE_SEARCH_STORAGE_KEY]: items }, () => resolve());
+      const payload = (items || []).map((item) => normalizeSiteSearchProvider(item)).filter(Boolean);
+      storageArea.set({ [SITE_SEARCH_STORAGE_KEY]: payload }, () => resolve());
     });
   }
 
@@ -4771,14 +4829,14 @@
       return;
     }
     if (defaultSiteSearchProviders.length === 0) {
-      defaultSiteSearchProviders = fallbackSiteSearchProviders.slice();
+      defaultSiteSearchProviders = fallbackSiteSearchProviders.map((item) => normalizeSiteSearchProvider(item)).filter(Boolean);
       renderSiteSearchList();
     }
-    Promise.all([
-      loadDefaultSiteSearchProviders(),
-      loadCustomSiteSearchProviders(),
+    loadDefaultSiteSearchProviders().then((defaults) => Promise.all([
+      Promise.resolve(defaults),
+      loadCustomSiteSearchProviders(defaults),
       loadDisabledSiteSearchKeys()
-    ]).then(([defaults, custom, disabled]) => {
+    ])).then(([defaults, custom, disabled]) => {
       defaultSiteSearchProviders = defaults;
       const filteredCustom = filterRedundantCustomProviders(defaults, custom);
       const withoutDebug = filteredCustom.filter((item) => String(item.key || '').toLowerCase() !== DEBUG_DUPLICATE_CUSTOM_KEY);
@@ -4811,7 +4869,7 @@
         saveDisabledSiteSearchKeys(disabledSiteSearchKeys);
       }
       defaultSiteSearchProviders.forEach((item) => {
-        if (isBuiltinAiSiteSearchProvider(item)) {
+        if (isAiSiteSearchProvider(item)) {
           primeSiteSearchIconCache(item);
         }
       });
@@ -4929,12 +4987,17 @@
       if (editingSiteSearchKey && editingSiteSearchKey.toLowerCase() !== normalizedKey) {
         next = next.filter((item) => String(item.key || '').toLowerCase() !== editingSiteSearchKey.toLowerCase());
       }
-      next.unshift({
+      const nextItem = normalizeSiteSearchProvider({
         key: key,
         name: name || key,
         template: template,
         aliases: aliases
       });
+      if (!nextItem) {
+        setSiteSearchError(getMessage('toast_error', '操作失败，请重试'));
+        return;
+      }
+      next.unshift(nextItem);
       const lowerKey = normalizedKey;
       disabledSiteSearchKeys.delete(lowerKey);
       Promise.all([
@@ -4958,7 +5021,10 @@
       'confirm_reset_builtin',
       '确认重置内置列表？',
       () => {
-        Promise.all([loadDefaultSiteSearchProviders(), loadCustomSiteSearchProviders()]).then(([defaults, custom]) => {
+        loadDefaultSiteSearchProviders().then((defaults) => Promise.all([
+          Promise.resolve(defaults),
+          loadCustomSiteSearchProviders(defaults)
+        ])).then(([defaults, custom]) => {
           const defaultKeys = new Set((defaults || []).map((item) => String(item.key || '').toLowerCase()));
           const filteredCustom = (custom || []).filter((item) => {
             const key = String(item && item.key ? item.key : '').toLowerCase();

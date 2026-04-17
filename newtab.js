@@ -96,8 +96,7 @@
   let aiModeSweep = null;
   let aiModeSweepActive = false;
   let aiModeDecorFrame = null;
-  let aiModeDecorFrameObserver = null;
-  let aiModeDecorFrameResizeHandler = null;
+  let aiModeSweepFrame = null;
   let wordmarkContainer = null;
   let wordmarkImageEl = null;
   let pageNoticeBanner = null;
@@ -7813,10 +7812,27 @@
 
   function isInteractiveSiteSearchProvider(provider) {
     return Boolean(
-      provider &&
-      provider.action === 'openAndSubmit' &&
-      provider.submitStrategy === 'geminiPrompt'
+      hasOpenAndSubmitSiteSearchAction(provider) &&
+      String(provider.submitStrategy || '').trim() === 'geminiPrompt'
     );
+  }
+
+  function hasOpenAndSubmitSiteSearchAction(provider) {
+    return Boolean(
+      provider &&
+      String(provider.action || '').trim() === 'openAndSubmit'
+    );
+  }
+
+  function isAiSiteSearchProvider(provider) {
+    if (!provider) {
+      return false;
+    }
+    if (hasOpenAndSubmitSiteSearchAction(provider)) {
+      return true;
+    }
+    const template = normalizeSiteSearchTemplate(provider.template);
+    return Boolean(template) && !template.includes('{query}');
   }
 
   function shouldRestrictInteractiveSiteSearchSuggestions(provider, query) {
@@ -7895,16 +7911,30 @@
     };
   }
 
+  function inheritSiteSearchProviderBehavior(provider, baseProvider) {
+    if (!provider) {
+      return provider;
+    }
+    return {
+      ...provider,
+      action: String(provider.action || (baseProvider && baseProvider.action) || '').trim(),
+      submitStrategy: String(
+        provider.submitStrategy || (baseProvider && baseProvider.submitStrategy) || ''
+      ).trim()
+    };
+  }
+
   function mergeCustomProvidersLocal(baseItems, customItems) {
     const merged = [];
     const seen = new Set();
+    const baseMap = new Map((baseItems || []).map((item) => [String(item && item.key ? item.key : '').toLowerCase(), item]));
     (customItems || []).forEach((item) => {
       const key = String(item && item.key ? item.key : '').toLowerCase();
       if (!key || seen.has(key)) {
         return;
       }
       seen.add(key);
-      merged.push(item);
+      merged.push(inheritSiteSearchProviderBehavior(item, baseMap.get(key)));
     });
     (baseItems || []).forEach((item) => {
       const key = String(item && item.key ? item.key : '').toLowerCase();
@@ -10343,7 +10373,10 @@
     if (aiModeDecor) {
       return aiModeDecor;
     }
-    if (typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function') {
+    if (
+      !searchLayer ||
+      typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function'
+    ) {
       return null;
     }
     if (!aiModeDecorFrame) {
@@ -10351,41 +10384,16 @@
       aiModeDecorFrame.id = '_x_extension_newtab_ai_mode_decor_frame_2026_unique_';
       aiModeDecorFrame.setAttribute('aria-hidden', 'true');
       aiModeDecorFrame.className = 'x-nt-ai-mode-decor-frame';
-      document.body.appendChild(aiModeDecorFrame);
     }
-
-    const syncAiModeDecorFrame = () => {
-      if (!aiModeDecorFrame || !root) {
-        return;
-      }
-      const rect = root.getBoundingClientRect();
-      aiModeDecorFrame.style.setProperty('left', `${rect.left + window.scrollX}px`, 'important');
-      aiModeDecorFrame.style.setProperty('top', `${rect.top + window.scrollY}px`, 'important');
-      aiModeDecorFrame.style.setProperty('width', `${rect.width}px`, 'important');
-      aiModeDecorFrame.style.setProperty('height', `${rect.height}px`, 'important');
-      aiModeDecorFrame.style.setProperty('border-radius', window.getComputedStyle(root).borderRadius || '28px', 'important');
-    };
-
-    syncAiModeDecorFrame();
-    if (!aiModeDecorFrameObserver && typeof window.ResizeObserver === 'function') {
-      aiModeDecorFrameObserver = new window.ResizeObserver(() => {
-        syncAiModeDecorFrame();
-      });
-      aiModeDecorFrameObserver.observe(root);
-      aiModeDecorFrameObserver.observe(document.body);
+    if (aiModeDecorFrame.parentNode !== searchLayer) {
+      searchLayer.insertBefore(aiModeDecorFrame, searchLayer.firstChild || null);
     }
-    if (!aiModeDecorFrameResizeHandler) {
-      aiModeDecorFrameResizeHandler = () => {
-        syncAiModeDecorFrame();
-      };
-      window.addEventListener('resize', aiModeDecorFrameResizeHandler);
-      window.addEventListener('scroll', aiModeDecorFrameResizeHandler, true);
-    }
+    const borderRadius = parseFloat(window.getComputedStyle(searchLayer).borderRadius) || 24;
 
     aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
       target: aiModeDecorFrame,
       themeTarget: document.body || root,
-      borderRadius: 28,
+      borderRadius: borderRadius,
       borderWidth: 1,
       edgeOffset: 0,
       zIndex: 0,
@@ -10404,13 +10412,23 @@
       return aiModeSweep;
     }
     ensureAiModeDecor();
-    if (!aiModeDecorFrame || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
+    if (!root || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
       return null;
     }
+    if (!aiModeSweepFrame) {
+      aiModeSweepFrame = document.createElement('div');
+      aiModeSweepFrame.id = '_x_extension_newtab_ai_mode_sweep_frame_2026_unique_';
+      aiModeSweepFrame.setAttribute('aria-hidden', 'true');
+      aiModeSweepFrame.className = 'x-nt-ai-mode-sweep-frame';
+    }
+    if (aiModeSweepFrame.parentNode !== root) {
+      root.insertBefore(aiModeSweepFrame, searchLayer || null);
+    }
+    const borderRadius = parseFloat(window.getComputedStyle(root).borderRadius) || 28;
     aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
-      target: aiModeDecorFrame,
+      target: aiModeSweepFrame,
       themeTarget: document.body || root,
-      borderRadius: 28,
+      borderRadius: borderRadius,
       zIndex: 0,
       duration: AI_MODE_SWEEP_DURATION_MS,
       maxDisplacement: 24,
@@ -10504,7 +10522,7 @@
     if (resolvedTheme && resolvedTheme.accent) {
       searchInput.style.setProperty('caret-color', resolvedTheme.accent, 'important');
     }
-    setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
+    setAiModeDecorActive(isAiSiteSearchProvider(provider));
     updateSiteSearchPrefixLayout();
   }
 
