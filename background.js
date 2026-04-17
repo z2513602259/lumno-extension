@@ -5316,7 +5316,8 @@ function getTitlePinyinMatchScore(title, normalizedQuery) {
       reason: 'full-prefix'
     };
   }
-  if (index.full.includes(normalizedQuery)) {
+  const allowLooseFullContains = normalizedQuery.length >= 3;
+  if (allowLooseFullContains && index.full.includes(normalizedQuery)) {
     return {
       score: 14,
       reason: 'full-contains'
@@ -5660,6 +5661,7 @@ function buildSearchQueryContext(query) {
   const normalizedPinyinQuery = shouldUseTitlePinyinMatch(lookupQuery)
     ? normalizeAsciiQueryForPinyin(lookupQuery)
     : '';
+  const coreQueryTerms = splitSearchTerms(queryLower);
   const queryTerms = splitSearchTerms(queryLower);
   if (queryLower && !queryTerms.includes(queryLower)) {
     queryTerms.unshift(queryLower);
@@ -5669,6 +5671,7 @@ function buildSearchQueryContext(query) {
     queryLower,
     normalizedPinyinQuery,
     useTitlePinyinMatch: Boolean(normalizedPinyinQuery),
+    coreQueryTerms,
     queryTerms,
     intentType: classifySearchIntent(lookupQuery, queryTerms),
     hasSettingsIntent: queryTerms.some((term) => SEARCH_SETTINGS_INTENT_TERMS.has(term)),
@@ -5790,6 +5793,35 @@ function getSearchDirectNavigationAdjustment(item, sourceType, context) {
   const info = getSearchSuggestionClusterInfo(item.url);
   const hasHomeTitle = hasSearchHomeTitle(item.title);
   const representativeSignal = getSearchNavigationRepresentativeSignal(item, context);
+  const titleLower = String(item.title || '').toLowerCase();
+  const pathTokens = [];
+  let hostname = '';
+  let hostLabels = [];
+  try {
+    const parsedUrl = new URL(item.url);
+    hostname = normalizeHost(parsedUrl.hostname);
+    hostLabels = hostname.split('.').filter(Boolean);
+    decodeURIComponent(String(parsedUrl.pathname || '').toLowerCase())
+      .split('/')
+      .filter(Boolean)
+      .forEach((segment) => {
+        const segmentTokens = segment.split(/[^a-z0-9\u4e00-\u9fff]+/i).filter(Boolean);
+        if (segmentTokens.length > 0) {
+          pathTokens.push(...segmentTokens);
+        }
+      });
+  } catch (e) {
+    hostname = '';
+    hostLabels = [];
+  }
+  const coverageStats = getSearchTermCoverageStats(context, {
+    titleLower,
+    hostname,
+    urlLower: String(item.url || '').toLowerCase(),
+    titleTokens: splitSearchTerms(titleLower),
+    hostLabels,
+    pathTokens
+  });
   let adjustment = 0;
 
   if (context.intentType === 'brand') {
@@ -5824,6 +5856,15 @@ function getSearchDirectNavigationAdjustment(item, sourceType, context) {
 
   if (sourceType === 'topSite' && (info.category === 'site-root' || hasHomeTitle)) {
     adjustment += 10;
+  }
+
+  if (coverageStats.total >= 2 && !coverageStats.allMatched) {
+    if (info.category === 'site-root' || info.category === 'section' || info.category === 'landing') {
+      adjustment -= Math.min(42, coverageStats.missingCount * 22);
+    }
+    if (representativeSignal >= 6) {
+      adjustment -= 10;
+    }
   }
 
   return adjustment;
@@ -6063,13 +6104,46 @@ function matchesSearchQueryText(item, context) {
   }
   const titleLower = item.title ? item.title.toLowerCase() : '';
   const urlLower = item.url.toLowerCase();
-  if (titleLower.includes(context.queryLower) || urlLower.includes(context.queryLower)) {
+  const titleTokens = splitSearchTerms(titleLower);
+  let hostname = '';
+  let hostLabels = [];
+  try {
+    hostname = normalizeHost(new URL(item.url).hostname);
+    hostLabels = hostname.split('.').filter(Boolean);
+  } catch (e) {
+    hostname = '';
+    hostLabels = [];
+  }
+  const matchesTerm = (term) => {
+    if (!term) {
+      return false;
+    }
+    if (
+      titleLower === term ||
+      titleLower.startsWith(term) ||
+      titleTokens.includes(term) ||
+      titleTokens.some((token) => token.startsWith(term))
+    ) {
+      return true;
+    }
+    if (
+      hostname.startsWith(term) ||
+      hostLabels.includes(term) ||
+      hostLabels.some((label) => label.startsWith(term))
+    ) {
+      return true;
+    }
+    if (shouldAllowLooseTextContains(term) && (titleLower.includes(term) || urlLower.includes(term))) {
+      return true;
+    }
+    return false;
+  };
+  if (
+    matchesTerm(context.queryLower)
+  ) {
     return true;
   }
-  return context.queryTerms.some((term) => (
-    term &&
-    (titleLower.includes(term) || urlLower.includes(term))
-  ));
+  return context.queryTerms.some((term) => matchesTerm(term));
 }
 
 function matchesSearchTitlePinyin(item, context) {
@@ -6079,12 +6153,85 @@ function matchesSearchTitlePinyin(item, context) {
   return getTitlePinyinMatchScore(item.title, context.normalizedPinyinQuery).score > 0;
 }
 
-function getSearchSuggestionCategoryAdjustment(item, queryTerms, hasSettingsIntent) {
+function isShortAsciiSearchTerm(term) {
+  const value = String(term || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  return /^[a-z0-9]+$/i.test(value) && value.length <= 2;
+}
+
+function shouldAllowLooseTextContains(term) {
+  const value = String(term || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  if (/[\u4e00-\u9fff]/.test(value)) {
+    return true;
+  }
+  return !isShortAsciiSearchTerm(value);
+}
+
+function getSearchTermCoverageStats(context, candidateParts) {
+  const terms = Array.isArray(context && context.coreQueryTerms) && context.coreQueryTerms.length > 0
+    ? context.coreQueryTerms
+    : splitSearchTerms(context && context.queryLower ? context.queryLower : '');
+  if (terms.length === 0) {
+    return {
+      total: 0,
+      matchedCount: 0,
+      missingCount: 0,
+      allMatched: false
+    };
+  }
+  const normalizedCandidate = candidateParts && typeof candidateParts === 'object'
+    ? candidateParts
+    : {};
+  const titleLower = String(normalizedCandidate.titleLower || '');
+  const hostname = String(normalizedCandidate.hostname || '');
+  const urlLower = String(normalizedCandidate.urlLower || '');
+  const titleTokens = Array.isArray(normalizedCandidate.titleTokens) ? normalizedCandidate.titleTokens : [];
+  const hostLabels = Array.isArray(normalizedCandidate.hostLabels) ? normalizedCandidate.hostLabels : [];
+  const pathTokens = Array.isArray(normalizedCandidate.pathTokens) ? normalizedCandidate.pathTokens : [];
+  let matchedCount = 0;
+
+  terms.forEach((term) => {
+    if (!term) {
+      return;
+    }
+    const matched = (
+      titleTokens.includes(term) ||
+      hostLabels.includes(term) ||
+      pathTokens.includes(term) ||
+      titleTokens.some((token) => token.startsWith(term)) ||
+      hostLabels.some((label) => label.startsWith(term)) ||
+      pathTokens.some((token) => token.startsWith(term)) ||
+      (shouldAllowLooseTextContains(term) && (
+        titleLower.includes(term) ||
+        hostname.includes(term) ||
+        urlLower.includes(term)
+      ))
+    );
+    if (matched) {
+      matchedCount += 1;
+    }
+  });
+
+  return {
+    total: terms.length,
+    matchedCount,
+    missingCount: Math.max(0, terms.length - matchedCount),
+    allMatched: matchedCount === terms.length
+  };
+}
+
+function getSearchSuggestionCategoryAdjustment(item, context, coverageStats) {
   if (!item || !item.url) {
     return 0;
   }
   const info = getSearchSuggestionClusterInfo(item.url);
-  const querySet = new Set(Array.isArray(queryTerms) ? queryTerms : []);
+  const querySet = new Set(Array.isArray(context && context.queryTerms) ? context.queryTerms : []);
+  const hasSettingsIntent = Boolean(context && context.hasSettingsIntent);
   const hasActionIntent = querySet.has('new') || querySet.has('edit') || querySet.has('create') || querySet.has('settings') || querySet.has('设置');
   let adjustment = 0;
 
@@ -6124,6 +6271,26 @@ function getSearchSuggestionCategoryAdjustment(item, queryTerms, hasSettingsInte
 
   if (info.category === 'repo-child' && info.depth >= 4) {
     adjustment -= 14;
+  }
+
+  if (coverageStats && coverageStats.total >= 2) {
+    const isRepresentativePage =
+      info.category === 'site-root' ||
+      info.category === 'repo-root' ||
+      info.category === 'section' ||
+      info.category === 'landing';
+    if (coverageStats.allMatched) {
+      if (info.category === 'repo-root') {
+        adjustment += 18;
+      } else if (!isRepresentativePage) {
+        adjustment += 12;
+      }
+    } else if (isRepresentativePage) {
+      adjustment -= Math.min(36, coverageStats.missingCount * 18);
+      if ((item.type === 'topSite' || item.isTopSite) && info.category !== 'repo-root') {
+        adjustment -= 6;
+      }
+    }
   }
 
   return adjustment;
@@ -6349,6 +6516,7 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
   let textScore = 0;
   let behaviorScore = 0;
   let sourceScore = 0;
+  let coverageStats = null;
 
   if (titleLower === context.queryLower) textScore += 140;
   if (titleLower.startsWith(context.queryLower)) textScore += 70;
@@ -6370,15 +6538,15 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
       textScore += 14;
       return;
     }
-    if (titleLower.includes(word)) textScore += 8;
+    if (shouldAllowLooseTextContains(word) && titleLower.includes(word)) textScore += 8;
   });
 
-  if (titleLower.includes(context.queryLower)) textScore += 24;
+  if (shouldAllowLooseTextContains(context.queryLower) && titleLower.includes(context.queryLower)) textScore += 24;
 
   try {
     hostname = normalizeHost(new URL(item.url).hostname);
     hostLabels = hostname.split('.').filter(Boolean);
-    if (hostname.includes(context.queryLower)) textScore += 14;
+    if (shouldAllowLooseTextContains(context.queryLower) && hostname.includes(context.queryLower)) textScore += 14;
     if (hostname.startsWith(context.queryLower)) textScore += 20;
     if (hostLabels.includes(context.queryLower)) {
       textScore += 42;
@@ -6395,7 +6563,7 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
         textScore += 16;
         return;
       }
-      if (hostname.includes(word)) {
+      if (shouldAllowLooseTextContains(word) && hostname.includes(word)) {
         textScore += 8;
       }
     });
@@ -6403,7 +6571,7 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
     // Ignore invalid URL.
   }
 
-  if (urlLower.includes(context.queryLower)) textScore += 10;
+  if (shouldAllowLooseTextContains(context.queryLower) && urlLower.includes(context.queryLower)) textScore += 10;
   try {
     const parsedUrl = new URL(item.url);
     const pathnameLower = String(parsedUrl.pathname || '').toLowerCase();
@@ -6428,11 +6596,11 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
           textScore += 18;
           return;
         }
-        if (pathTokens.some((token) => token.includes(word))) {
+        if (shouldAllowLooseTextContains(word) && pathTokens.some((token) => token.includes(word))) {
           textScore += 10;
           return;
         }
-        if (decodedPathnameLower.includes(word)) {
+        if (shouldAllowLooseTextContains(word) && decodedPathnameLower.includes(word)) {
           textScore += 8;
         }
       });
@@ -6441,13 +6609,22 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
     // Ignore invalid URL parsing/decoding errors.
   }
 
+  coverageStats = getSearchTermCoverageStats(context, {
+    titleLower,
+    hostname,
+    urlLower,
+    titleTokens,
+    hostLabels,
+    pathTokens
+  });
+
   textScore += getTitlePinyinMatchScore(item.title, context.normalizedPinyinQuery).score;
 
   if (hostname && shouldBlockFaviconForHost(hostname)) {
     if (titleLower === context.queryLower) textScore += 60;
     else if (titleLower.startsWith(context.queryLower)) textScore += 42;
-    else if (titleLower.includes(context.queryLower)) textScore += 24;
-    else if (urlLower.includes(context.queryLower)) textScore += 20;
+    else if (shouldAllowLooseTextContains(context.queryLower) && titleLower.includes(context.queryLower)) textScore += 24;
+    else if (shouldAllowLooseTextContains(context.queryLower) && urlLower.includes(context.queryLower)) textScore += 20;
   }
 
   if (textScore <= 0) {
@@ -6488,7 +6665,7 @@ function calculateSearchRelevanceScore(item, sourceType, context) {
   return textScore +
     behaviorScore +
     sourceScore +
-    getSearchSuggestionCategoryAdjustment(item, context.queryTerms, context.hasSettingsIntent) +
+    getSearchSuggestionCategoryAdjustment(item, context, coverageStats) +
     getSearchDirectNavigationAdjustment(item, sourceType, context) -
     getOwnExtensionUtilityPenalty(item, context.hasSettingsIntent);
 }
@@ -6644,22 +6821,24 @@ async function getSearchSuggestions(query) {
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS),
       getTopSitesCached(),
       callChromeApiWithTimeout((done) => {
-        chrome.bookmarks.search({ query: lookupQuery }, done);
+        chrome.bookmarks.search({ query: context.lookupQuery }, done);
       }, [], LOCAL_SUGGEST_SOURCE_TIMEOUT_MS),
       getFallbackHistoryItemsCached(),
       getAllBookmarksCached(),
       loadSearchBlacklistItems()
     ]);
     const fallbackHistoryMatches = collectSearchMatches(fallbackHistoryItems, context, searchBlacklistItems);
-    const historyItems = mergeItemsByUrl([
+    const historyItemsMerged = mergeItemsByUrl([
       Array.isArray(historyItemsRaw) ? historyItemsRaw : [],
       fallbackHistoryMatches
-    ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
+    ]);
+    const historyItems = collectSearchMatches(historyItemsMerged, context, searchBlacklistItems);
     const bookmarkTextMatches = collectSearchMatches(allBookmarks, context, searchBlacklistItems);
-    const bookmarks = mergeItemsByUrl([
+    const bookmarksMerged = mergeItemsByUrl([
       Array.isArray(bookmarksRaw) ? bookmarksRaw : [],
       bookmarkTextMatches
-    ]).filter((item) => !isUrlBlockedBySearchBlacklist(item && item.url, searchBlacklistItems));
+    ]);
+    const bookmarks = collectSearchMatches(bookmarksMerged, context, searchBlacklistItems);
 
     const bookmarkNodeMap = (Array.isArray(bookmarks) && bookmarks.length > 0)
       ? await getBookmarkNodeMapCached()
@@ -6940,6 +7119,9 @@ async function getSearchSuggestions(query) {
   const RI_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL('assets/remixicon/fonts/remixicon.css')
     : 'assets/remixicon/fonts/remixicon.css';
+  const REMIX_ICON_MAP_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
+    ? chrome.runtime.getURL('assets/remixicon/lumno-remix-icon-map.json')
+    : 'assets/remixicon/lumno-remix-icon-map.json';
   const OPEN_SANS_CSS_URL = (chrome && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL('assets/fonts/open-sans/open-sans.css')
     : 'assets/fonts/open-sans/open-sans.css';
@@ -6949,6 +7131,7 @@ async function getSearchSuggestions(query) {
   let overlaySizeMode = 'standard';
   let overlaySearchBlacklistItems = [];
   let overlayThemeListenerAttached = false;
+  let remixIconSvgMap = null;
 
   function normalizeOverlaySearchBlacklistItems(items) {
     if (globalThis.LumnoBlacklistUtils && typeof globalThis.LumnoBlacklistUtils.normalizeItems === 'function') {
@@ -7427,19 +7610,61 @@ async function getSearchSuggestions(query) {
     searchTemplate: ''
   };
 
-  async function ensureRemixIconStyles() {
-    if (document.getElementById('_x_extension_remixicon_css_2024_unique_')) {
+  async function loadRemixIconSvgMap() {
+    if (remixIconSvgMap) {
+      return remixIconSvgMap;
+    }
+    if (!REMIX_ICON_MAP_URL || typeof fetch !== 'function') {
+      remixIconSvgMap = {};
+      return remixIconSvgMap;
+    }
+    try {
+      const response = await fetch(REMIX_ICON_MAP_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      const icons = payload && payload.icons && typeof payload.icons === 'object'
+        ? payload.icons
+        : (payload && typeof payload === 'object' ? payload : {});
+      remixIconSvgMap = icons || {};
+    } catch (error) {
+      console.warn('Lumno: failed to load local Remix SVG map for overlay.', error);
+      remixIconSvgMap = {};
+    }
+    return remixIconSvgMap;
+  }
+
+  function getRemixSvgMarkup(id, sizeClass, extraClass) {
+    const svg = remixIconSvgMap && remixIconSvgMap[id];
+    if (!svg) {
+      return '';
+    }
+    const size = String(sizeClass || 'ri-size-16').trim() || 'ri-size-16';
+    const extra = String(extraClass || '').trim();
+    const sizeMatch = size.match(/ri-size-(\d+)/);
+    const sizeValue = sizeMatch ? `${sizeMatch[1]}px` : '16px';
+    const className = extra
+      ? `ri-icon x-lumno-ri-svg ${size} ${extra}`
+      : `ri-icon x-lumno-ri-svg ${size}`;
+    return `<span class="${className}" aria-hidden="true" data-ri-icon="${String(id || '').replace(/"/g, '&quot;')}" style="--ri-size: ${sizeValue};">${svg}</span>`;
+  }
+
+  async function ensureRemixIconStyles(root) {
+    const targetRoot = root && typeof root.appendChild === 'function'
+      ? root
+      : (document.head || document.documentElement);
+    if (!targetRoot || typeof targetRoot.querySelector !== 'function') {
       return;
     }
-    const host = document.head || document.documentElement;
-    if (!host) {
+    if (targetRoot.querySelector('#_x_extension_remixicon_css_2024_unique_')) {
       return;
     }
     const link = document.createElement('link');
     link.id = '_x_extension_remixicon_css_2024_unique_';
     link.rel = 'stylesheet';
     link.href = RI_CSS_URL;
-    host.appendChild(link);
+    targetRoot.appendChild(link);
   }
 
   async function ensureOpenSansStyles() {
@@ -7457,6 +7682,7 @@ async function getSearchSuggestions(query) {
     host.appendChild(link);
   }
 
+  await loadRemixIconSvgMap();
   await ensureOpenSansStyles();
   await ensureRemixIconStyles();
 
@@ -7632,6 +7858,10 @@ async function getSearchSuggestions(query) {
   }
 
   function getRiSvg(id, sizeClass, extraClass) {
+    const localSvgMarkup = getRemixSvgMarkup(id, sizeClass, extraClass);
+    if (localSvgMarkup) {
+      return localSvgMarkup;
+    }
     const size = sizeClass || 'ri-size-16';
     const extra = extraClass ? ` ${extraClass}` : '';
     return '<i class="ri-icon ' + size + extra + ' ' + id + '" aria-hidden="true"></i>';
@@ -7931,6 +8161,7 @@ async function getSearchSuggestions(query) {
   let aiModeDecor = null;
   let aiModeSweep = null;
   let aiModeSweepActive = false;
+  const AI_MODE_SWEEP_DURATION_MS = 1800;
 
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
@@ -8074,6 +8305,10 @@ async function getSearchSuggestions(query) {
       transition: transform 340ms cubic-bezier(0.2, 1, 0.36, 1), opacity 220ms ease, filter 300ms ease;
     `;
 
+    const overlayShadowRoot = overlay.attachShadow({ mode: 'open' });
+
+    await ensureRemixIconStyles(overlayShadowRoot);
+
     const overlayPanel = document.createElement('div');
     overlayPanel.className = 'x-ov-panel';
     applyNoTranslate(overlayPanel);
@@ -8128,15 +8363,15 @@ async function getSearchSuggestions(query) {
     const scrollbarStyle = document.createElement('style');
     scrollbarStyle.id = '_x_extension_scrollbar_style_2024_unique_';
     scrollbarStyle.textContent = `
-      #_x_extension_overlay_2024_unique_ *::-webkit-scrollbar {
+      *::-webkit-scrollbar {
         display: none;
       }
-      #_x_extension_overlay_2024_unique_ * {
+      * {
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
     `;
-    document.head.appendChild(scrollbarStyle);
+    overlayShadowRoot.appendChild(scrollbarStyle);
 
     const overlayThemeStyle = document.createElement('style');
     overlayThemeStyle.id = '_x_extension_overlay_theme_style_2024_unique_';
@@ -8144,6 +8379,7 @@ async function getSearchSuggestions(query) {
       #_x_extension_overlay_2024_unique_ .x-ov-panel {
         all: unset;
         position: relative;
+        z-index: 1;
         width: 100%;
         height: 100%;
         max-width: 100%;
@@ -8804,7 +9040,8 @@ async function getSearchSuggestions(query) {
         color: #1E3A8A;
       }
     `;
-    document.head.appendChild(overlayThemeStyle);
+    overlayThemeStyle.textContent = overlayThemeStyle.textContent.replaceAll('#_x_extension_overlay_2024_unique_ ', '');
+    overlayShadowRoot.appendChild(overlayThemeStyle);
 
     
     if (typeof window._x_extension_createSearchInput_2024_unique_ !== 'function') {
@@ -8828,6 +9065,7 @@ async function getSearchSuggestions(query) {
     });
     const searchInput = inputParts.input;
     const inputContainer = inputParts.container;
+    const inputChromeLayer = inputParts.chromeLayer || inputContainer;
     const rightIcon = inputParts.rightIcon;
     const overlayInputHeight = 56;
     applyNoTranslate(searchInput);
@@ -8855,7 +9093,7 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(topActionTooltip);
     topActionTooltip.id = '_x_extension_top_action_tooltip_2026_unique_';
     topActionTooltip.className = 'x-ov-top-action-tooltip';
-    overlay.appendChild(topActionTooltip);
+    overlayPanel.appendChild(topActionTooltip);
     let topActionTooltipHideTimer = null;
     const showTopActionTooltip = (button, text) => {
       if (!button || !text || !topActionTooltip) {
@@ -8935,13 +9173,13 @@ async function getSearchSuggestions(query) {
     closeOtherTabsButton.addEventListener('blur', resetCloseOtherTabsButtonVisualState);
     closeOtherTabsButton.addEventListener('pointerup', resetCloseOtherTabsButtonVisualState);
     closeOtherTabsButton.addEventListener('pointercancel', resetCloseOtherTabsButtonVisualState);
-    inputContainer.appendChild(closeOtherTabsButton);
+    inputChromeLayer.appendChild(closeOtherTabsButton);
     modeBadge = document.createElement('div');
     modeBadge.id = '_x_extension_mode_badge_2024_unique_';
     applyNoTranslate(modeBadge);
     modeBadge.className = 'x-ov-mode-badge';
     modeBadge.style.display = 'none';
-    inputContainer.appendChild(modeBadge);
+    inputChromeLayer.appendChild(modeBadge);
 
     function updateInputRightPadding() {
       if (!searchInput) {
@@ -11216,7 +11454,7 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(siteSearchPrefixLabel);
     siteSearchPrefixLabel.className = 'x-ov-site-search-prefix-label';
     siteSearchPrefix.appendChild(siteSearchPrefixLabel);
-    inputContainer.appendChild(siteSearchPrefix);
+    inputChromeLayer.appendChild(siteSearchPrefix);
     inputContainer.style.position = 'relative';
     inputContainer.style.zIndex = '2';
 
@@ -11232,8 +11470,8 @@ async function getSearchSuggestions(query) {
         themeTarget: overlay,
         borderRadius: 28,
         borderWidth: 1,
-        zIndex: 1,
-        spread: 0,
+        zIndex: 0,
+        spread: 6,
         duration: 2.4,
         hueRange: 13,
         strength: 0.82,
@@ -11254,8 +11492,8 @@ async function getSearchSuggestions(query) {
         target: overlay,
         themeTarget: overlay,
         borderRadius: 28,
-        zIndex: 4,
-        duration: 2280,
+        zIndex: 0,
+        duration: AI_MODE_SWEEP_DURATION_MS,
         maxDisplacement: 24,
         distortionSelector: '[data-ai-sweep-distort]'
       });
@@ -11555,6 +11793,13 @@ async function getSearchSuggestions(query) {
       const targetNoSearch = normalizeTabMatchUrlWithoutSearch(url);
       const currentNoSearch = normalizeTabMatchUrlWithoutSearch(currentUrl);
       return Boolean(targetNoSearch && currentNoSearch && targetNoSearch === currentNoSearch);
+    }
+
+    function shouldAutoPromoteMatchedOpenTabSuggestion(suggestion, rawQuery) {
+      if (!suggestion || typeof suggestion._xMatchedTabId !== 'number') {
+        return false;
+      }
+      return getStrongNavigationMatchScore(suggestion, rawQuery) >= 140;
     }
 
     function getAutocompleteCandidate(allSuggestions, rawQuery) {
@@ -12842,6 +13087,9 @@ async function getSearchSuggestions(query) {
     const suggestionItems = [];
     let currentSuggestions = []; // Store current suggestions for keyboard navigation
     let lastRenderedQuery = '';
+    let suggestionPointerClientX = null;
+    let suggestionPointerClientY = null;
+    let isPointerInsideSuggestions = false;
 
     function getAutoHighlightIndex() {
       return suggestionItems.findIndex((item) => Boolean(item && item._xIsAutocompleteTop));
@@ -13105,6 +13353,88 @@ async function getSearchSuggestions(query) {
       item.style.border = `1px solid ${highlight.border}`;
     }
 
+    function resolveSuggestionItemFromPointer() {
+      if (!isPointerInsideSuggestions ||
+          suggestionPointerClientX == null ||
+          suggestionPointerClientY == null ||
+          !overlayShadowRoot ||
+          typeof overlayShadowRoot.elementFromPoint !== 'function') {
+        return null;
+      }
+      let hoveredNode = overlayShadowRoot.elementFromPoint(
+        suggestionPointerClientX,
+        suggestionPointerClientY
+      );
+      if (!hoveredNode) {
+        return null;
+      }
+      if (hoveredNode.nodeType !== Node.ELEMENT_NODE) {
+        hoveredNode = hoveredNode.parentElement;
+      }
+      const hoveredItem = hoveredNode && typeof hoveredNode.closest === 'function'
+        ? hoveredNode.closest('.x-ov-suggestion-item')
+        : null;
+      if (!hoveredItem || suggestionItems.indexOf(hoveredItem) === -1) {
+        return null;
+      }
+      return hoveredItem;
+    }
+
+    function syncHoveredSuggestionFromPointer() {
+      const hoveredItem = resolveSuggestionItemFromPointer();
+      let hasChanges = false;
+      suggestionItems.forEach((item) => {
+        const nextHovering = item === hoveredItem;
+        if (Boolean(item._xIsHovering) !== nextHovering) {
+          item._xIsHovering = nextHovering;
+          hasChanges = true;
+        }
+      });
+      if (hasChanges) {
+        updateSelection();
+      }
+    }
+
+    function updateSuggestionPointerFromEvent(event) {
+      if (!event) {
+        return;
+      }
+      suggestionPointerClientX = event.clientX;
+      suggestionPointerClientY = event.clientY;
+      isPointerInsideSuggestions = true;
+      syncHoveredSuggestionFromPointer();
+    }
+
+    function clearHoveredSuggestionFromPointer() {
+      isPointerInsideSuggestions = false;
+      suggestionPointerClientX = null;
+      suggestionPointerClientY = null;
+      let hasChanges = false;
+      suggestionItems.forEach((item) => {
+        if (item && item._xIsHovering) {
+          item._xIsHovering = false;
+          hasChanges = true;
+        }
+      });
+      if (hasChanges) {
+        updateSelection();
+      }
+    }
+
+    function applySuggestionHoverState(item, theme) {
+      if (!item) {
+        return;
+      }
+      if (theme && theme._xIsBrand) {
+        const hover = getHoverColors(theme);
+        item.style.background = hover.bg;
+        item.style.border = `1px solid ${hover.border}`;
+        return;
+      }
+      item.style.background = 'var(--x-ov-hover-bg)';
+      item.style.border = '1px solid transparent';
+    }
+
     function resetSearchSuggestion(item) {
       item.style.background = 'transparent';
       item.style.border = '1px solid transparent';
@@ -13221,19 +13551,22 @@ async function getSearchSuggestions(query) {
         const isSelected = index === selectedIndex;
         const shouldAutoHighlight = selectedIndex === -1 && item._xIsAutocompleteTop;
         const isHighlighted = isSelected || shouldAutoHighlight;
+        const isHovering = Boolean(item._xIsHovering);
         if (item._xIsSearchSuggestion) {
           const theme = item._xTheme || defaultTheme;
           const shouldUseBlue = !(theme && theme._xIsBrand) && (isSelected || item._xIsAutocompleteTop);
           const highlightTheme = shouldUseBlue ? urlHighlightTheme : theme;
           if (isHighlighted) {
             applySearchSuggestionHighlight(item, highlightTheme);
+          } else if (isHovering) {
+            applySuggestionHoverState(item, theme);
           } else {
             resetSearchSuggestion(item);
           }
-          applySearchActionStyles(item, theme, isHighlighted);
-          setNonFaviconIconBg(item, Boolean(isHighlighted || item._xIsHovering));
+          applySearchActionStyles(item, theme, Boolean(isHighlighted || isHovering));
+          setNonFaviconIconBg(item, Boolean(isHighlighted || isHovering));
           if (item._xDirectIconWrap) {
-            const shouldShow = isHighlighted && theme && theme._xIsBrand;
+            const shouldShow = Boolean((isHighlighted || isHovering) && theme && theme._xIsBrand);
             const resolvedTheme = getThemeForMode(theme || defaultTheme);
             item._xDirectIconWrap.style.color = shouldShow
               ? resolvedTheme.accent
@@ -13247,6 +13580,8 @@ async function getSearchSuggestions(query) {
         const highlightTheme = shouldUseBlue ? urlHighlightTheme : theme;
         if (isHighlighted) {
           applySearchSuggestionHighlight(item, highlightTheme);
+        } else if (isHovering) {
+          applySuggestionHoverState(item, theme);
           if (item._xEntryActionTag) {
             const palette = getOverlayActionTagPalette();
             item._xEntryActionTag.style.setProperty('--x-ext-tag-bg', palette.tagBg);
@@ -13399,8 +13734,7 @@ async function getSearchSuggestions(query) {
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
-            this.style.backgroundColor = 'var(--x-ov-hover-bg)';
-            this.style.border = '1px solid transparent';
+            updateSelection();
           }
         });
         entryItem.addEventListener('mouseleave', function() {
@@ -13521,15 +13855,7 @@ async function getSearchSuggestions(query) {
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
-            const theme = this._xTheme;
-            if (theme && theme._xIsBrand) {
-              const hover = getHoverColors(theme);
-              this.style.backgroundColor = hover.bg;
-              this.style.border = `1px solid ${hover.border}`;
-            } else {
-              this.style.backgroundColor = 'var(--x-ov-hover-bg)';
-              this.style.border = '1px solid transparent';
-            }
+            updateSelection();
           }
         });
 
@@ -13593,6 +13919,7 @@ async function getSearchSuggestions(query) {
       });
 
       selectedIndex = -1;
+      syncHoveredSuggestionFromPointer();
       updateSelection();
     }
 
@@ -14094,7 +14421,8 @@ async function getSearchSuggestions(query) {
               ? allSuggestions.findIndex((item) =>
                 item &&
                 item.type !== 'newtab' &&
-                item._xMatchedTabId === currentOverlayTabId
+                item._xMatchedTabId === currentOverlayTabId &&
+                shouldAutoPromoteMatchedOpenTabSuggestion(item, latestRawInputValue.trim())
               )
               : -1;
             if (preferredCurrentTabMatchIndex >= 0) {
@@ -14109,7 +14437,8 @@ async function getSearchSuggestions(query) {
               const openTabMatchIndex = allSuggestions.findIndex((item) =>
                 item &&
                 item.type !== 'newtab' &&
-                typeof item._xMatchedTabId === 'number'
+                typeof item._xMatchedTabId === 'number' &&
+                shouldAutoPromoteMatchedOpenTabSuggestion(item, latestRawInputValue.trim())
               );
               if (openTabMatchIndex >= 0) {
                 if (openTabMatchIndex > 0) {
@@ -14551,8 +14880,6 @@ async function getSearchSuggestions(query) {
               if (selectedIndex === -1 && this._xIsAutocompleteTop) {
                 return;
               }
-              this.style.background = 'var(--x-ov-hover-bg)';
-              this.style.border = '1px solid transparent';
             }
           });
           
@@ -14736,6 +15063,8 @@ async function getSearchSuggestions(query) {
       if (!canAppend) {
         selectedIndex = -1;
       }
+      syncHoveredSuggestionFromPointer();
+      updateSelection();
       });
     }
     
@@ -14756,11 +15085,14 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(suggestionsContainer);
     suggestionsContainer.id = '_x_extension_suggestions_container_2024_unique_';
     suggestionsContainer.className = 'x-ov-suggestions-container';
+    suggestionsContainer.addEventListener('mousemove', updateSuggestionPointerFromEvent, { passive: true });
+    suggestionsContainer.addEventListener('mouseenter', updateSuggestionPointerFromEvent, { passive: true });
+    suggestionsContainer.addEventListener('mouseleave', clearHoveredSuggestionFromPointer);
 
     overlayPanel.appendChild(inputContainer);
     overlayPanel.appendChild(suggestionsContainer);
-    overlay.appendChild(overlayPanel);
-    applyNoTranslateDeep(overlay);
+    overlayShadowRoot.appendChild(overlayPanel);
+    applyNoTranslateDeep(overlayPanel);
     document.body.appendChild(overlay);
     startOverlayViewportSizeSync(overlay);
     startOverlayAntiTranslateObserver(overlay);

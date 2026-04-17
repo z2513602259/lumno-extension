@@ -128,9 +128,17 @@
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
 
-  function getRiSvg(id, sizeClass) {
+  function getRiSvg(id, sizeClass, extraClass) {
+    const runtime = globalThis.LumnoRemixIconRuntime;
+    if (runtime && typeof runtime.getIconMarkup === 'function') {
+      const markup = runtime.getIconMarkup(id, sizeClass, extraClass);
+      if (markup) {
+        return markup;
+      }
+    }
     const size = sizeClass || 'ri-size-12';
-    return `<i class="ri-icon ${size} ${id}" aria-hidden="true"></i>`;
+    const extra = extraClass ? ` ${extraClass}` : '';
+    return `<i class="ri-icon ${size}${extra} ${id}" aria-hidden="true"></i>`;
   }
 
   function normalizeHost(hostname) {

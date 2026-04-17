@@ -88,6 +88,7 @@
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
   let currentBookmarkColumns = 4;
+  const AI_MODE_SWEEP_DURATION_MS = 1800;
   let tabRankScoreDebugEnabled = false;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
@@ -703,6 +704,13 @@
   }
 
   function getRiSvg(id, sizeClass, extraClass) {
+    const runtime = globalThis.LumnoRemixIconRuntime;
+    if (runtime && typeof runtime.getIconMarkup === 'function') {
+      const markup = runtime.getIconMarkup(id, sizeClass, extraClass);
+      if (markup) {
+        return markup;
+      }
+    }
     const size = sizeClass || 'ri-size-16';
     const extra = extraClass ? ` ${extraClass}` : '';
     return `<i class="ri-icon ${size}${extra} ${id}" aria-hidden="true"></i>`;
@@ -4090,6 +4098,9 @@
   const suggestionsContainer = document.createElement('div');
   suggestionsContainer.id = '_x_extension_newtab_suggestions_container_2024_unique_';
   suggestionsContainer.className = 'x-nt-suggestions-container';
+  suggestionsContainer.addEventListener('mousemove', updateSuggestionPointerFromEvent, { passive: true });
+  suggestionsContainer.addEventListener('mouseenter', updateSuggestionPointerFromEvent, { passive: true });
+  suggestionsContainer.addEventListener('mouseleave', clearHoveredSuggestionFromPointer);
   const topActionTooltip = document.createElement('div');
   topActionTooltip.id = '_x_extension_newtab_top_action_tooltip_2026_unique_';
   topActionTooltip.className = 'x-nt-top-action-tooltip';
@@ -8507,6 +8518,9 @@
   let lastSuggestionResponse = [];
   let siteSearchTriggerState = null;
   let lastRenderedQuery = '';
+  let suggestionPointerClientX = null;
+  let suggestionPointerClientY = null;
+  let isPointerInsideSuggestions = false;
 
   function getAutoHighlightIndex() {
     return suggestionItems.findIndex((item) => Boolean(item && item._xIsAutocompleteTop));
@@ -8549,6 +8563,87 @@
     const highlight = getHighlightColors(theme);
     item.style.setProperty('background', highlight.bg, 'important');
     item.style.setProperty('border', `1px solid ${highlight.border}`, 'important');
+  }
+
+  function resolveSuggestionItemFromPointer() {
+    if (!isPointerInsideSuggestions ||
+        suggestionPointerClientX == null ||
+        suggestionPointerClientY == null ||
+        typeof document.elementFromPoint !== 'function') {
+      return null;
+    }
+    let hoveredNode = document.elementFromPoint(
+      suggestionPointerClientX,
+      suggestionPointerClientY
+    );
+    if (!hoveredNode) {
+      return null;
+    }
+    if (hoveredNode.nodeType !== Node.ELEMENT_NODE) {
+      hoveredNode = hoveredNode.parentElement;
+    }
+    const hoveredItem = hoveredNode && typeof hoveredNode.closest === 'function'
+      ? hoveredNode.closest('.x-nt-suggestion-item')
+      : null;
+    if (!hoveredItem || suggestionItems.indexOf(hoveredItem) === -1) {
+      return null;
+    }
+    return hoveredItem;
+  }
+
+  function syncHoveredSuggestionFromPointer() {
+    const hoveredItem = resolveSuggestionItemFromPointer();
+    let hasChanges = false;
+    suggestionItems.forEach((item) => {
+      const nextHovering = item === hoveredItem;
+      if (Boolean(item._xIsHovering) !== nextHovering) {
+        item._xIsHovering = nextHovering;
+        hasChanges = true;
+      }
+    });
+    if (hasChanges) {
+      updateSelection();
+    }
+  }
+
+  function updateSuggestionPointerFromEvent(event) {
+    if (!event) {
+      return;
+    }
+    suggestionPointerClientX = event.clientX;
+    suggestionPointerClientY = event.clientY;
+    isPointerInsideSuggestions = true;
+    syncHoveredSuggestionFromPointer();
+  }
+
+  function clearHoveredSuggestionFromPointer() {
+    isPointerInsideSuggestions = false;
+    suggestionPointerClientX = null;
+    suggestionPointerClientY = null;
+    let hasChanges = false;
+    suggestionItems.forEach((item) => {
+      if (item && item._xIsHovering) {
+        item._xIsHovering = false;
+        hasChanges = true;
+      }
+    });
+    if (hasChanges) {
+      updateSelection();
+    }
+  }
+
+  function applySuggestionHoverState(item, theme) {
+    if (!item) {
+      return;
+    }
+    if (theme && theme._xIsBrand) {
+      const hover = getHoverColors(theme);
+      item.style.setProperty('background', hover.bg, 'important');
+      item.style.setProperty('border', `1px solid ${hover.border}`, 'important');
+      return;
+    }
+    item.style.setProperty('background', 'var(--x-nt-hover-bg, #F3F4F6)', 'important');
+    item.style.setProperty('border', '1px solid transparent', 'important');
   }
 
   function resetSearchSuggestion(item) {
@@ -8649,17 +8744,20 @@
       const isSelected = index === selectedIndex;
       const shouldAutoHighlight = selectedIndex === -1 && item._xIsAutocompleteTop;
       const isHighlighted = isSelected || shouldAutoHighlight;
+      const isHovering = Boolean(item._xIsHovering);
       if (item._xIsSearchSuggestion) {
           const theme = item._xTheme || defaultTheme;
         if (isHighlighted) {
             applySearchSuggestionHighlight(item, theme);
+          } else if (isHovering) {
+            applySuggestionHoverState(item, theme);
           } else {
             resetSearchSuggestion(item);
           }
-          applySearchActionStyles(item, theme, isHighlighted);
-          setNonFaviconIconBg(item, Boolean(isHighlighted || item._xIsHovering));
+          applySearchActionStyles(item, theme, Boolean(isHighlighted || isHovering));
+          setNonFaviconIconBg(item, Boolean(isHighlighted || isHovering));
           if (item._xDirectIconWrap) {
-            const shouldShow = isHighlighted && theme && theme._xIsBrand;
+            const shouldShow = Boolean((isHighlighted || isHovering) && theme && theme._xIsBrand);
             const resolvedTheme = getThemeForMode(theme || defaultTheme);
             item._xDirectIconWrap.style.setProperty(
               'color',
@@ -8669,10 +8767,15 @@
           }
           return;
         }
-      setNonFaviconIconBg(item, Boolean(isHighlighted || item._xIsHovering));
+      setNonFaviconIconBg(item, Boolean(isHighlighted || isHovering));
       const theme = item._xTheme || defaultTheme;
       if (isSelected) {
         applySearchSuggestionHighlight(item, theme);
+        if (item._xSwitchButton) {
+          item._xSwitchButton.style.setProperty('color', 'var(--x-nt-text, #111827)', 'important');
+        }
+      } else if (isHovering) {
+        applySuggestionHoverState(item, theme);
         if (item._xSwitchButton) {
           item._xSwitchButton.style.setProperty('color', 'var(--x-nt-text, #111827)', 'important');
         }
@@ -8763,15 +8866,7 @@
           if (selectedIndex === -1 && this._xIsAutocompleteTop) {
             return;
           }
-          const theme = this._xTheme;
-          if (theme && theme._xIsBrand) {
-            const hover = getHoverColors(theme);
-            this.style.setProperty('background-color', hover.bg, 'important');
-            this.style.setProperty('border', `1px solid ${hover.border}`, 'important');
-          } else {
-            this.style.setProperty('background-color', 'var(--x-nt-hover-bg, #F3F4F6)', 'important');
-            this.style.setProperty('border', '1px solid transparent', 'important');
-          }
+          updateSelection();
         }
       });
 
@@ -8824,6 +8919,8 @@
     });
 
     selectedIndex = -1;
+    syncHoveredSuggestionFromPointer();
+    updateSelection();
     setSuggestionsVisible(true);
   }
 
@@ -9361,8 +9458,6 @@
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
-            this.style.setProperty('background', 'var(--x-nt-hover-bg, #F3F4F6)', 'important');
-            this.style.setProperty('border', '1px solid transparent', 'important');
           }
         });
 
@@ -9515,6 +9610,7 @@
         }
       });
 
+      syncHoveredSuggestionFromPointer();
       updateSelection();
       setSuggestionsVisible(true);
     });
@@ -10172,7 +10268,8 @@
   modeBadge.id = '_x_extension_newtab_mode_badge_2024_unique_';
   modeBadge.className = 'x-nt-mode-badge';
   modeBadge.hidden = true;
-  inputParts.container.appendChild(modeBadge);
+  const inputChromeLayer = inputParts.chromeLayer || inputParts.container;
+  inputChromeLayer.appendChild(modeBadge);
   const searchInput = inputParts.input;
   searchInputRef = searchInput;
   const inputContainer = inputParts.container;
@@ -10244,7 +10341,7 @@
   siteSearchPrefixLabel.classList.add('notranslate');
   siteSearchPrefixLabel.classList.add('x-nt-site-search-prefix-label');
   siteSearchPrefix.appendChild(siteSearchPrefixLabel);
-  inputContainer.appendChild(siteSearchPrefix);
+  inputChromeLayer.appendChild(siteSearchPrefix);
   inputContainer.classList.add('x-nt-input-container');
   suggestionsContainer.classList.add('x-nt-suggestions-layer');
 
@@ -10297,8 +10394,8 @@
       borderRadius: 28,
       borderWidth: 1,
       edgeOffset: 0,
-      zIndex: 1,
-      spread: 0,
+      zIndex: 0,
+      spread: 6,
       duration: 2.4,
       hueRange: 13,
       strength: 0.82,
@@ -10320,8 +10417,8 @@
       target: aiModeDecorFrame,
       themeTarget: document.body || root,
       borderRadius: 28,
-      zIndex: 1,
-      duration: 2280,
+      zIndex: 0,
+      duration: AI_MODE_SWEEP_DURATION_MS,
       maxDisplacement: 24,
       distortionSelector: '[data-ai-sweep-distort]'
     });
