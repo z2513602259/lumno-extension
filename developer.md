@@ -14,14 +14,15 @@
 - 当前注入 UI 未使用 Shadow DOM，浮层与输入框仍直接暴露在宿主页面样式环境中。
 
 ### 当前进展
-- 第一阶段已开始落地，已完成 `newtab` / `options` 自有页面清理，并开始审计 `input-ui.js` 中仅属于输入框内部壳层的低风险静态样式；仍不触碰 `background.js`、`hotkey-listener.js`。
+- 第一阶段已开始落地，已完成 `newtab` / `options` 自有页面清理，并继续收敛浮层注入路径中低风险的内部壳层；仍不触碰 `hotkey-listener.js`。
 - `newtab.js` 内静态 `!important` 已清零。
 - `newtab.html` 内 `!important` 已清零。
 - `newtab.js` 内 `style.cssText` 已清零，静态壳层样式已下沉到 `newtab.html` 的稳定类名。
 - `options.html` / `options.js` 内 `!important` 已清零。
 - `input-ui.js` 内字面量 `!important` 与 `style.cssText` 已清零；当前仅保留少量运行时 `setProperty(..., 'important')`，集中在宿主页面定位保护、特效载体几何同步与持续时间变量这类高风险位点。
+- `background.js` 已开始只针对浮层内部静态 UI 壳层做减量，当前从约 `989` 处降到约 `594` 处；剩余主要集中在宿主保护、主题变量写入、动画/几何同步和建议列表未迁移区域。
 - 已补齐 `[hidden]` 显隐规则，修复了清理过程中由类样式覆盖浏览器原生 `hidden` 导致的 `newtab` 展示异常。
-- 当前代码文件总量已从计划记录时的约 `1969` 处降到约 `990` 处，但高风险区仍主要集中在注入路径，暂不贸然继续下探。
+- 当前代码文件总量已从计划记录时的约 `1969` 处降到约 `595` 处，但高风险区仍主要集中在注入路径，暂不贸然继续下探。
 
 ### 非退让约束
 - 不影响已有样式表现。

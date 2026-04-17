@@ -8180,6 +8180,352 @@ async function getSearchSuggestions(query) {
       #_x_extension_overlay_2024_unique_ .ri-size-16 { --ri-size: 16px; }
       #_x_extension_overlay_2024_unique_ .ri-size-20 { --ri-size: 20px; }
       #_x_extension_overlay_2024_unique_ .ri-size-24 { --ri-size: 24px; }
+      #_x_extension_overlay_2024_unique_ .x-ov-inline-icon {
+        all: unset;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-inline-icon--subtext {
+        color: var(--x-ov-subtext, #9CA3AF);
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-action-tag {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--x-ext-tag-bg, #EEF6FF);
+        color: var(--x-ext-tag-text, #1E3A8A);
+        border: 1px solid var(--x-ext-tag-border, #BFDBFE);
+        padding: 4px 10px 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        box-sizing: border-box;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-action-tag-label {
+        all: unset;
+        font-weight: 500;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-action-tag-keycap {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: var(--x-ext-key-bg, #FFFFFF);
+        color: var(--x-ext-key-text, #1E3A8A);
+        border: 1px solid var(--x-ext-key-border, #BFDBFE);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-top-action-tooltip {
+        all: unset;
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        display: block;
+        visibility: hidden;
+        width: max-content;
+        max-width: 420px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: #0F172A;
+        color: #F9FAFB;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        font-size: 13px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 500;
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: break-word;
+        text-align: left;
+        box-sizing: border-box;
+        pointer-events: none;
+        z-index: 4;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-toolbar-button {
+        all: unset;
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        z-index: 2;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0;
+        color: var(--x-ext-input-icon, #9CA3AF);
+        cursor: pointer;
+        transition: background-color 140ms ease, color 140ms ease, transform 160ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-mode-badge {
+        all: unset;
+        position: absolute;
+        right: 86px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: var(--x-ov-tag-bg, #F3F4F6);
+        color: var(--x-ov-tag-text, #6B7280);
+        border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08));
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 500;
+        line-height: 1;
+        white-space: nowrap;
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-sizing: border-box;
+        pointer-events: none;
+        z-index: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-site-search-prefix {
+        all: unset;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 50px;
+        display: none;
+        align-items: center;
+        max-width: 0;
+        padding: 0 8px;
+        height: 22px;
+        border-radius: 8px;
+        border: none;
+        background: var(--x-ext-tag-bg, #EEF6FF);
+        color: #FFFFFF;
+        box-sizing: border-box;
+        overflow: hidden;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1;
+        pointer-events: none;
+        z-index: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-site-search-prefix-label {
+        all: unset;
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestions-container {
+        all: unset;
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 50vh;
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        background: transparent;
+        border-radius: 0 0 28px 28px;
+        padding: 12px;
+        box-sizing: border-box;
+        display: block;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        position: relative;
+        z-index: 2;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-item {
+        all: unset;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        box-sizing: border-box;
+        margin: 0;
+        line-height: 1.5;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-left {
+        all: unset;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        min-width: 0;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        transition: gap 160ms ease, transform 160ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-favicon {
+        all: unset;
+        width: 16px;
+        height: 16px;
+        border-radius: 2px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        display: block;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-favicon--contain {
+        object-fit: contain;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-icon-slot {
+        all: unset;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        transition: background-color 0.2s ease;
+        color: var(--x-ov-subtext, #9CA3AF);
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-text {
+        all: unset;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+        overflow: visible;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0 8px 0 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-title {
+        all: unset;
+        color: var(--x-ov-text, #111827);
+        font-size: 14px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 400;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1.5;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        display: inline-block;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-suggestion-reason {
+        all: unset;
+        color: var(--x-ov-subtext, #6B7280);
+        font-size: 11px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        display: inline-block;
+        vertical-align: middle;
+      }
       #_x_extension_search_input_2024_unique_ {
         text-align: left !important;
       }
@@ -8247,35 +8593,7 @@ async function getSearchSuggestions(query) {
     const topActionTooltip = document.createElement('div');
     applyNoTranslate(topActionTooltip);
     topActionTooltip.id = '_x_extension_top_action_tooltip_2026_unique_';
-    topActionTooltip.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      left: 8px !important;
-      top: 8px !important;
-      display: block !important;
-      visibility: hidden !important;
-      width: max-content !important;
-      max-width: 420px !important;
-      padding: 8px 12px !important;
-      border-radius: 10px !important;
-      background: #0F172A !important;
-      color: #F9FAFB !important;
-      border: 1px solid rgba(15, 23, 42, 0.12) !important;
-      font-size: 13px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      font-weight: 500 !important;
-      line-height: 1.35 !important;
-      white-space: normal !important;
-      overflow-wrap: break-word !important;
-      text-align: left !important;
-      box-sizing: border-box !important;
-      pointer-events: none !important;
-      z-index: 4 !important;
-      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18) !important;
-      opacity: 0 !important;
-      transform: translateY(4px) !important;
-      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease !important;
-    `;
+    topActionTooltip.className = 'x-ov-top-action-tooltip';
     overlay.appendChild(topActionTooltip);
     let topActionTooltipHideTimer = null;
     const showTopActionTooltip = (button, text) => {
@@ -8288,27 +8606,19 @@ async function getSearchSuggestions(query) {
       }
       topActionTooltip.textContent = text;
       const isDark = overlay && overlay.getAttribute('data-theme') === 'dark';
-      topActionTooltip.style.setProperty('background', isDark ? '#020617' : '#0F172A', 'important');
-      topActionTooltip.style.setProperty('color', '#F8FAFC', 'important');
-      topActionTooltip.style.setProperty(
-        'border',
-        isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(15, 23, 42, 0.12)',
-        'important'
-      );
-      topActionTooltip.style.setProperty(
-        'box-shadow',
-        isDark ? '0 14px 30px rgba(0, 0, 0, 0.45)' : '0 10px 22px rgba(0, 0, 0, 0.18)',
-        'important'
-      );
+      topActionTooltip.style.background = isDark ? '#020617' : '#0F172A';
+      topActionTooltip.style.color = '#F8FAFC';
+      topActionTooltip.style.border = isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(15, 23, 42, 0.12)';
+      topActionTooltip.style.boxShadow = isDark ? '0 14px 30px rgba(0, 0, 0, 0.45)' : '0 10px 22px rgba(0, 0, 0, 0.18)';
       const overlayRect = overlay.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
       const availableWidth = Math.max(180, Math.floor(overlayRect.width - 16));
       const resolvedMaxWidth = Math.min(420, availableWidth);
-      topActionTooltip.style.setProperty('max-width', `${resolvedMaxWidth}px`, 'important');
-      topActionTooltip.style.setProperty('width', 'max-content', 'important');
-      topActionTooltip.style.setProperty('visibility', 'hidden', 'important');
-      topActionTooltip.style.setProperty('opacity', '0', 'important');
-      topActionTooltip.style.setProperty('transform', 'translateY(4px)', 'important');
+      topActionTooltip.style.maxWidth = `${resolvedMaxWidth}px`;
+      topActionTooltip.style.width = 'max-content';
+      topActionTooltip.style.visibility = 'hidden';
+      topActionTooltip.style.opacity = '0';
+      topActionTooltip.style.transform = 'translateY(4px)';
       const tooltipRect = topActionTooltip.getBoundingClientRect();
       const spacing = 10;
       let tooltipTop = Math.round(buttonRect.top - overlayRect.top - tooltipRect.height - spacing);
@@ -8321,25 +8631,25 @@ async function getSearchSuggestions(query) {
       const minLeft = 8;
       const maxLeft = Math.max(minLeft, Math.round(overlayRect.width - tooltipRect.width - 8));
       tooltipLeft = Math.max(minLeft, Math.min(maxLeft, tooltipLeft));
-      topActionTooltip.style.setProperty('top', `${tooltipTop}px`, 'important');
-      topActionTooltip.style.setProperty('left', `${tooltipLeft}px`, 'important');
-      topActionTooltip.style.setProperty('visibility', 'visible', 'important');
+      topActionTooltip.style.top = `${tooltipTop}px`;
+      topActionTooltip.style.left = `${tooltipLeft}px`;
+      topActionTooltip.style.visibility = 'visible';
       requestAnimationFrame(() => {
-        topActionTooltip.style.setProperty('opacity', '1', 'important');
-        topActionTooltip.style.setProperty('transform', 'translateY(0)', 'important');
+        topActionTooltip.style.opacity = '1';
+        topActionTooltip.style.transform = 'translateY(0)';
       });
     };
     const hideTopActionTooltip = () => {
       if (!topActionTooltip) {
         return;
       }
-      topActionTooltip.style.setProperty('opacity', '0', 'important');
-      topActionTooltip.style.setProperty('transform', 'translateY(4px)', 'important');
+      topActionTooltip.style.opacity = '0';
+      topActionTooltip.style.transform = 'translateY(4px)';
       if (topActionTooltipHideTimer) {
         clearTimeout(topActionTooltipHideTimer);
       }
       topActionTooltipHideTimer = setTimeout(() => {
-        topActionTooltip.style.setProperty('visibility', 'hidden', 'important');
+        topActionTooltip.style.visibility = 'hidden';
       }, 120);
     };
     const closeOtherTabsButton = document.createElement('button');
@@ -8348,52 +8658,17 @@ async function getSearchSuggestions(query) {
     closeOtherTabsButton.type = 'button';
     closeOtherTabsButton.innerHTML = getRiSvg('ri-brush-2-line', 'ri-size-16');
     closeOtherTabsButton.setAttribute('aria-label', t('overlay_close_other_tabs_tooltip', '清理本页外的其他标签页（除置顶与群组）'));
-    closeOtherTabsButton.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      right: 14px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      width: 30px !important;
-      height: 30px !important;
-      border-radius: 8px !important;
-      z-index: 2 !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      background: transparent !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      font-size: 0 !important;
-      color: var(--x-ext-input-icon, #9CA3AF) !important;
-      cursor: pointer !important;
-      transition: background-color 140ms ease, color 140ms ease, transform 160ms ease !important;
-    `;
-    const closeOtherTabsIcon = closeOtherTabsButton.querySelector('.ri-icon');
-    if (closeOtherTabsIcon) {
-      closeOtherTabsIcon.style.setProperty('display', 'inline-flex', 'important');
-      closeOtherTabsIcon.style.setProperty('align-items', 'center', 'important');
-      closeOtherTabsIcon.style.setProperty('justify-content', 'center', 'important');
-      closeOtherTabsIcon.style.setProperty('line-height', '1', 'important');
-      closeOtherTabsIcon.style.setProperty('transform', 'none', 'important');
-      closeOtherTabsIcon.style.setProperty('pointer-events', 'none', 'important');
-      closeOtherTabsIcon.style.setProperty('cursor', 'pointer', 'important');
-    }
+    closeOtherTabsButton.className = 'x-ov-toolbar-button';
     const resetCloseOtherTabsButtonVisualState = () => {
-      closeOtherTabsButton.style.setProperty('background', 'transparent', 'important');
-      closeOtherTabsButton.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');
-      closeOtherTabsButton.style.setProperty('transform', 'translateY(-50%)', 'important');
+      closeOtherTabsButton.style.background = 'transparent';
+      closeOtherTabsButton.style.color = 'var(--x-ext-input-icon, #9CA3AF)';
+      closeOtherTabsButton.style.transform = 'translateY(-50%)';
     };
     resetCloseOtherTabsButtonVisualState();
     closeOtherTabsButton.addEventListener('mouseenter', () => {
-      closeOtherTabsButton.style.setProperty('background', 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))', 'important');
-      closeOtherTabsButton.style.setProperty('color', 'var(--x-ext-input-icon-hover, #4B5563)', 'important');
-      closeOtherTabsButton.style.setProperty('transform', 'translateY(-50%) scale(1.06)', 'important');
+      closeOtherTabsButton.style.background = 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))';
+      closeOtherTabsButton.style.color = 'var(--x-ext-input-icon-hover, #4B5563)';
+      closeOtherTabsButton.style.transform = 'translateY(-50%) scale(1.06)';
     });
     closeOtherTabsButton.addEventListener('mouseleave', resetCloseOtherTabsButtonVisualState);
     closeOtherTabsButton.addEventListener('blur', resetCloseOtherTabsButtonVisualState);
@@ -8403,32 +8678,8 @@ async function getSearchSuggestions(query) {
     modeBadge = document.createElement('div');
     modeBadge.id = '_x_extension_mode_badge_2024_unique_';
     applyNoTranslate(modeBadge);
-    modeBadge.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      right: 86px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      display: none !important;
-      align-items: center !important;
-      gap: 6px !important;
-      background: var(--x-ov-tag-bg, #F3F4F6) !important;
-      color: var(--x-ov-tag-text, #6B7280) !important;
-      border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08)) !important;
-      border-radius: 999px !important;
-      padding: 4px 8px !important;
-      font-size: 11px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      font-weight: 500 !important;
-      line-height: 1 !important;
-      white-space: nowrap !important;
-      max-width: 180px !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      box-sizing: border-box !important;
-      pointer-events: none !important;
-      z-index: 1 !important;
-    `;
+    modeBadge.className = 'x-ov-mode-badge';
+    modeBadge.style.display = 'none';
     inputContainer.appendChild(modeBadge);
 
     function updateInputRightPadding() {
@@ -8436,7 +8687,7 @@ async function getSearchSuggestions(query) {
         return;
       }
       const baseRightReserve = 92;
-      const badgeVisible = Boolean(modeBadge && modeBadge.style.getPropertyValue('display') !== 'none');
+      const badgeVisible = Boolean(modeBadge && window.getComputedStyle(modeBadge).display !== 'none');
       if (!badgeVisible) {
         searchInput.style.setProperty('padding-right', `${baseRightReserve}px`, 'important');
         return;
@@ -8570,7 +8821,7 @@ async function getSearchSuggestions(query) {
       }
       const shouldShow = isModeCommand(rawValue || '');
       if (!shouldShow) {
-        modeBadge.style.setProperty('display', 'none', 'important');
+        modeBadge.style.display = 'none';
         updateInputRightPadding();
         return;
       }
@@ -8591,7 +8842,7 @@ async function getSearchSuggestions(query) {
           mode: getThemeModeLabel(overlayThemeMode)
         });
       }
-      modeBadge.style.setProperty('display', 'inline-flex', 'important');
+      modeBadge.style.display = 'inline-flex';
       updateInputRightPadding();
     }
 
@@ -10490,56 +10741,19 @@ async function getSearchSuggestions(query) {
       });
     }
 
-  function createSearchIcon() {
-    const icon = document.createElement('span');
-    icon.innerHTML = getRiSvg('ri-search-line', 'ri-size-16');
-      icon.style.cssText = `
-        all: unset !important;
-        width: 16px !important;
-        height: 16px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        color: inherit !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
+    function createInlineIcon(iconHtml, classNames) {
+      const icon = document.createElement('span');
+      icon.innerHTML = iconHtml;
+      icon.className = classNames ? `x-ov-inline-icon ${classNames}` : 'x-ov-inline-icon';
       return icon;
     }
 
-    function createLinkIcon() {
-      const icon = document.createElement('span');
-      icon.innerHTML = getRiSvg('ri-link', 'ri-size-16');
-      icon.style.cssText = `
-        all: unset !important;
-        width: 16px !important;
-        height: 16px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        color: inherit !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
-      return icon;
+    function createSearchIcon(classNames) {
+      return createInlineIcon(getRiSvg('ri-search-line', 'ri-size-16'), classNames);
+    }
+
+    function createLinkIcon(classNames) {
+      return createInlineIcon(getRiSvg('ri-link', 'ri-size-16'), classNames);
     }
 
     function getNonFaviconIconBg() {
@@ -10581,56 +10795,74 @@ async function getSearchSuggestions(query) {
     function createActionTag(labelText, keyLabel) {
       const tag = document.createElement('span');
       applyNoTranslate(tag);
-      tag.style.cssText = `
-        all: unset !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 6px !important;
-        background: var(--x-ext-tag-bg, #EEF6FF) !important;
-        color: var(--x-ext-tag-text, #1E3A8A) !important;
-        border: 1px solid var(--x-ext-tag-border, #BFDBFE) !important;
-        padding: 4px 10px 4px 8px !important;
-        border-radius: 999px !important;
-        font-size: 11px !important;
-        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        box-sizing: border-box !important;
-        vertical-align: middle !important;
-        white-space: nowrap !important;
-      `;
+      tag.className = 'x-ov-action-tag';
 
       const label = document.createElement('span');
       setProtectedPlainText(label, labelText);
-      label.style.cssText = `
-        all: unset !important;
-        font-weight: 500 !important;
-        line-height: 1 !important;
-      `;
+      label.className = 'x-ov-action-tag-label';
 
       const keycap = document.createElement('span');
       setProtectedPlainText(keycap, keyLabel);
-      keycap.style.cssText = `
-        all: unset !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 2px 7px !important;
-        border-radius: 6px !important;
-        background: var(--x-ext-key-bg, #FFFFFF) !important;
-        color: var(--x-ext-key-text, #1E3A8A) !important;
-        border: 1px solid var(--x-ext-key-border, #BFDBFE) !important;
-        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12) !important;
-        font-size: 10px !important;
-        font-weight: 500 !important;
-        line-height: 1 !important;
-      `;
+      keycap.className = 'x-ov-action-tag-keycap';
 
       tag.appendChild(label);
       tag.appendChild(keycap);
       return tag;
+    }
+
+    function createSuggestionFavicon(options) {
+      const config = options || {};
+      const favicon = document.createElement('img');
+      favicon.decoding = 'async';
+      favicon.loading = 'eager';
+      favicon.referrerPolicy = 'no-referrer';
+      if (config.highPriority) {
+        favicon.fetchPriority = 'high';
+      }
+      favicon.className = config.contain
+        ? 'x-ov-suggestion-favicon x-ov-suggestion-favicon--contain'
+        : 'x-ov-suggestion-favicon';
+      return favicon;
+    }
+
+    function createSuggestionItemShell(options) {
+      const config = options || {};
+      const item = document.createElement('div');
+      item.className = 'x-ov-suggestion-item';
+      item.style.background = config.background || 'transparent';
+      item.style.border = config.border || '1px solid transparent';
+      item.style.margin = `0 0 ${config.marginBottom || '0'} 0`;
+      return item;
+    }
+
+    function createSuggestionLeft() {
+      const left = document.createElement('div');
+      left.className = 'x-ov-suggestion-left';
+      return left;
+    }
+
+    function createSuggestionIconSlot() {
+      const slot = document.createElement('span');
+      slot.className = 'x-ov-suggestion-icon-slot';
+      return slot;
+    }
+
+    function createSuggestionTextWrapper() {
+      const text = document.createElement('div');
+      text.className = 'x-ov-suggestion-text';
+      return text;
+    }
+
+    function createSuggestionTitle() {
+      const title = document.createElement('span');
+      title.className = 'x-ov-suggestion-title';
+      return title;
+    }
+
+    function createSuggestionReasonLine() {
+      const reason = document.createElement('span');
+      reason.className = 'x-ov-suggestion-reason';
+      return reason;
     }
 
     function getThemeSourceForSuggestion(suggestion) {
@@ -10660,41 +10892,12 @@ async function getSearchSuggestions(query) {
     const siteSearchPrefix = document.createElement('span');
     siteSearchPrefix.id = '_x_extension_site_search_prefix_2024_unique_';
     siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
-    siteSearchPrefix.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      left: 50px !important;
-      display: none !important;
-      align-items: center !important;
-      max-width: 0 !important;
-      padding: 0 8px !important;
-      height: 22px !important;
-      border-radius: 8px !important;
-      border: none !important;
-      background: var(--x-ext-tag-bg, #EEF6FF) !important;
-      color: #FFFFFF !important;
-      box-sizing: border-box !important;
-      overflow: hidden !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      font-size: 12px !important;
-      font-weight: 500 !important;
-      line-height: 1 !important;
-      pointer-events: none !important;
-      z-index: 1 !important;
-    `;
+    siteSearchPrefix.className = 'x-ov-site-search-prefix';
+    siteSearchPrefix.style.display = 'none';
+    siteSearchPrefix.style.maxWidth = '0px';
     const siteSearchPrefixLabel = document.createElement('span');
     applyNoTranslate(siteSearchPrefixLabel);
-    siteSearchPrefixLabel.style.cssText = `
-      all: unset !important;
-      display: block !important;
-      min-width: 0 !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      white-space: nowrap !important;
-      line-height: 1 !important;
-    `;
+    siteSearchPrefixLabel.className = 'x-ov-site-search-prefix-label';
     siteSearchPrefix.appendChild(siteSearchPrefixLabel);
     inputContainer.appendChild(siteSearchPrefix);
     inputContainer.style.setProperty('position', 'relative', 'important');
@@ -10779,23 +10982,23 @@ async function getSearchSuggestions(query) {
 
     function updateSiteSearchPrefixLayout() {
       const basePadding = getBaseInputPaddingLeft();
-      siteSearchPrefix.style.setProperty('left', `${basePadding}px`, 'important');
+      siteSearchPrefix.style.left = `${basePadding}px`;
       if (siteSearchPrefix.style.display === 'none') {
-        siteSearchPrefix.style.setProperty('max-width', '0px', 'important');
-        searchInput.style.setProperty('padding-left', `${basePadding}px`, 'important');
+        siteSearchPrefix.style.maxWidth = '0px';
+        searchInput.style.paddingLeft = `${basePadding}px`;
         return;
       }
       const inputContainerWidth = inputContainer ? inputContainer.getBoundingClientRect().width : 0;
       const availableWidth = Math.max(72, Math.floor(inputContainerWidth - basePadding - 108));
-      siteSearchPrefix.style.setProperty('max-width', `${availableWidth}px`, 'important');
+      siteSearchPrefix.style.maxWidth = `${availableWidth}px`;
       const prefixWidth = siteSearchPrefix.getBoundingClientRect().width;
       const paddedLeft = Math.max(basePadding + prefixWidth + prefixGap, basePadding);
-      searchInput.style.setProperty('padding-left', `${paddedLeft}px`, 'important');
+      searchInput.style.paddingLeft = `${paddedLeft}px`;
     }
 
     function setInputModePrefix(prefixText, theme) {
       setProtectedPlainText(siteSearchPrefixLabel, prefixText);
-      siteSearchPrefix.style.setProperty('display', 'inline-flex', 'important');
+      siteSearchPrefix.style.display = 'inline-flex';
       const resolvedTheme = getThemeForMode(theme || defaultTheme);
       const accentRgb = resolvedTheme && (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
         ? (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
@@ -10816,26 +11019,26 @@ async function getSearchSuggestions(query) {
       const shadowAlpha = isOverlayDarkMode() ? 0.26 : 0.22;
       const shadowSoftAlpha = isOverlayDarkMode() ? 0.14 : 0.12;
       const tagShadow = `0 4px 10px rgba(${compensatedAccent[0]}, ${compensatedAccent[1]}, ${compensatedAccent[2]}, ${shadowAlpha}), 0 1px 2px rgba(${compensatedAccent[0]}, ${compensatedAccent[1]}, ${compensatedAccent[2]}, ${shadowSoftAlpha})`;
-      siteSearchPrefix.style.setProperty('background', backgroundColor, 'important');
-      siteSearchPrefix.style.setProperty('color', '#FFFFFF', 'important');
-      siteSearchPrefix.style.setProperty('border', 'none', 'important');
-      siteSearchPrefix.style.setProperty('box-shadow', tagShadow, 'important');
+      siteSearchPrefix.style.background = backgroundColor;
+      siteSearchPrefix.style.color = '#FFFFFF';
+      siteSearchPrefix.style.border = 'none';
+      siteSearchPrefix.style.boxShadow = tagShadow;
       searchInput.placeholder = '';
       if (resolvedTheme && resolvedTheme.accent) {
-        searchInput.style.setProperty('caret-color', resolvedTheme.accent, 'important');
+        searchInput.style.caretColor = resolvedTheme.accent;
       }
       updateSiteSearchPrefixLayout();
     }
 
     function clearInputModePrefix() {
       siteSearchPrefixLabel.textContent = '';
-      siteSearchPrefix.style.setProperty('display', 'none', 'important');
-      siteSearchPrefix.style.setProperty('background', 'var(--x-ext-tag-bg, #EEF6FF)', 'important');
-      siteSearchPrefix.style.setProperty('color', '#FFFFFF', 'important');
-      siteSearchPrefix.style.setProperty('border', 'none', 'important');
-      siteSearchPrefix.style.setProperty('box-shadow', 'none', 'important');
+      siteSearchPrefix.style.display = 'none';
+      siteSearchPrefix.style.background = 'var(--x-ext-tag-bg, #EEF6FF)';
+      siteSearchPrefix.style.color = '#FFFFFF';
+      siteSearchPrefix.style.border = 'none';
+      siteSearchPrefix.style.boxShadow = 'none';
       searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
-      searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
+      searchInput.style.caretColor = defaultCaretColor;
       setAiModeDecorActive(false);
       updateSiteSearchPrefixLayout();
     }
@@ -14094,29 +14297,10 @@ async function getSearchSuggestions(query) {
             }
           }
           const initialHighlight = isPrimaryHighlight ? getHighlightColors(immediateTheme) : null;
-          suggestionItem.style.cssText = `
-            all: unset !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            padding: 12px 16px !important;
-            background: ${isPrimaryHighlight ? initialHighlight.bg : 'transparent'} !important;
-            border: ${isPrimaryHighlight ? `1px solid ${initialHighlight.border}` : '1px solid transparent'} !important;
-            border-radius: 16px !important;
-            margin-bottom: ${isLastItem ? '0' : '4px'} !important;
-            cursor: pointer !important;
-            transition: background-color 0.2s ease !important;
-            box-sizing: border-box !important;
-            margin: 0 0 ${isLastItem ? '0' : '4px'} 0 !important;
-            line-height: 1.5 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          suggestionItem.className = 'x-ov-suggestion-item';
+          suggestionItem.style.background = isPrimaryHighlight ? initialHighlight.bg : 'transparent';
+          suggestionItem.style.border = isPrimaryHighlight ? `1px solid ${initialHighlight.border}` : '1px solid transparent';
+          suggestionItem.style.margin = `0 0 ${isLastItem ? '0' : '4px'} 0`;
           
           suggestionItems.push(suggestionItem);
           suggestionItem._xIsSearchSuggestion = true;
@@ -14125,54 +14309,12 @@ async function getSearchSuggestions(query) {
           applyThemeVariables(suggestionItem, immediateTheme);
           
           // Create left side with icon and title
-          const leftSide = document.createElement('div');
-          leftSide.style.cssText = `
-            all: unset !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 12px !important;
-            flex: 1 !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-            transition: gap 160ms ease, transform 160ms ease !important;
-          `;
+          const leftSide = createSuggestionLeft();
           
           let iconNode = null;
           let iconWrapper = null;
           if (suggestion.type === 'browserPage') {
-            const themedIcon = document.createElement('span');
-            themedIcon.innerHTML = getRiSvg('ri-link', 'ri-size-16');
-            themedIcon.style.cssText = `
-              all: unset !important;
-              width: 16px !important;
-              height: 16px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: inherit !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-            `;
+            const themedIcon = createLinkIcon();
             iconNode = themedIcon;
           } else if (suggestion.type === 'directUrl') {
             const directUrlHost = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
@@ -14183,93 +14325,24 @@ async function getSearchSuggestions(query) {
               ? createLinkIcon()
               : createSearchIcon();
           } else if (suggestion.type === 'commandNewTab') {
-            const plusIcon = document.createElement('span');
-            plusIcon.innerHTML = getRiSvg('ri-add-line', 'ri-size-16');
-            plusIcon.style.cssText = `
-              all: unset !important;
-              width: 16px !important;
-              height: 16px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: var(--x-ov-subtext, #9CA3AF) !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-            `;
+            const plusIcon = createInlineIcon(getRiSvg('ri-add-line', 'ri-size-16'), 'x-ov-inline-icon--subtext');
             iconNode = plusIcon;
           } else if (suggestion.type === 'commandSettings') {
-            const gearIcon = document.createElement('span');
-            gearIcon.innerHTML = getRiSvg('ri-settings-3-line', 'ri-size-16');
-            gearIcon.style.cssText = `
-              all: unset !important;
-              width: 16px !important;
-              height: 16px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: var(--x-ov-subtext, #9CA3AF) !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-            `;
+            const gearIcon = createInlineIcon(getRiSvg('ri-settings-3-line', 'ri-size-16'), 'x-ov-inline-icon--subtext');
             iconNode = gearIcon;
           } else if (suggestion.type === 'modeSwitch' && suggestion.favicon) {
-            const favicon = document.createElement('img');
-            favicon.decoding = 'async';
-            favicon.loading = 'eager';
-            favicon.referrerPolicy = 'no-referrer';
-            if (index < 4) {
-              favicon.fetchPriority = 'high';
-            }
-            favicon.style.cssText = `
-              all: unset !important;
-              width: 16px !important;
-              height: 16px !important;
-              border-radius: 2px !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: inherit !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-              display: block !important;
-            `;
+            const favicon = createSuggestionFavicon({ highPriority: index < 4 });
             applyFaviconOpticalAlignment(favicon);
             favicon.src = suggestion.favicon || '';
             favicon.onerror = function() {
-              const fallbackDiv = createSearchIcon();
-              fallbackDiv.style.setProperty('color', 'var(--x-ov-subtext, #9CA3AF)', 'important');
+              const fallbackDiv = createSearchIcon('x-ov-inline-icon--subtext');
               if (favicon.parentNode) {
                 favicon.parentNode.replaceChild(fallbackDiv, favicon);
               }
             };
             iconNode = favicon;
           } else if (suggestion.type === 'newtab' || suggestion.type === 'googleSuggest') {
-            const searchIcon = createSearchIcon();
-            searchIcon.style.setProperty('color', 'var(--x-ov-subtext, #9CA3AF)', 'important');
+            const searchIcon = createSearchIcon('x-ov-inline-icon--subtext');
             iconNode = searchIcon;
           } else {
             const suggestionHost = suggestion.url ? getHostFromUrl(suggestion.url) : '';
@@ -14277,38 +14350,15 @@ async function getSearchSuggestions(query) {
               iconNode = createLinkIcon();
             } else if (suggestion.favicon) {
               // Create icon for suggestions - always use img for all types
-              const favicon = document.createElement('img');
-              favicon.decoding = 'async';
-              favicon.loading = 'eager';
-              favicon.referrerPolicy = 'no-referrer';
-              if (index < 4) {
-                favicon.fetchPriority = 'high';
-              }
+              const favicon = createSuggestionFavicon({
+                highPriority: index < 4,
+                contain: true
+              });
               attachFaviconData(
                 favicon,
                 suggestion.favicon || '',
                 suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : ''
               );
-              favicon.style.cssText = `
-                all: unset !important;
-                width: 16px !important;
-                height: 16px !important;
-                border-radius: 2px !important;
-                box-sizing: border-box !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                line-height: 1 !important;
-                text-decoration: none !important;
-                list-style: none !important;
-                outline: none !important;
-                background: transparent !important;
-                color: inherit !important;
-                font-size: 100% !important;
-                font: inherit !important;
-                vertical-align: baseline !important;
-                display: block !important;
-                object-fit: contain !important;
-              `;
               applyFaviconOpticalAlignment(favicon);
               const replaceWithFallbackIcon = function() {
                 const fallbackDiv = createLinkIcon();
@@ -14325,39 +14375,14 @@ async function getSearchSuggestions(query) {
               );
               iconNode = favicon;
             } else {
-              const searchIcon = createSearchIcon();
-              searchIcon.style.setProperty('color', 'var(--x-ov-subtext, #9CA3AF)', 'important');
+              const searchIcon = createSearchIcon('x-ov-inline-icon--subtext');
               iconNode = searchIcon;
             }
           }
           
           if (iconNode) {
             const isFaviconIcon = iconNode.tagName === 'IMG';
-            const iconSlot = document.createElement('span');
-            iconSlot.style.cssText = `
-              all: unset !important;
-              width: 24px !important;
-              height: 24px !important;
-              flex: 0 0 24px !important;
-              flex-shrink: 0 !important;
-              border-radius: 8px !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              transition: background-color 0.2s ease !important;
-              color: var(--x-ov-subtext, #9CA3AF) !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-            `;
+            const iconSlot = createSuggestionIconSlot();
             iconSlot._xIsFavicon = isFaviconIcon;
             iconSlot.appendChild(iconNode);
             iconNode = iconSlot;
@@ -14369,32 +14394,11 @@ async function getSearchSuggestions(query) {
           }
           
           // Create text wrapper for title and tag
-          const textWrapper = document.createElement('div');
+          const textWrapper = createSuggestionTextWrapper();
           textWrapper.setAttribute('data-ai-sweep-distort', 'text');
-          textWrapper.style.cssText = `
-            all: unset !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 6px !important;
-            flex: 1 !important;
-            min-width: 0 !important;
-            overflow: visible !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 8px 0 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
           
           // Create title with highlighted query
-          const title = document.createElement('span');
+          const title = createSuggestionTitle();
           applyNoTranslate(title);
           let highlightedTitle;
           if (isPrimarySearchSuggest ||
@@ -14415,27 +14419,6 @@ async function getSearchSuggestions(query) {
             background: 'var(--x-ext-mark-bg, #CFE8FF)',
             color: 'var(--x-ext-mark-text, #1E3A8A)'
           });
-          title.style.cssText = `
-            all: unset !important;
-            color: var(--x-ov-text, #111827) !important;
-            font-size: 14px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            font-weight: 400 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1.5 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            display: inline-block !important;
-            vertical-align: baseline !important;
-          `;
           suggestionItem._xTitle = title;
           
           textWrapper.appendChild(title);
@@ -14443,21 +14426,8 @@ async function getSearchSuggestions(query) {
             ? suggestion.reasons.map((item) => String(item || '').trim()).filter(Boolean).join(' · ')
             : '';
           if (overlayTabScoreDebugEnabled && reasonText) {
-            const reasonLine = document.createElement('span');
+            const reasonLine = createSuggestionReasonLine();
             setProtectedPlainText(reasonLine, reasonText);
-            reasonLine.style.cssText = `
-              all: unset !important;
-              color: var(--x-ov-subtext, #6B7280) !important;
-              font-size: 11px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              line-height: 1.2 !important;
-              white-space: nowrap !important;
-              overflow: hidden !important;
-              text-overflow: ellipsis !important;
-              max-width: 100% !important;
-              display: inline-block !important;
-              vertical-align: middle !important;
-            `;
             textWrapper.appendChild(reasonLine);
           }
           
@@ -15098,31 +15068,7 @@ async function getSearchSuggestions(query) {
     const suggestionsContainer = document.createElement('div');
     applyNoTranslate(suggestionsContainer);
     suggestionsContainer.id = '_x_extension_suggestions_container_2024_unique_';
-    suggestionsContainer.style.cssText = `
-      all: unset !important;
-      width: 100% !important;
-      flex: 1 1 auto !important;
-      min-height: 0 !important;
-      max-height: 50vh !important;
-      overflow-y: auto !important;
-      scrollbar-width: none !important;
-      -ms-overflow-style: none !important;
-      background: transparent !important;
-      border-radius: 0 0 28px 28px !important;
-      padding: 12px !important;
-      box-sizing: border-box !important;
-      display: block !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      color: inherit !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-    `;
-    suggestionsContainer.style.setProperty('position', 'relative', 'important');
-    suggestionsContainer.style.setProperty('z-index', '2', 'important');
+    suggestionsContainer.className = 'x-ov-suggestions-container';
 
     overlay.appendChild(inputContainer);
     overlay.appendChild(suggestionsContainer);
