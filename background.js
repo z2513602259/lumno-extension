@@ -7305,21 +7305,11 @@ async function getSearchSuggestions(query) {
     container.textContent = '';
     const label = document.createElement('span');
     setProtectedPlainText(label, labelText);
-    label.style.cssText = `
-      all: unset !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      line-height: 1 !important;
-    `;
+    label.className = 'x-ov-inline-label';
     const icon = document.createElement('span');
     applyNoTranslate(icon);
     icon.innerHTML = iconHtml;
-    icon.style.cssText = `
-      all: unset !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      line-height: 1 !important;
-    `;
+    icon.className = 'x-ov-inline-label-icon';
     container.appendChild(label);
     container.appendChild(icon);
   }
@@ -7644,8 +7634,7 @@ async function getSearchSuggestions(query) {
   function getRiSvg(id, sizeClass, extraClass) {
     const size = sizeClass || 'ri-size-16';
     const extra = extraClass ? ` ${extraClass}` : '';
-    return '<i class="ri-icon ' + size + extra + ' ' + id + '" aria-hidden="true" ' +
-      'style="font-style: normal !important; font-variant: normal !important; text-transform: none !important;"></i>';
+    return '<i class="ri-icon ' + size + extra + ' ' + id + '" aria-hidden="true"></i>';
   }
 
   function buildSearchUrlFromTemplate(template, query) {
@@ -8139,11 +8128,11 @@ async function getSearchSuggestions(query) {
     scrollbarStyle.id = '_x_extension_scrollbar_style_2024_unique_';
     scrollbarStyle.textContent = `
       #_x_extension_overlay_2024_unique_ *::-webkit-scrollbar {
-        display: none !important;
+        display: none;
       }
       #_x_extension_overlay_2024_unique_ * {
-        -ms-overflow-style: none !important;
-        scrollbar-width: none !important;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     `;
     document.head.appendChild(scrollbarStyle);
@@ -8160,20 +8149,20 @@ async function getSearchSuggestions(query) {
         line-height: 1;
         font-size: var(--ri-size, 16px);
         flex-shrink: 0;
-        font-style: normal !important;
-        font-variant: normal !important;
-        text-transform: none !important;
+        font-style: normal;
+        font-variant: normal;
+        text-transform: none;
       }
       #_x_extension_overlay_2024_unique_ button .ri-icon,
       #_x_extension_overlay_2024_unique_ [role="button"] .ri-icon,
       #_x_extension_overlay_2024_unique_ a .ri-icon {
-        cursor: inherit !important;
-        pointer-events: none !important;
+        cursor: inherit;
+        pointer-events: none;
       }
       #_x_extension_overlay_2024_unique_ .ri-icon::before {
-        font-style: normal !important;
-        font-variant: normal !important;
-        text-transform: none !important;
+        font-style: normal;
+        font-variant: normal;
+        text-transform: none;
       }
       #_x_extension_overlay_2024_unique_ .ri-size-8 { --ri-size: 8px; }
       #_x_extension_overlay_2024_unique_ .ri-size-12 { --ri-size: 12px; }
@@ -8526,21 +8515,275 @@ async function getSearchSuggestions(query) {
         display: inline-block;
         vertical-align: middle;
       }
+      #_x_extension_overlay_2024_unique_ .x-ov-meta-tag {
+        all: unset;
+        background: var(--x-ov-tag-bg, #F3F4F6);
+        color: var(--x-ov-tag-text, #6B7280);
+        font-size: 10px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        padding: 4px 6px;
+        border-radius: 8px;
+        box-sizing: border-box;
+        line-height: 1.2;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        vertical-align: middle;
+        flex-shrink: 0;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-meta-tag--bookmark {
+        background: var(--x-ov-bookmark-tag-bg, #FEF3C7);
+        color: var(--x-ov-bookmark-tag-text, #D97706);
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-bookmark-path {
+        all: unset;
+        color: var(--x-ov-link, #2563EB);
+        font-size: 12px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1.2;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-right-side {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-action-tags {
+        all: unset;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        flex-shrink: 0;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-visit-button {
+        all: unset;
+        background: transparent;
+        color: var(--x-ov-subtext, #9CA3AF);
+        border: 1px solid transparent;
+        border-radius: 16px;
+        font-size: 12px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        cursor: pointer;
+        padding: 6px 12px;
+        box-sizing: border-box;
+        margin: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        vertical-align: baseline;
+        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 160ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-history-delete-slot {
+        all: unset;
+        width: 0;
+        height: 28px;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        vertical-align: baseline;
+        opacity: 0;
+        transition: width 180ms ease, margin-left 180ms ease, opacity 160ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-history-delete-button {
+        all: unset;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        border-radius: 8px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: var(--x-ext-input-icon, #9CA3AF);
+        display: inline-flex;
+        visibility: hidden;
+        pointer-events: none;
+        opacity: 0;
+        align-items: center;
+        justify-content: center;
+        font-size: 0;
+        cursor: pointer;
+        transform: translateX(4px);
+        transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 160ms ease, opacity 160ms ease, visibility 160ms ease;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-inline-label {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-inline-label-icon {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-empty-state {
+        all: unset;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px 14px;
+        margin: 0;
+        border: none;
+        border-radius: 14px;
+        color: var(--x-ov-subtext, #6B7280);
+        box-sizing: border-box;
+        line-height: 1.4;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        font-size: 13px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-empty-icon {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--x-ov-subtext, #9CA3AF);
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-empty-text {
+        all: unset;
+        line-height: 1.35;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-url-line {
+        all: unset;
+        color: var(--x-ov-link, #2563EB);
+        font-size: 12px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        text-decoration: none;
+        display: inline-block;
+        max-width: 60%;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-switch-button {
+        all: unset;
+        background: transparent;
+        color: var(--x-ov-subtext, #4B5563);
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        height: 26px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        margin: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        vertical-align: baseline;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-switch-button-label,
+      #_x_extension_overlay_2024_unique_ .x-ov-switch-button-icon {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+      }
+      #_x_extension_overlay_2024_unique_ .x-ov-rank-debug {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        color: var(--x-ov-subtext, #6B7280);
+        background: color-mix(in srgb, var(--x-ov-bg, #FFFFFF) 70%, #94A3B8 30%);
+        border: 1px solid color-mix(in srgb, var(--x-ov-border, rgba(0, 0, 0, 0.08)) 75%, #94A3B8 25%);
+        font-size: 10px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.2;
+        white-space: nowrap;
+        vertical-align: baseline;
+        flex-shrink: 0;
+      }
       #_x_extension_search_input_2024_unique_ {
-        text-align: left !important;
+        text-align: left;
       }
       #_x_extension_search_input_2024_unique_::placeholder {
-        color: var(--x-ov-placeholder, #9CA3AF) !important;
-        opacity: 0.68 !important;
-        text-align: left !important;
+        color: var(--x-ov-placeholder, #9CA3AF);
+        opacity: 0.68;
+        text-align: left;
       }
       #_x_extension_search_input_2024_unique_::-webkit-input-placeholder {
-        color: var(--x-ov-placeholder, #9CA3AF) !important;
-        opacity: 0.68 !important;
+        color: var(--x-ov-placeholder, #9CA3AF);
+        opacity: 0.68;
       }
       #_x_extension_search_input_2024_unique_::selection {
-        background: #CFE8FF !important;
-        color: #1E3A8A !important;
+        background: #CFE8FF;
+        color: #1E3A8A;
       }
     `;
     document.head.appendChild(overlayThemeStyle);
@@ -8573,22 +8816,22 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
     if (inputContainer) {
-      inputContainer.style.setProperty('height', `${overlayInputHeight}px`, 'important');
-      inputContainer.style.setProperty('min-height', `${overlayInputHeight}px`, 'important');
-      inputContainer.style.setProperty('max-height', `${overlayInputHeight}px`, 'important');
-      inputContainer.style.setProperty('overflow', 'visible', 'important');
+      inputContainer.style.height = `${overlayInputHeight}px`;
+      inputContainer.style.minHeight = `${overlayInputHeight}px`;
+      inputContainer.style.maxHeight = `${overlayInputHeight}px`;
+      inputContainer.style.overflow = 'visible';
     }
     if (searchInput) {
-      searchInput.style.setProperty('height', `${overlayInputHeight}px`, 'important');
-      searchInput.style.setProperty('min-height', `${overlayInputHeight}px`, 'important');
-      searchInput.style.setProperty('max-height', `${overlayInputHeight}px`, 'important');
-      searchInput.style.setProperty('line-height', '1.3', 'important');
-      searchInput.style.setProperty('padding-top', '0', 'important');
-      searchInput.style.setProperty('padding-bottom', '0', 'important');
-      searchInput.style.setProperty('padding-right', '92px', 'important');
+      searchInput.style.height = `${overlayInputHeight}px`;
+      searchInput.style.minHeight = `${overlayInputHeight}px`;
+      searchInput.style.maxHeight = `${overlayInputHeight}px`;
+      searchInput.style.lineHeight = '1.3';
+      searchInput.style.paddingTop = '0';
+      searchInput.style.paddingBottom = '0';
+      searchInput.style.paddingRight = '92px';
     }
     if (rightIcon) {
-      rightIcon.style.setProperty('right', '50px', 'important');
+      rightIcon.style.right = '50px';
     }
     const topActionTooltip = document.createElement('div');
     applyNoTranslate(topActionTooltip);
@@ -8689,12 +8932,12 @@ async function getSearchSuggestions(query) {
       const baseRightReserve = 92;
       const badgeVisible = Boolean(modeBadge && window.getComputedStyle(modeBadge).display !== 'none');
       if (!badgeVisible) {
-        searchInput.style.setProperty('padding-right', `${baseRightReserve}px`, 'important');
+        searchInput.style.paddingRight = `${baseRightReserve}px`;
         return;
       }
       const badgeWidth = Math.ceil(modeBadge.getBoundingClientRect().width || 0);
       const totalReserve = Math.max(baseRightReserve, 86 + badgeWidth + 12);
-      searchInput.style.setProperty('padding-right', `${totalReserve}px`, 'important');
+      searchInput.style.paddingRight = `${totalReserve}px`;
     }
 
 
@@ -9417,28 +9660,28 @@ async function getSearchSuggestions(query) {
       const resolved = resolveOverlayTheme(mode);
       const tokens = overlayThemeTokens[resolved] || overlayThemeTokens.light;
       target.setAttribute('data-theme', resolved);
-      target.style.setProperty('--x-ov-bg', tokens.bg, 'important');
-      target.style.setProperty('--x-ov-border', tokens.border, 'important');
-      target.style.setProperty('--x-ov-shadow', tokens.shadow, 'important');
-      target.style.setProperty('--x-ov-text', tokens.text, 'important');
-      target.style.setProperty('--x-ov-subtext', tokens.subtext, 'important');
-      target.style.setProperty('--x-ov-link', tokens.link, 'important');
-      target.style.setProperty('--x-ov-placeholder', tokens.placeholder, 'important');
-      target.style.setProperty('--x-ov-hover-bg', tokens.hoverBg, 'important');
-      target.style.setProperty('--x-ov-tag-bg', tokens.tagBg, 'important');
-      target.style.setProperty('--x-ov-tag-text', tokens.tagText, 'important');
-      target.style.setProperty('--x-ov-bookmark-tag-bg', tokens.bookmarkTagBg, 'important');
-      target.style.setProperty('--x-ov-bookmark-tag-text', tokens.bookmarkTagText, 'important');
-      target.style.setProperty('--x-ov-blur', tokens.blur, 'important');
-      target.style.setProperty('--x-ov-saturate', tokens.saturate, 'important');
-      target.style.setProperty('--x-ext-input-text', tokens.text, 'important');
-      target.style.setProperty('--x-ext-input-caret', tokens.link, 'important');
-      target.style.setProperty('--x-ext-input-icon', tokens.subtext, 'important');
-      target.style.setProperty('--x-ext-input-icon-hover-bg', tokens.hoverBg, 'important');
-      target.style.setProperty('--x-ext-input-icon-hover', tokens.text, 'important');
-      target.style.setProperty('--x-ext-input-underline', tokens.underline, 'important');
-      target.style.setProperty('--x-ext-input-divider-inset', tokens.dividerInset, 'important');
-      target.style.setProperty('--x-ext-input-divider-opacity', tokens.dividerOpacity, 'important');
+      target.style.setProperty('--x-ov-bg', tokens.bg);
+      target.style.setProperty('--x-ov-border', tokens.border);
+      target.style.setProperty('--x-ov-shadow', tokens.shadow);
+      target.style.setProperty('--x-ov-text', tokens.text);
+      target.style.setProperty('--x-ov-subtext', tokens.subtext);
+      target.style.setProperty('--x-ov-link', tokens.link);
+      target.style.setProperty('--x-ov-placeholder', tokens.placeholder);
+      target.style.setProperty('--x-ov-hover-bg', tokens.hoverBg);
+      target.style.setProperty('--x-ov-tag-bg', tokens.tagBg);
+      target.style.setProperty('--x-ov-tag-text', tokens.tagText);
+      target.style.setProperty('--x-ov-bookmark-tag-bg', tokens.bookmarkTagBg);
+      target.style.setProperty('--x-ov-bookmark-tag-text', tokens.bookmarkTagText);
+      target.style.setProperty('--x-ov-blur', tokens.blur);
+      target.style.setProperty('--x-ov-saturate', tokens.saturate);
+      target.style.setProperty('--x-ext-input-text', tokens.text);
+      target.style.setProperty('--x-ext-input-caret', tokens.link);
+      target.style.setProperty('--x-ext-input-icon', tokens.subtext);
+      target.style.setProperty('--x-ext-input-icon-hover-bg', tokens.hoverBg);
+      target.style.setProperty('--x-ext-input-icon-hover', tokens.text);
+      target.style.setProperty('--x-ext-input-underline', tokens.underline);
+      target.style.setProperty('--x-ext-input-divider-inset', tokens.dividerInset);
+      target.style.setProperty('--x-ext-input-divider-opacity', tokens.dividerOpacity);
     }
 
     if (storageArea) {
@@ -9803,7 +10046,7 @@ async function getSearchSuggestions(query) {
       const visualCenter = (targetSize - 1) / 2;
       try {
         if (!(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0)) {
-          img.style.setProperty('transform', 'none', 'important');
+          img.style.transform = 'none';
           return;
         }
         const canvas = document.createElement('canvas');
@@ -9811,7 +10054,7 @@ async function getSearchSuggestions(query) {
         canvas.height = targetSize;
         const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) {
-          img.style.setProperty('transform', 'none', 'important');
+          img.style.transform = 'none';
           return;
         }
         context.clearRect(0, 0, targetSize, targetSize);
@@ -9832,7 +10075,7 @@ async function getSearchSuggestions(query) {
           }
         }
         if (sumAlpha <= 0) {
-          img.style.setProperty('transform', 'none', 'important');
+          img.style.transform = 'none';
           return;
         }
         const contentCenterX = weightedX / sumAlpha;
@@ -9846,9 +10089,9 @@ async function getSearchSuggestions(query) {
         if (Math.abs(offsetY) < 0.4) {
           offsetY = 0;
         }
-        img.style.setProperty('transform', `translate(${offsetX}px, ${offsetY}px)`, 'important');
+        img.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
       } catch (e) {
-        img.style.setProperty('transform', 'none', 'important');
+        img.style.transform = 'none';
       }
     }
 
@@ -9856,8 +10099,8 @@ async function getSearchSuggestions(query) {
       if (!img) {
         return;
       }
-      img.style.setProperty('object-fit', 'contain', 'important');
-      img.style.setProperty('object-position', 'center center', 'important');
+      img.style.objectFit = 'contain';
+      img.style.objectPosition = 'center center';
       applyFaviconOpticalShift(img);
     }
 
@@ -10130,15 +10373,15 @@ async function getSearchSuggestions(query) {
         return;
       }
       const resolvedTheme = getThemeForMode(theme);
-      target.style.setProperty('--x-ext-mark-bg', resolvedTheme.markBg, 'important');
-      target.style.setProperty('--x-ext-mark-text', resolvedTheme.markText, 'important');
-      target.style.setProperty('--x-ext-tag-bg', resolvedTheme.tagBg, 'important');
-      target.style.setProperty('--x-ext-tag-text', resolvedTheme.tagText, 'important');
-      target.style.setProperty('--x-ext-tag-border', resolvedTheme.tagBorder, 'important');
-      target.style.setProperty('--x-ext-key-bg', resolvedTheme.keyBg, 'important');
-      target.style.setProperty('--x-ext-key-text', resolvedTheme.keyText, 'important');
-      target.style.setProperty('--x-ext-key-border', resolvedTheme.keyBorder, 'important');
-      target.style.setProperty('--x-ext-icon-color', resolvedTheme.accent, 'important');
+      target.style.setProperty('--x-ext-mark-bg', resolvedTheme.markBg);
+      target.style.setProperty('--x-ext-mark-text', resolvedTheme.markText);
+      target.style.setProperty('--x-ext-tag-bg', resolvedTheme.tagBg);
+      target.style.setProperty('--x-ext-tag-text', resolvedTheme.tagText);
+      target.style.setProperty('--x-ext-tag-border', resolvedTheme.tagBorder);
+      target.style.setProperty('--x-ext-key-bg', resolvedTheme.keyBg);
+      target.style.setProperty('--x-ext-key-text', resolvedTheme.keyText);
+      target.style.setProperty('--x-ext-key-border', resolvedTheme.keyBorder);
+      target.style.setProperty('--x-ext-icon-color', resolvedTheme.accent);
     }
 
     function applyMarkVariables(target, theme) {
@@ -10146,8 +10389,8 @@ async function getSearchSuggestions(query) {
         return;
       }
       const resolvedTheme = getThemeForMode(theme);
-      target.style.setProperty('--x-ext-mark-bg', resolvedTheme.markBg, 'important');
-      target.style.setProperty('--x-ext-mark-text', resolvedTheme.markText, 'important');
+      target.style.setProperty('--x-ext-mark-bg', resolvedTheme.markBg);
+      target.style.setProperty('--x-ext-mark-text', resolvedTheme.markText);
     }
 
     const iconPreloadCache = new Map();
@@ -10310,21 +10553,21 @@ async function getSearchSuggestions(query) {
         img.setAttribute('data-favicon-has-appeared', 'true');
         applyFaviconOpticalShift(img);
         if (!shouldAnimate) {
-          img.style.setProperty('filter', 'none', 'important');
-          img.style.setProperty('opacity', '1', 'important');
-          img.style.setProperty('transition', 'none', 'important');
+          img.style.filter = 'none';
+          img.style.opacity = '1';
+          img.style.transition = 'none';
           return;
         }
-        img.style.setProperty('transition', 'none', 'important');
-        img.style.setProperty('filter', 'blur(4px)', 'important');
-        img.style.setProperty('opacity', '0.72', 'important');
+        img.style.transition = 'none';
+        img.style.filter = 'blur(4px)';
+        img.style.opacity = '0.72';
         requestAnimationFrame(() => {
           if (!img || token !== img._xFaviconLoadToken) {
             return;
           }
-          img.style.setProperty('transition', 'filter 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms cubic-bezier(0.22, 1, 0.36, 1)', 'important');
-          img.style.setProperty('filter', 'blur(0)', 'important');
-          img.style.setProperty('opacity', '1', 'important');
+          img.style.transition = 'filter 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms cubic-bezier(0.22, 1, 0.36, 1)';
+          img.style.filter = 'blur(0)';
+          img.style.opacity = '1';
         });
       };
       img.addEventListener('load', finalize, { once: true });
@@ -10456,7 +10699,7 @@ async function getSearchSuggestions(query) {
       if (!applied && !reused) {
         return false;
       }
-      img.style.setProperty('visibility', 'visible', 'important');
+      img.style.visibility = 'visible';
       if (!isChromeMonogramFaviconUrl(nextUrl) && state.cacheKey) {
         resolvedFaviconUrlCache.set(state.cacheKey, nextUrl);
       }
@@ -10517,7 +10760,7 @@ async function getSearchSuggestions(query) {
             return;
           }
           setFaviconSrcWithAnimation(img, candidate);
-          img.style.setProperty('visibility', 'visible', 'important');
+          img.style.visibility = 'visible';
           if (state.cacheKey) {
             resolvedFaviconUrlCache.set(state.cacheKey, candidate);
           }
@@ -10577,7 +10820,7 @@ async function getSearchSuggestions(query) {
           return;
         }
         if (!resolvedCandidatesLoaded) {
-          img.style.setProperty('visibility', 'hidden', 'important');
+          img.style.visibility = 'hidden';
           return;
         }
         finalizeOverlayThemeAwareFaviconFailure(img, state);
@@ -10865,6 +11108,62 @@ async function getSearchSuggestions(query) {
       return reason;
     }
 
+    function createOverlayMetaTag(options) {
+      const config = options || {};
+      const tag = document.createElement('span');
+      applyNoTranslate(tag);
+      tag.className = config.bookmark ? 'x-ov-meta-tag x-ov-meta-tag--bookmark' : 'x-ov-meta-tag';
+      return tag;
+    }
+
+    function createOverlayRightSide() {
+      const right = document.createElement('div');
+      right.className = 'x-ov-right-side';
+      return right;
+    }
+
+    function createOverlayActionTags() {
+      const tags = document.createElement('div');
+      tags.className = 'x-ov-action-tags';
+      return tags;
+    }
+
+    function createOverlayVisitButton() {
+      const button = document.createElement('button');
+      applyNoTranslate(button);
+      button.className = 'x-ov-visit-button';
+      return button;
+    }
+
+    function createOverlayHistoryDeleteSlot() {
+      const slot = document.createElement('div');
+      applyNoTranslate(slot);
+      slot.className = 'x-ov-history-delete-slot';
+      return slot;
+    }
+
+    function createOverlayHistoryDeleteButton() {
+      const button = document.createElement('button');
+      applyNoTranslate(button);
+      button.className = 'x-ov-history-delete-button';
+      return button;
+    }
+
+    function createOverlaySwitchButton() {
+      const button = document.createElement('button');
+      applyNoTranslate(button);
+      button.className = 'x-ov-switch-button';
+      return button;
+    }
+
+    function createOverlayRankDebugChip(text) {
+      const chip = document.createElement('span');
+      applyNoTranslate(chip);
+      chip.className = 'x-ov-rank-debug';
+      setProtectedPlainText(chip, text);
+      return chip;
+    }
+
     function getThemeSourceForSuggestion(suggestion) {
       if (suggestion && suggestion.url) {
         try {
@@ -10900,8 +11199,8 @@ async function getSearchSuggestions(query) {
     siteSearchPrefixLabel.className = 'x-ov-site-search-prefix-label';
     siteSearchPrefix.appendChild(siteSearchPrefixLabel);
     inputContainer.appendChild(siteSearchPrefix);
-    inputContainer.style.setProperty('position', 'relative', 'important');
-    inputContainer.style.setProperty('z-index', '2', 'important');
+    inputContainer.style.position = 'relative';
+    inputContainer.style.zIndex = '2';
 
     function ensureAiModeDecor() {
       if (aiModeDecor) {
@@ -10951,7 +11250,7 @@ async function getSearchSuggestions(query) {
       }
       const resolvedTheme = overlay.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
       const strength = resolvedTheme === 'light' ? 0.64 : 0.82;
-      aiModeDecor.beam.style.setProperty('--beam-strength', String(strength), 'important');
+      aiModeDecor.beam.style.setProperty('--beam-strength', String(strength));
       aiModeDecor.setTheme(resolvedTheme);
     }
 
@@ -12784,13 +13083,13 @@ async function getSearchSuggestions(query) {
     
     function applySearchSuggestionHighlight(item, theme) {
       const highlight = getHighlightColors(theme);
-      item.style.setProperty('background', highlight.bg, 'important');
-      item.style.setProperty('border', `1px solid ${highlight.border}`, 'important');
+      item.style.background = highlight.bg;
+      item.style.border = `1px solid ${highlight.border}`;
     }
 
     function resetSearchSuggestion(item) {
-      item.style.setProperty('background', 'transparent', 'important');
-      item.style.setProperty('border', '1px solid transparent', 'important');
+      item.style.background = 'transparent';
+      item.style.border = '1px solid transparent';
     }
 
     function applySearchActionStyles(item, theme, isActive) {
@@ -12799,113 +13098,103 @@ async function getSearchSuggestions(query) {
       const shouldHideSourceTags = Boolean(item._xHasSwitchAction);
       if (item._xVisitButton) {
         const shouldHide = Boolean(item._xAlwaysHideVisitButton || (isActive && item._xHasActionTags));
-        item._xVisitButton.style.setProperty('display', shouldHide ? 'none' : 'inline-flex', 'important');
+        item._xVisitButton.style.display = shouldHide ? 'none' : 'inline-flex';
         if (shouldHide) {
-          item._xVisitButton.style.setProperty('background-color', 'transparent', 'important');
-          item._xVisitButton.style.setProperty('border', '1px solid transparent', 'important');
+          item._xVisitButton.style.backgroundColor = 'transparent';
+          item._xVisitButton.style.border = '1px solid transparent';
         }
         if (isActive) {
-          item._xVisitButton.style.setProperty('color', resolvedTheme.buttonText, 'important');
-          item._xVisitButton.style.setProperty('background-color', resolvedTheme.buttonBg, 'important');
-          item._xVisitButton.style.setProperty('border', `1px solid ${resolvedTheme.buttonBorder}`, 'important');
+          item._xVisitButton.style.color = resolvedTheme.buttonText;
+          item._xVisitButton.style.backgroundColor = resolvedTheme.buttonBg;
+          item._xVisitButton.style.border = `1px solid ${resolvedTheme.buttonBorder}`;
         } else {
-          item._xVisitButton.style.setProperty('color', 'var(--x-ov-subtext, #9CA3AF)', 'important');
-          item._xVisitButton.style.setProperty('background-color', 'transparent', 'important');
-          item._xVisitButton.style.setProperty('border', '1px solid transparent', 'important');
+          item._xVisitButton.style.color = 'var(--x-ov-subtext, #9CA3AF)';
+          item._xVisitButton.style.backgroundColor = 'transparent';
+          item._xVisitButton.style.border = '1px solid transparent';
         }
       }
       if (item._xHistoryDeleteButton) {
         const shouldShowHistoryDelete = Boolean(item._xHasHistoryDeleteButton && item._xIsHovering);
         if (item._xHistoryDeleteSlot) {
-          item._xHistoryDeleteSlot.style.setProperty('width', shouldShowHistoryDelete ? '28px' : '0px', 'important');
-          item._xHistoryDeleteSlot.style.setProperty('margin-left', shouldShowHistoryDelete ? '8px' : '0px', 'important');
-          item._xHistoryDeleteSlot.style.setProperty('opacity', shouldShowHistoryDelete ? '1' : '0', 'important');
-          item._xHistoryDeleteSlot.style.setProperty('pointer-events', shouldShowHistoryDelete ? 'auto' : 'none', 'important');
+          item._xHistoryDeleteSlot.style.width = shouldShowHistoryDelete ? '28px' : '0px';
+          item._xHistoryDeleteSlot.style.marginLeft = shouldShowHistoryDelete ? '8px' : '0px';
+          item._xHistoryDeleteSlot.style.opacity = shouldShowHistoryDelete ? '1' : '0';
+          item._xHistoryDeleteSlot.style.pointerEvents = shouldShowHistoryDelete ? 'auto' : 'none';
         }
-        item._xHistoryDeleteButton.style.setProperty('visibility', shouldShowHistoryDelete ? 'visible' : 'hidden', 'important');
-        item._xHistoryDeleteButton.style.setProperty('pointer-events', shouldShowHistoryDelete ? 'auto' : 'none', 'important');
-        item._xHistoryDeleteButton.style.setProperty('opacity', shouldShowHistoryDelete ? '1' : '0', 'important');
-        item._xHistoryDeleteButton.style.setProperty(
-          'transform',
-          shouldShowHistoryDelete ? 'translateX(0)' : 'translateX(4px)',
-          'important'
-        );
+        item._xHistoryDeleteButton.style.visibility = shouldShowHistoryDelete ? 'visible' : 'hidden';
+        item._xHistoryDeleteButton.style.pointerEvents = shouldShowHistoryDelete ? 'auto' : 'none';
+        item._xHistoryDeleteButton.style.opacity = shouldShowHistoryDelete ? '1' : '0';
+        item._xHistoryDeleteButton.style.transform = shouldShowHistoryDelete ? 'translateX(0)' : 'translateX(4px)';
         if (shouldShowHistoryDelete) {
-          item._xHistoryDeleteButton.style.setProperty(
-            'color',
-            isActive ? resolvedTheme.buttonText : 'var(--x-ext-input-icon, #9CA3AF)',
-            'important'
-          );
-          item._xHistoryDeleteButton.style.setProperty(
-            'background',
-            isActive ? resolvedTheme.buttonBg : 'transparent',
-            'important'
-          );
-          item._xHistoryDeleteButton.style.setProperty(
-            'border',
-            isActive ? `1px solid ${resolvedTheme.buttonBorder}` : '1px solid transparent',
-            'important'
-          );
+          item._xHistoryDeleteButton.style.color = isActive
+            ? resolvedTheme.buttonText
+            : 'var(--x-ext-input-icon, #9CA3AF)';
+          item._xHistoryDeleteButton.style.background = isActive ? resolvedTheme.buttonBg : 'transparent';
+          item._xHistoryDeleteButton.style.border = isActive
+            ? `1px solid ${resolvedTheme.buttonBorder}`
+            : '1px solid transparent';
         } else {
-          item._xHistoryDeleteButton.style.setProperty('background', 'transparent', 'important');
-          item._xHistoryDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
-          item._xHistoryDeleteButton.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');
+          item._xHistoryDeleteButton.style.background = 'transparent';
+          item._xHistoryDeleteButton.style.border = '1px solid transparent';
+          item._xHistoryDeleteButton.style.color = 'var(--x-ext-input-icon, #9CA3AF)';
         }
       }
       if (item._xHistoryTag) {
-        item._xHistoryTag.style.setProperty('display', shouldHideSourceTags ? 'none' : 'inline-flex', 'important');
+        item._xHistoryTag.style.display = shouldHideSourceTags ? 'none' : 'inline-flex';
         if (isActive) {
-          item._xHistoryTag.style.setProperty('background', resolvedTheme.tagBg, 'important');
-          item._xHistoryTag.style.setProperty('color', resolvedTheme.tagText, 'important');
-          item._xHistoryTag.style.setProperty('border', `1px solid ${resolvedTheme.tagBorder}`, 'important');
+          item._xHistoryTag.style.background = resolvedTheme.tagBg;
+          item._xHistoryTag.style.color = resolvedTheme.tagText;
+          item._xHistoryTag.style.border = `1px solid ${resolvedTheme.tagBorder}`;
         } else {
-          item._xHistoryTag.style.setProperty('background', item._xHistoryTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)', 'important');
-          item._xHistoryTag.style.setProperty('color', item._xHistoryTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)', 'important');
-          item._xHistoryTag.style.setProperty('border', `1px solid ${item._xHistoryTag._xDefaultBorder || 'transparent'}`, 'important');
+          item._xHistoryTag.style.background = item._xHistoryTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)';
+          item._xHistoryTag.style.color = item._xHistoryTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)';
+          item._xHistoryTag.style.border = `1px solid ${item._xHistoryTag._xDefaultBorder || 'transparent'}`;
         }
       }
       if (item._xBookmarkTag) {
-        item._xBookmarkTag.style.setProperty('display', shouldHideSourceTags ? 'none' : 'inline-flex', 'important');
+        item._xBookmarkTag.style.display = shouldHideSourceTags ? 'none' : 'inline-flex';
         if (isActive) {
-          item._xBookmarkTag.style.setProperty('background', resolvedTheme.tagBg, 'important');
-          item._xBookmarkTag.style.setProperty('color', resolvedTheme.tagText, 'important');
-          item._xBookmarkTag.style.setProperty('border', `1px solid ${resolvedTheme.tagBorder}`, 'important');
+          item._xBookmarkTag.style.background = resolvedTheme.tagBg;
+          item._xBookmarkTag.style.color = resolvedTheme.tagText;
+          item._xBookmarkTag.style.border = `1px solid ${resolvedTheme.tagBorder}`;
         } else {
-          item._xBookmarkTag.style.setProperty('background', item._xBookmarkTag._xDefaultBg || 'var(--x-ov-bookmark-tag-bg, #FEF3C7)', 'important');
-          item._xBookmarkTag.style.setProperty('color', item._xBookmarkTag._xDefaultText || 'var(--x-ov-bookmark-tag-text, #D97706)', 'important');
-          item._xBookmarkTag.style.setProperty('border', `1px solid ${item._xBookmarkTag._xDefaultBorder || 'transparent'}`, 'important');
+          item._xBookmarkTag.style.background =
+            item._xBookmarkTag._xDefaultBg || 'var(--x-ov-bookmark-tag-bg, #FEF3C7)';
+          item._xBookmarkTag.style.color =
+            item._xBookmarkTag._xDefaultText || 'var(--x-ov-bookmark-tag-text, #D97706)';
+          item._xBookmarkTag.style.border = `1px solid ${item._xBookmarkTag._xDefaultBorder || 'transparent'}`;
         }
       }
       if (item._xTopSiteTag) {
-        item._xTopSiteTag.style.setProperty('display', shouldHideSourceTags ? 'none' : 'inline-flex', 'important');
+        item._xTopSiteTag.style.display = shouldHideSourceTags ? 'none' : 'inline-flex';
         if (isActive) {
-          item._xTopSiteTag.style.setProperty('background', resolvedTheme.tagBg, 'important');
-          item._xTopSiteTag.style.setProperty('color', resolvedTheme.tagText, 'important');
-          item._xTopSiteTag.style.setProperty('border', `1px solid ${resolvedTheme.tagBorder}`, 'important');
+          item._xTopSiteTag.style.background = resolvedTheme.tagBg;
+          item._xTopSiteTag.style.color = resolvedTheme.tagText;
+          item._xTopSiteTag.style.border = `1px solid ${resolvedTheme.tagBorder}`;
         } else {
-          item._xTopSiteTag.style.setProperty('background', item._xTopSiteTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)', 'important');
-          item._xTopSiteTag.style.setProperty('color', item._xTopSiteTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)', 'important');
-          item._xTopSiteTag.style.setProperty('border', `1px solid ${item._xTopSiteTag._xDefaultBorder || 'transparent'}`, 'important');
+          item._xTopSiteTag.style.background = item._xTopSiteTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)';
+          item._xTopSiteTag.style.color = item._xTopSiteTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)';
+          item._xTopSiteTag.style.border = `1px solid ${item._xTopSiteTag._xDefaultBorder || 'transparent'}`;
         }
       }
       if (item._xOpenTabTag) {
-        item._xOpenTabTag.style.setProperty('display', item._xHasSwitchAction ? 'inline-flex' : 'none', 'important');
+        item._xOpenTabTag.style.display = item._xHasSwitchAction ? 'inline-flex' : 'none';
         if (isActive) {
-          item._xOpenTabTag.style.setProperty('background', resolvedTheme.tagBg, 'important');
-          item._xOpenTabTag.style.setProperty('color', resolvedTheme.tagText, 'important');
-          item._xOpenTabTag.style.setProperty('border', `1px solid ${resolvedTheme.tagBorder}`, 'important');
+          item._xOpenTabTag.style.background = resolvedTheme.tagBg;
+          item._xOpenTabTag.style.color = resolvedTheme.tagText;
+          item._xOpenTabTag.style.border = `1px solid ${resolvedTheme.tagBorder}`;
         } else {
-          item._xOpenTabTag.style.setProperty('background', item._xOpenTabTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)', 'important');
-          item._xOpenTabTag.style.setProperty('color', item._xOpenTabTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)', 'important');
-          item._xOpenTabTag.style.setProperty('border', `1px solid ${item._xOpenTabTag._xDefaultBorder || 'transparent'}`, 'important');
+          item._xOpenTabTag.style.background = item._xOpenTabTag._xDefaultBg || 'var(--x-ov-tag-bg, #F3F4F6)';
+          item._xOpenTabTag.style.color = item._xOpenTabTag._xDefaultText || 'var(--x-ov-tag-text, #6B7280)';
+          item._xOpenTabTag.style.border = `1px solid ${item._xOpenTabTag._xDefaultBorder || 'transparent'}`;
         }
       }
       if (item._xTagContainer) {
         const shouldShow = isActive && item._xHasActionTags;
-        item._xTagContainer.style.setProperty('display', shouldShow ? 'inline-flex' : 'none', 'important');
+        item._xTagContainer.style.display = shouldShow ? 'inline-flex' : 'none';
       }
       if (item._xTitle) {
-        item._xTitle.style.setProperty('font-weight', isActive ? '600' : '400', 'important');
+        item._xTitle.style.fontWeight = isActive ? '600' : '400';
       }
     }
 
@@ -12928,11 +13217,9 @@ async function getSearchSuggestions(query) {
           if (item._xDirectIconWrap) {
             const shouldShow = isHighlighted && theme && theme._xIsBrand;
             const resolvedTheme = getThemeForMode(theme || defaultTheme);
-            item._xDirectIconWrap.style.setProperty(
-              'color',
-              shouldShow ? resolvedTheme.accent : 'var(--x-ov-subtext, #9CA3AF)',
-              'important'
-            );
+            item._xDirectIconWrap.style.color = shouldShow
+              ? resolvedTheme.accent
+              : 'var(--x-ov-subtext, #9CA3AF)';
           }
           return;
         }
@@ -12944,37 +13231,33 @@ async function getSearchSuggestions(query) {
           applySearchSuggestionHighlight(item, highlightTheme);
           if (item._xEntryActionTag) {
             const palette = getOverlayActionTagPalette();
-            item._xEntryActionTag.style.setProperty('--x-ext-tag-bg', palette.tagBg, 'important');
-            item._xEntryActionTag.style.setProperty('--x-ext-tag-text', palette.tagText, 'important');
-            item._xEntryActionTag.style.setProperty('--x-ext-tag-border', palette.tagBorder, 'important');
-            item._xEntryActionTag.style.setProperty('--x-ext-key-bg', palette.keyBg, 'important');
-            item._xEntryActionTag.style.setProperty('--x-ext-key-text', palette.keyText, 'important');
-            item._xEntryActionTag.style.setProperty('--x-ext-key-border', palette.keyBorder, 'important');
+            item._xEntryActionTag.style.setProperty('--x-ext-tag-bg', palette.tagBg);
+            item._xEntryActionTag.style.setProperty('--x-ext-tag-text', palette.tagText);
+            item._xEntryActionTag.style.setProperty('--x-ext-tag-border', palette.tagBorder);
+            item._xEntryActionTag.style.setProperty('--x-ext-key-bg', palette.keyBg);
+            item._xEntryActionTag.style.setProperty('--x-ext-key-text', palette.keyText);
+            item._xEntryActionTag.style.setProperty('--x-ext-key-border', palette.keyBorder);
           }
           if (item._xSwitchButton) {
-            item._xSwitchButton.style.setProperty('color', 'var(--x-ov-text, #1F2937)', 'important');
+            item._xSwitchButton.style.color = 'var(--x-ov-text, #1F2937)';
             const shouldShowTags = Boolean(item._xTagContainer && item._xHasActionTags);
-            item._xSwitchButton.style.setProperty('display', shouldShowTags ? 'none' : 'inline-flex', 'important');
+            item._xSwitchButton.style.display = shouldShowTags ? 'none' : 'inline-flex';
           }
           if (item._xTagContainer) {
-            item._xTagContainer.style.setProperty(
-              'display',
-              item._xHasActionTags ? 'inline-flex' : 'none',
-              'important'
-            );
+            item._xTagContainer.style.display = item._xHasActionTags ? 'inline-flex' : 'none';
           }
         } else {
           resetSearchSuggestion(item);
           if (item._xSwitchButton) {
-            item._xSwitchButton.style.setProperty('color', 'var(--x-ov-subtext, #9CA3AF)', 'important');
-            item._xSwitchButton.style.setProperty('display', 'inline-flex', 'important');
+            item._xSwitchButton.style.color = 'var(--x-ov-subtext, #9CA3AF)';
+            item._xSwitchButton.style.display = 'inline-flex';
           }
           if (item._xTagContainer) {
-            item._xTagContainer.style.setProperty('display', 'none', 'important');
+            item._xTagContainer.style.display = 'none';
           }
         }
         if (item._xTitle) {
-          item._xTitle.style.setProperty('font-weight', isHighlighted ? '600' : '400', 'important');
+          item._xTitle.style.fontWeight = isHighlighted ? '600' : '400';
         }
       });
     }
@@ -12987,11 +13270,11 @@ async function getSearchSuggestions(query) {
       if (toHeight <= fromHeight + 1) {
         return;
       }
-      container.style.setProperty('height', `${fromHeight}px`, 'important');
-      container.style.setProperty('overflow', 'hidden', 'important');
-      container.style.setProperty('transition', 'height 180ms ease', 'important');
+      container.style.height = `${fromHeight}px`;
+      container.style.overflow = 'hidden';
+      container.style.transition = 'height 180ms ease';
       requestAnimationFrame(() => {
-        container.style.setProperty('height', `${toHeight}px`, 'important');
+        container.style.height = `${toHeight}px`;
       });
       const cleanup = () => {
         container.style.removeProperty('height');
@@ -13007,44 +13290,17 @@ async function getSearchSuggestions(query) {
       const isDark = isOverlayDarkMode();
       const empty = document.createElement('div');
       applyNoTranslate(empty);
-      empty.style.cssText = `
-        all: unset !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 8px !important;
-        padding: 16px 14px !important;
-        margin: 0 !important;
-        border: none !important;
-        border-radius: 14px !important;
-        background: ${isDark ? 'transparent' : 'color-mix(in srgb, var(--x-ov-bg, #FFFFFF) 90%, var(--x-ov-hover-bg, #F3F4F6) 10%)'} !important;
-        color: var(--x-ov-subtext, #6B7280) !important;
-        box-sizing: border-box !important;
-        line-height: 1.4 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        font-size: 13px !important;
-        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-        vertical-align: baseline !important;
-      `;
+      empty.className = 'x-ov-empty-state';
+      empty.style.background = isDark
+        ? 'transparent'
+        : 'color-mix(in srgb, var(--x-ov-bg, #FFFFFF) 90%, var(--x-ov-hover-bg, #F3F4F6) 10%)';
       const icon = document.createElement('span');
       applyNoTranslate(icon);
       icon.innerHTML = getRiSvg('ri-file-3-line', 'ri-size-16');
-      icon.style.cssText = `
-        all: unset !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        color: var(--x-ov-subtext, #9CA3AF) !important;
-        line-height: 1 !important;
-      `;
+      icon.className = 'x-ov-empty-icon';
       const text = document.createElement('span');
       setProtectedPlainText(text, message || t('overlay_empty_result', '无匹配结果'));
-      text.style.cssText = `
-        all: unset !important;
-        line-height: 1.35 !important;
-      `;
+      text.className = 'x-ov-empty-text';
       empty.appendChild(icon);
       empty.appendChild(text);
       suggestionsContainer.appendChild(empty);
@@ -13075,169 +13331,42 @@ async function getSearchSuggestions(query) {
         applyNoTranslate(entryItem);
         entryItem.id = '_x_extension_open_tabs_mode_entry_2026_unique_';
         const entryIsLast = totalItems === 1;
-        entryItem.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          padding: 12px 16px !important;
-          background: transparent !important;
-          border: 1px solid transparent !important;
-          border-radius: 16px !important;
-          cursor: pointer !important;
-          transition: background-color 0.2s ease !important;
-          box-sizing: border-box !important;
-          margin: 0 0 ${entryIsLast ? '0' : '4px'} 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        entryItem.className = 'x-ov-suggestion-item';
+        entryItem.style.margin = `0 0 ${entryIsLast ? '0' : '4px'} 0`;
         entryItem._xIsSearchSuggestion = false;
         entryItem._xIsOpenTabsModeEntry = true;
         entryItem._xIsAutocompleteTop = false;
         entryItem._xTheme = defaultTheme;
         suggestionItems.push(entryItem);
 
-        const entryLeft = document.createElement('div');
-        entryLeft.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 12px !important;
-          flex: 1 !important;
-          min-width: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
-        const entryIconSlot = document.createElement('span');
-        entryIconSlot.style.cssText = `
-          all: unset !important;
-          width: 24px !important;
-          height: 24px !important;
-          flex: 0 0 24px !important;
-          flex-shrink: 0 !important;
-          border-radius: 8px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          transition: background-color 0.2s ease !important;
-          color: var(--x-ov-subtext, #9CA3AF) !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
-        const entryIcon = document.createElement('span');
-        entryIcon.innerHTML = getRiSvg('ri-search-line', 'ri-size-16');
+        const entryLeft = createSuggestionLeft();
+        const entryIconSlot = createSuggestionIconSlot();
+        const entryIcon = createSearchIcon();
         entryIconSlot.appendChild(entryIcon);
         entryItem._xIconWrap = entryIconSlot;
         entryItem._xIconIsFavicon = false;
 
-        const entryTitle = document.createElement('span');
+        const entryTitle = createSuggestionTitle();
         applyNoTranslate(entryTitle);
         setProtectedPlainText(entryTitle, t('search_open_tabs_only_entry', '搜索已打开标签页'));
-        entryTitle.style.cssText = `
-          all: unset !important;
-          color: var(--x-ov-text, #111827) !important;
-          font-size: 14px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          max-width: 100% !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          display: inline-block !important;
-          vertical-align: baseline !important;
-        `;
         entryItem._xTitle = entryTitle;
 
-        const entryActionTags = document.createElement('div');
-        entryActionTags.style.cssText = `
-          all: unset !important;
-          display: none !important;
-          align-items: center !important;
-          gap: 6px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-          flex-shrink: 0 !important;
-        `;
+        const entryActionTags = createOverlayActionTags();
         const entryActionTag = createActionTag(t('action_search', '搜索'), 'Tab');
-        entryActionTag.style.setProperty('cursor', 'pointer', 'important');
+        entryActionTag.style.cursor = 'pointer';
         const entryTagPalette = getOverlayActionTagPalette();
-        entryActionTag.style.setProperty('--x-ext-tag-bg', entryTagPalette.tagBg, 'important');
-        entryActionTag.style.setProperty('--x-ext-tag-text', entryTagPalette.tagText, 'important');
-        entryActionTag.style.setProperty('--x-ext-tag-border', entryTagPalette.tagBorder, 'important');
-        entryActionTag.style.setProperty('--x-ext-key-bg', entryTagPalette.keyBg, 'important');
-        entryActionTag.style.setProperty('--x-ext-key-text', entryTagPalette.keyText, 'important');
-        entryActionTag.style.setProperty('--x-ext-key-border', entryTagPalette.keyBorder, 'important');
+        entryActionTag.style.setProperty('--x-ext-tag-bg', entryTagPalette.tagBg);
+        entryActionTag.style.setProperty('--x-ext-tag-text', entryTagPalette.tagText);
+        entryActionTag.style.setProperty('--x-ext-tag-border', entryTagPalette.tagBorder);
+        entryActionTag.style.setProperty('--x-ext-key-bg', entryTagPalette.keyBg);
+        entryActionTag.style.setProperty('--x-ext-key-text', entryTagPalette.keyText);
+        entryActionTag.style.setProperty('--x-ext-key-border', entryTagPalette.keyBorder);
         entryItem._xEntryActionTag = entryActionTag;
         entryActionTags.appendChild(entryActionTag);
         entryItem._xTagContainer = entryActionTags;
         entryItem._xHasActionTags = true;
 
-        const entryVisitButton = document.createElement('button');
-        applyNoTranslate(entryVisitButton);
-        entryVisitButton.style.cssText = `
-          all: unset !important;
-          background: transparent !important;
-          color: var(--x-ov-subtext, #9CA3AF) !important;
-          border: 1px solid transparent !important;
-          border-radius: 16px !important;
-          font-size: 12px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          cursor: pointer !important;
-          transition: background-color 0.2s ease !important;
-          padding: 6px 12px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 4px !important;
-          vertical-align: baseline !important;
-        `;
+        const entryVisitButton = createOverlayVisitButton();
         setInlineLabelWithIcon(
           entryVisitButton,
           t('action_search', '搜索'),
@@ -13252,8 +13381,8 @@ async function getSearchSuggestions(query) {
             if (selectedIndex === -1 && this._xIsAutocompleteTop) {
               return;
             }
-            this.style.setProperty('background-color', 'var(--x-ov-hover-bg)', 'important');
-            this.style.setProperty('border', '1px solid transparent', 'important');
+            this.style.backgroundColor = 'var(--x-ov-hover-bg)';
+            this.style.border = '1px solid transparent';
           }
         });
         entryItem.addEventListener('mouseleave', function() {
@@ -13276,26 +13405,7 @@ async function getSearchSuggestions(query) {
 
         entryLeft.appendChild(entryIconSlot);
         entryLeft.appendChild(entryTitle);
-        const entryRight = document.createElement('div');
-        entryRight.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 8px !important;
-          flex-shrink: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        const entryRight = createOverlayRightSide();
         entryRight.appendChild(entryActionTags);
         entryRight.appendChild(entryVisitButton);
         entryItem.appendChild(entryLeft);
@@ -13309,28 +13419,8 @@ async function getSearchSuggestions(query) {
         applyNoTranslate(suggestionItem);
         suggestionItem.id = `_x_extension_suggestion_item_${index}_2024_unique_`;
         const isLastItem = index === totalItems - 1;
-        suggestionItem.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          padding: 12px 16px !important;
-          background: transparent !important;
-          border: 1px solid transparent !important;
-          border-radius: 16px !important;
-          cursor: pointer !important;
-          transition: background-color 0.2s ease !important;
-          box-sizing: border-box !important;
-          margin: 0 0 ${isLastItem ? '0' : '4px'} 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        suggestionItem.className = 'x-ov-suggestion-item';
+        suggestionItem.style.margin = `0 0 ${isLastItem ? '0' : '4px'} 0`;
         suggestionItem._xIsSearchSuggestion = false;
         
         // Store reference to suggestion item
@@ -13340,28 +13430,8 @@ async function getSearchSuggestions(query) {
         suggestionItem._xTabId = tab && typeof tab.id === 'number' ? tab.id : null;
 
         // Create left side with icon and title
-        const leftSide = document.createElement('div');
+        const leftSide = createSuggestionLeft();
         leftSide.id = `_x_extension_left_side_${index}_2024_unique_`;
-        leftSide.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 12px !important;
-          flex: 1 !important;
-          min-width: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
 
         // Create favicon
         let favicon = null;
@@ -13377,33 +13447,8 @@ async function getSearchSuggestions(query) {
         if (useFallback) {
           iconNode = createLinkIcon();
         } else {
-          favicon = document.createElement('img');
+          favicon = createSuggestionFavicon({ highPriority: index < 4 });
           favicon.id = `_x_extension_favicon_${index}_2024_unique_`;
-          favicon.decoding = 'async';
-          favicon.loading = 'eager';
-          favicon.referrerPolicy = 'no-referrer';
-          if (index < 4) {
-            favicon.fetchPriority = 'high';
-          }
-          favicon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            border-radius: 2px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-            display: block !important;
-          `;
           applyFaviconOpticalAlignment(favicon);
           attachResolvedFaviconWithFallbacks(
             favicon,
@@ -13419,130 +13464,33 @@ async function getSearchSuggestions(query) {
           iconNode = favicon;
           isFaviconIcon = true;
         }
-        const iconSlot = document.createElement('span');
-        iconSlot.style.cssText = `
-          all: unset !important;
-          width: 24px !important;
-          height: 24px !important;
-          flex: 0 0 24px !important;
-          flex-shrink: 0 !important;
-          border-radius: 8px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          transition: background-color 0.2s ease !important;
-          color: var(--x-ov-subtext, #9CA3AF) !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        const iconSlot = createSuggestionIconSlot();
         iconSlot.appendChild(iconNode);
         suggestionItem._xIconWrap = iconSlot;
         suggestionItem._xIconIsFavicon = isFaviconIcon;
 
         // Create title
-        const title = document.createElement('span');
+        const title = createSuggestionTitle();
         applyNoTranslate(title);
         title.id = `_x_extension_title_${index}_2024_unique_`;
         setProtectedPlainText(title, tab.title || t('untitled', '无标题'));
-        title.style.cssText = `
-          all: unset !important;
-          color: var(--x-ov-text, #111827) !important;
-          font-size: 14px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          max-width: 100% !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          display: inline-block !important;
-          vertical-align: baseline !important;
-        `;
         suggestionItem._xTitle = title;
 
         // Create switch button
-        const switchButton = document.createElement('button');
-        applyNoTranslate(switchButton);
+        const switchButton = createOverlaySwitchButton();
         switchButton.id = `_x_extension_switch_button_${index}_2024_unique_`;
-        switchButton.style.cssText = `
-          all: unset !important;
-          background: transparent !important;
-          color: var(--x-ov-subtext, #4B5563) !important;
-          border: none !important;
-          border-radius: 6px !important;
-          font-size: 12px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          cursor: pointer !important;
-          transition: background-color 0.2s ease !important;
-          height: 26px !important;
-          padding: 0 12px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 4px !important;
-          vertical-align: baseline !important;
-        `;
         const switchButtonLabel = document.createElement('span');
         setProtectedPlainText(switchButtonLabel, t('switch_to_tab', '切换到标签页'));
-        switchButtonLabel.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          line-height: 1 !important;
-        `;
+        switchButtonLabel.className = 'x-ov-switch-button-label';
         const switchButtonIcon = document.createElement('span');
         applyNoTranslate(switchButtonIcon);
         switchButtonIcon.innerHTML = getRiSvg('ri-arrow-right-line', 'ri-size-12');
-        switchButtonIcon.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          line-height: 1 !important;
-        `;
+        switchButtonIcon.className = 'x-ov-switch-button-icon';
         switchButton.appendChild(switchButtonLabel);
         switchButton.appendChild(switchButtonIcon);
         suggestionItem._xSwitchButton = switchButton;
 
-        const actionTags = document.createElement('div');
-        actionTags.style.cssText = `
-          all: unset !important;
-          display: none !important;
-          align-items: center !important;
-          gap: 6px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-          flex-shrink: 0 !important;
-        `;
+        const actionTags = createOverlayActionTags();
         actionTags.appendChild(createActionTag(t('action_switch', '切换'), 'Enter'));
         suggestionItem._xTagContainer = actionTags;
         suggestionItem._xHasActionTags = actionTags.childNodes.length > 0;
@@ -13558,11 +13506,11 @@ async function getSearchSuggestions(query) {
             const theme = this._xTheme;
             if (theme && theme._xIsBrand) {
               const hover = getHoverColors(theme);
-              this.style.setProperty('background-color', hover.bg, 'important');
-              this.style.setProperty('border', `1px solid ${hover.border}`, 'important');
+              this.style.backgroundColor = hover.bg;
+              this.style.border = `1px solid ${hover.border}`;
             } else {
-              this.style.setProperty('background-color', 'var(--x-ov-hover-bg)', 'important');
-              this.style.setProperty('border', '1px solid transparent', 'important');
+              this.style.backgroundColor = 'var(--x-ov-hover-bg)';
+              this.style.border = '1px solid transparent';
             }
           }
         });
@@ -13598,48 +13546,10 @@ async function getSearchSuggestions(query) {
         leftSide.appendChild(iconSlot);
         leftSide.appendChild(title);
         if (overlayTabScoreDebugEnabled) {
-          const rankDebug = document.createElement('span');
-          applyNoTranslate(rankDebug);
-          setProtectedPlainText(rankDebug, formatTabRankDebugText(tab));
-          rankDebug.style.cssText = `
-            all: unset !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            margin-left: 8px !important;
-            padding: 1px 6px !important;
-            border-radius: 999px !important;
-            color: var(--x-ov-subtext, #6B7280) !important;
-            background: color-mix(in srgb, var(--x-ov-bg, #FFFFFF) 70%, #94A3B8 30%) !important;
-            border: 1px solid color-mix(in srgb, var(--x-ov-border, rgba(0, 0, 0, 0.08)) 75%, #94A3B8 25%) !important;
-            font-size: 10px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            line-height: 1.2 !important;
-            white-space: nowrap !important;
-            vertical-align: baseline !important;
-            flex-shrink: 0 !important;
-          `;
+          const rankDebug = createOverlayRankDebugChip(formatTabRankDebugText(tab));
           leftSide.appendChild(rankDebug);
         }
-        const rightSide = document.createElement('div');
-        rightSide.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 8px !important;
-          flex-shrink: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        const rightSide = createOverlayRightSide();
         rightSide.appendChild(actionTags);
         rightSide.appendChild(switchButton);
         suggestionItem.appendChild(leftSide);
@@ -13979,22 +13889,7 @@ async function getSearchSuggestions(query) {
         }
         const urlLine = document.createElement('span');
         setProtectedPlainText(urlLine, url);
-        urlLine.style.cssText = `
-          all: unset !important;
-          color: var(--x-ov-link, #2563EB) !important;
-          font-size: 12px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          text-decoration: none !important;
-          display: inline-block !important;
-          max-width: 60% !important;
-          line-height: 1.4 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        `;
+        urlLine.className = 'x-ov-url-line';
         return urlLine;
       }
 
@@ -14437,30 +14332,11 @@ async function getSearchSuggestions(query) {
             if (urlLine) {
               textWrapper.appendChild(urlLine);
             }
-            const historyTag = document.createElement('span');
+            const historyTag = createOverlayMetaTag();
             setProtectedPlainText(historyTag, t('search_tag_history', '历史'));
             historyTag._xDefaultBg = 'var(--x-ov-tag-bg, #F3F4F6)';
             historyTag._xDefaultText = 'var(--x-ov-tag-text, #6B7280)';
             historyTag._xDefaultBorder = 'transparent';
-            historyTag.style.cssText = `
-              all: unset !important;
-              background: var(--x-ov-tag-bg, #F3F4F6) !important;
-              color: var(--x-ov-tag-text, #6B7280) !important;
-              font-size: 10px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              padding: 4px 6px !important;
-              border-radius: 8px !important;
-              box-sizing: border-box !important;
-              line-height: 1.2 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              border: 1px solid transparent !important;
-              display: inline-flex !important;
-              align-items: center !important;
-              vertical-align: middle !important;
-              flex-shrink: 0 !important;
-            `;
             textWrapper.appendChild(historyTag);
             suggestionItem._xHistoryTag = historyTag;
           }
@@ -14471,30 +14347,11 @@ async function getSearchSuggestions(query) {
             if (urlLine) {
               textWrapper.appendChild(urlLine);
             }
-            const topSiteTag = document.createElement('span');
+            const topSiteTag = createOverlayMetaTag();
             setProtectedPlainText(topSiteTag, t('search_tag_top_site', '常用'));
             topSiteTag._xDefaultBg = 'var(--x-ov-tag-bg, #F3F4F6)';
             topSiteTag._xDefaultText = 'var(--x-ov-tag-text, #6B7280)';
             topSiteTag._xDefaultBorder = 'transparent';
-            topSiteTag.style.cssText = `
-              all: unset !important;
-              background: var(--x-ov-tag-bg, #F3F4F6) !important;
-              color: var(--x-ov-tag-text, #6B7280) !important;
-              font-size: 10px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              padding: 4px 6px !important;
-              border-radius: 8px !important;
-              box-sizing: border-box !important;
-              line-height: 1.2 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              border: 1px solid transparent !important;
-              display: inline-flex !important;
-              align-items: center !important;
-              vertical-align: middle !important;
-              flex-shrink: 0 !important;
-            `;
             textWrapper.appendChild(topSiteTag);
             suggestionItem._xTopSiteTag = topSiteTag;
           }
@@ -14504,122 +14361,30 @@ async function getSearchSuggestions(query) {
             if (suggestion.path) {
               const bookmarkPath = document.createElement('span');
               setProtectedPlainText(bookmarkPath, suggestion.path);
-              bookmarkPath.style.cssText = `
-                all: unset !important;
-                color: var(--x-ov-link, #2563EB) !important;
-                font-size: 12px !important;
-                font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-                text-decoration: none !important;
-                white-space: nowrap !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                line-height: 1.2 !important;
-                display: inline-block !important;
-                vertical-align: middle !important;
-              `;
+              bookmarkPath.className = 'x-ov-bookmark-path';
               textWrapper.appendChild(bookmarkPath);
             }
-          const bookmarkTag = document.createElement('span');
+          const bookmarkTag = createOverlayMetaTag({ bookmark: true });
           setProtectedPlainText(bookmarkTag, t('search_tag_bookmark', '书签'));
           bookmarkTag._xDefaultBg = 'var(--x-ov-bookmark-tag-bg, #FEF3C7)';
           bookmarkTag._xDefaultText = 'var(--x-ov-bookmark-tag-text, #D97706)';
           bookmarkTag._xDefaultBorder = 'transparent';
-          bookmarkTag.style.cssText = `
-            all: unset !important;
-            background: var(--x-ov-bookmark-tag-bg, #FEF3C7) !important;
-            color: var(--x-ov-bookmark-tag-text, #D97706) !important;
-            font-size: 10px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              padding: 4px 6px !important;
-              border-radius: 8px !important;
-              box-sizing: border-box !important;
-              line-height: 1.2 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              border: 1px solid transparent !important;
-              display: inline-flex !important;
-              align-items: center !important;
-              vertical-align: middle !important;
-              flex-shrink: 0 !important;
-            `;
             textWrapper.appendChild(bookmarkTag);
             suggestionItem._xBookmarkTag = bookmarkTag;
           }
           if (shouldSwitchMatchedTab) {
-            const openTabTag = document.createElement('span');
+            const openTabTag = createOverlayMetaTag();
             setProtectedPlainText(openTabTag, t('search_tag_open_tab', '已打开'));
             openTabTag._xDefaultBg = 'var(--x-ov-tag-bg, #F3F4F6)';
             openTabTag._xDefaultText = 'var(--x-ov-tag-text, #6B7280)';
             openTabTag._xDefaultBorder = 'transparent';
-            openTabTag.style.cssText = `
-              all: unset !important;
-              background: var(--x-ov-tag-bg, #F3F4F6) !important;
-              color: var(--x-ov-tag-text, #6B7280) !important;
-              font-size: 10px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              padding: 4px 6px !important;
-              border-radius: 8px !important;
-              box-sizing: border-box !important;
-              line-height: 1.2 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              border: 1px solid transparent !important;
-              display: inline-flex !important;
-              align-items: center !important;
-              vertical-align: middle !important;
-              flex-shrink: 0 !important;
-            `;
             textWrapper.appendChild(openTabTag);
             suggestionItem._xOpenTabTag = openTabTag;
           }
           
-          const rightSide = document.createElement('div');
-          rightSide.style.cssText = `
-            all: unset !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-            flex-shrink: 0 !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          const rightSide = createOverlayRightSide();
 
-          const actionTags = document.createElement('div');
-          actionTags.style.cssText = `
-            all: unset !important;
-            display: none !important;
-            align-items: center !important;
-            gap: 6px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-            flex-shrink: 0 !important;
-          `;
+          const actionTags = createOverlayActionTags();
 
           const isTopSiteMatch = Boolean(topSiteMatch && suggestion === topSiteMatch);
           const isDirectHighlight = isPrimaryHighlight &&
@@ -14650,35 +14415,10 @@ async function getSearchSuggestions(query) {
           }
 
           // Create visit button
-          const visitButton = document.createElement('button');
-          applyNoTranslate(visitButton);
-          visitButton.style.cssText = `
-            all: unset !important;
-            background: transparent !important;
-            color: var(--x-ov-subtext, #9CA3AF) !important;
-            border: 1px solid transparent !important;
-            border-radius: 16px !important;
-            font-size: 12px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            cursor: pointer !important;
-            transition: background-color 0.2s ease !important;
-            padding: 6px 12px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 4px !important;
-            vertical-align: baseline !important;
-            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 160ms ease !important;
-          `;
-          applyNoTranslate(visitButton);
+          const visitButton = createOverlayVisitButton();
           suggestionItem._xAlwaysHideVisitButton = suggestion.type === 'modeSwitch';
           if (suggestionItem._xAlwaysHideVisitButton) {
-            visitButton.style.setProperty('display', 'none', 'important');
+            visitButton.style.display = 'none';
           }
           
           if (suggestion.type === 'newtab') {
@@ -14710,72 +14450,13 @@ async function getSearchSuggestions(query) {
           let historyDeleteButton = null;
           let historyDeleteSlot = null;
           if (suggestion.type === 'history' && !suggestion.isTopSite) {
-            historyDeleteSlot = document.createElement('div');
-            applyNoTranslate(historyDeleteSlot);
-            historyDeleteSlot.style.cssText = `
-              all: unset !important;
-              width: 0 !important;
-              height: 28px !important;
-              flex: 0 0 auto !important;
-              display: inline-flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              overflow: visible !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              vertical-align: baseline !important;
-              opacity: 0 !important;
-              transition: width 180ms ease, margin-left 180ms ease, opacity 160ms ease !important;
-            `;
-            historyDeleteButton = document.createElement('button');
-            applyNoTranslate(historyDeleteButton);
+            historyDeleteSlot = createOverlayHistoryDeleteSlot();
+            historyDeleteButton = createOverlayHistoryDeleteButton();
             historyDeleteButton.type = 'button';
             const removeHistoryTooltipText = t('search_remove_history_tooltip', '移除该历史');
             historyDeleteButton.innerHTML = getRiSvg('ri-delete-bin-6-line', 'ri-size-14');
             historyDeleteButton.setAttribute('aria-label', removeHistoryTooltipText);
             historyDeleteButton.setAttribute('title', removeHistoryTooltipText);
-            historyDeleteButton.style.cssText = `
-              all: unset !important;
-              width: 24px !important;
-              height: 24px !important;
-              flex: 0 0 24px !important;
-              border-radius: 8px !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: var(--x-ext-input-icon, #9CA3AF) !important;
-              display: inline-flex !important;
-              visibility: hidden !important;
-              pointer-events: none !important;
-              opacity: 0 !important;
-              align-items: center !important;
-              justify-content: center !important;
-              font-size: 0 !important;
-              cursor: pointer !important;
-              transform: translateX(4px) !important;
-              transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 160ms ease, opacity 160ms ease, visibility 160ms ease !important;
-            `;
-            const historyDeleteIcon = historyDeleteButton.querySelector('.ri-icon');
-            if (historyDeleteIcon) {
-              historyDeleteIcon.style.setProperty('display', 'inline-flex', 'important');
-              historyDeleteIcon.style.setProperty('align-items', 'center', 'important');
-              historyDeleteIcon.style.setProperty('justify-content', 'center', 'important');
-              historyDeleteIcon.style.setProperty('line-height', '1', 'important');
-              historyDeleteIcon.style.setProperty('transform', 'none', 'important');
-              historyDeleteIcon.style.setProperty('pointer-events', 'none', 'important');
-              historyDeleteIcon.style.setProperty('cursor', 'pointer', 'important');
-            }
             historyDeleteButton.addEventListener('mouseenter', () => {
               const itemIndex = suggestionItems.indexOf(suggestionItem);
               const isSelected = itemIndex === selectedIndex;
@@ -14787,40 +14468,28 @@ async function getSearchSuggestions(query) {
                 ? getHoverColors(buttonThemeSource)
                 : getNeutralHoverActionColors();
               showTopActionTooltip(historyDeleteButton, removeHistoryTooltipText);
-              historyDeleteButton.style.setProperty(
-                'background',
-                hoverColors.bg,
-                'important'
-              );
-              historyDeleteButton.style.setProperty(
-                'border',
-                `1px solid ${hoverColors.border}`,
-                'important'
-              );
-              historyDeleteButton.style.setProperty(
-                'color',
-                shouldUseThemeHover ? resolvedTheme.buttonText : hoverColors.text,
-                'important'
-              );
-              historyDeleteButton.style.setProperty('transform', 'scale(1.06)', 'important');
+              historyDeleteButton.style.background = hoverColors.bg;
+              historyDeleteButton.style.border = `1px solid ${hoverColors.border}`;
+              historyDeleteButton.style.color = shouldUseThemeHover ? resolvedTheme.buttonText : hoverColors.text;
+              historyDeleteButton.style.transform = 'scale(1.06)';
             });
             historyDeleteButton.addEventListener('mouseleave', () => {
               hideTopActionTooltip();
-              historyDeleteButton.style.setProperty('background', 'transparent', 'important');
-              historyDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
-              historyDeleteButton.style.setProperty('transform', 'none', 'important');
+              historyDeleteButton.style.background = 'transparent';
+              historyDeleteButton.style.border = '1px solid transparent';
+              historyDeleteButton.style.transform = 'none';
             });
             historyDeleteButton.addEventListener('blur', () => {
               hideTopActionTooltip();
-              historyDeleteButton.style.setProperty('background', 'transparent', 'important');
-              historyDeleteButton.style.setProperty('border', '1px solid transparent', 'important');
-              historyDeleteButton.style.setProperty('transform', 'none', 'important');
+              historyDeleteButton.style.background = 'transparent';
+              historyDeleteButton.style.border = '1px solid transparent';
+              historyDeleteButton.style.transform = 'none';
             });
             historyDeleteButton.addEventListener('pointerup', () => {
-              historyDeleteButton.style.setProperty('transform', 'none', 'important');
+              historyDeleteButton.style.transform = 'none';
             });
             historyDeleteButton.addEventListener('pointercancel', () => {
-              historyDeleteButton.style.setProperty('transform', 'none', 'important');
+              historyDeleteButton.style.transform = 'none';
             });
             historyDeleteButton.addEventListener('click', function(e) {
               e.preventDefault();
@@ -14864,8 +14533,8 @@ async function getSearchSuggestions(query) {
               if (selectedIndex === -1 && this._xIsAutocompleteTop) {
                 return;
               }
-              this.style.setProperty('background', 'var(--x-ov-hover-bg)', 'important');
-              this.style.setProperty('border', '1px solid transparent', 'important');
+              this.style.background = 'var(--x-ov-hover-bg)';
+              this.style.border = '1px solid transparent';
             }
           });
           
