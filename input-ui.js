@@ -1755,6 +1755,7 @@
     const zIndex = Number.isFinite(Number(config.zIndex)) ? String(config.zIndex) : '4';
     const durationMs = Math.round(clampNumber(config.duration, 2280, 220, 6000));
     const maxDisplacement = clampNumber(config.maxDisplacement, 24, 0, 40);
+    const preserveTargetOverflow = config.preserveTargetOverflow === true;
     const distortionSelector = typeof config.distortionSelector === 'string'
       ? config.distortionSelector.trim()
       : '';
@@ -1845,7 +1846,7 @@
     const previousInlineOverflowPriority = target.style.getPropertyPriority('overflow');
     const computedTargetStyle = window.getComputedStyle(target);
     const updatedPosition = computedTargetStyle.position === 'static';
-    const updatedOverflow = computedTargetStyle.overflow !== 'hidden';
+    const updatedOverflow = !preserveTargetOverflow && computedTargetStyle.overflow !== 'hidden';
     if (updatedPosition) {
       target.style.setProperty('position', 'relative', 'important');
     }

@@ -8192,7 +8192,7 @@ async function getSearchSuggestions(query) {
   let aiModeDecor = null;
   let aiModeSweep = null;
   let aiModeSweepActive = false;
-  let aiModeDecorFrame = null;
+  let aiModeEffectClip = null;
   let aiModeSweepFrame = null;
   const AI_MODE_SWEEP_DURATION_MS = 1800;
 
@@ -8211,7 +8211,7 @@ async function getSearchSuggestions(query) {
       aiModeSweep = null;
     }
     aiModeSweepActive = false;
-    aiModeDecorFrame = null;
+    aiModeEffectClip = null;
     aiModeSweepFrame = null;
     if (overlayElement) {
       overlayElement.remove();
@@ -8347,9 +8347,6 @@ async function getSearchSuggestions(query) {
     const overlayPanel = document.createElement('div');
     overlayPanel.className = 'x-ov-panel';
     applyNoTranslate(overlayPanel);
-    const overlaySearchShell = document.createElement('div');
-    overlaySearchShell.className = 'x-ov-search-shell';
-    applyNoTranslate(overlaySearchShell);
 
 
     const applyOverlayTheme = (mode) => {
@@ -8432,35 +8429,14 @@ async function getSearchSuggestions(query) {
         padding: 0;
         background: transparent;
       }
-      #_x_extension_overlay_2024_unique_ .x-ov-search-shell {
-        all: unset;
-        position: relative;
-        z-index: 1;
-        width: 100%;
-        min-height: 56px;
-        display: block;
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-        border-radius: 28px;
-        overflow: visible;
-      }
-      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-decor-frame {
-        position: absolute;
-        inset: 0;
-        box-sizing: border-box;
-        border-radius: inherit;
-        pointer-events: none;
-        overflow: visible;
-        z-index: 0;
-      }
-      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-sweep-frame {
+      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-effect-clip {
         position: absolute;
         inset: 0;
         box-sizing: border-box;
         border-radius: inherit;
         pointer-events: none;
         overflow: hidden;
+        z-index: 0;
       }
       #_x_extension_overlay_2024_unique_ .ri-icon {
         width: var(--ri-size, 16px);
@@ -9137,15 +9113,21 @@ async function getSearchSuggestions(query) {
     const inputChromeLayer = inputParts.chromeLayer || inputContainer;
     const rightIcon = inputParts.rightIcon;
     const overlayInputHeight = 56;
-    aiModeDecorFrame = document.createElement('div');
-    applyNoTranslate(aiModeDecorFrame);
-    aiModeDecorFrame.setAttribute('aria-hidden', 'true');
-    aiModeDecorFrame.className = 'x-ov-ai-mode-decor-frame';
+    aiModeEffectClip = document.createElement('div');
+    applyNoTranslate(aiModeEffectClip);
+    aiModeEffectClip.setAttribute('aria-hidden', 'true');
+    aiModeEffectClip.className = 'x-ov-ai-mode-effect-clip';
     aiModeSweepFrame = document.createElement('div');
     applyNoTranslate(aiModeSweepFrame);
     aiModeSweepFrame.setAttribute('aria-hidden', 'true');
     aiModeSweepFrame.className = 'x-ov-ai-mode-sweep-frame';
-    aiModeDecorFrame.appendChild(aiModeSweepFrame);
+    aiModeSweepFrame.style.position = 'absolute';
+    aiModeSweepFrame.style.inset = '0';
+    aiModeSweepFrame.style.boxSizing = 'border-box';
+    aiModeSweepFrame.style.borderRadius = 'inherit';
+    aiModeSweepFrame.style.pointerEvents = 'none';
+    aiModeSweepFrame.style.overflow = 'visible';
+    aiModeEffectClip.appendChild(aiModeSweepFrame);
     applyNoTranslate(searchInput);
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
@@ -11541,13 +11523,13 @@ async function getSearchSuggestions(query) {
         return aiModeDecor;
       }
       if (
-        !aiModeDecorFrame ||
+        !aiModeSweepFrame ||
         typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function'
       ) {
         return null;
       }
       aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
-        target: aiModeDecorFrame,
+        target: aiModeSweepFrame,
         themeTarget: overlay,
         borderRadius: 28,
         borderWidth: 1,
@@ -11579,6 +11561,7 @@ async function getSearchSuggestions(query) {
         zIndex: 0,
         duration: AI_MODE_SWEEP_DURATION_MS,
         maxDisplacement: 24,
+        preserveTargetOverflow: true,
         distortionSelector: '[data-ai-sweep-distort]'
       });
       return aiModeSweep;
@@ -15228,9 +15211,8 @@ async function getSearchSuggestions(query) {
     };
     overlayPanel.addEventListener('wheel', handleOverlayWheel, { passive: false });
 
-    overlaySearchShell.appendChild(aiModeDecorFrame);
-    overlaySearchShell.appendChild(inputContainer);
-    overlayPanel.appendChild(overlaySearchShell);
+    overlayShadowRoot.appendChild(aiModeEffectClip);
+    overlayPanel.appendChild(inputContainer);
     overlayPanel.appendChild(suggestionsContainer);
     overlayShadowRoot.appendChild(overlayPanel);
     applyNoTranslateDeep(overlayPanel);
