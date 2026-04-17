@@ -494,11 +494,17 @@
   "shortcuts_group_builtin": {
     "message": "内置"
   },
+  "shortcuts_group_builtin_ai": {
+    "message": "AI"
+  },
   "shortcuts_badge_custom": {
     "message": "自定义"
   },
   "shortcuts_badge_builtin": {
     "message": "内置"
+  },
+  "shortcuts_badge_builtin_ai": {
+    "message": "AI"
   },
   "shortcuts_label_key": {
     "message": "触发词"
@@ -544,6 +550,9 @@
   },
   "shortcuts_empty_builtin": {
     "message": "暂无内置站内搜索"
+  },
+  "shortcuts_empty_builtin_ai": {
+    "message": "暂无 AI 站内搜索"
   },
   "toast_saved": {
     "message": "已保存"

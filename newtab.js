@@ -7829,6 +7829,9 @@
     if (provider && provider.icon) {
       return provider.icon;
     }
+    if (provider && provider.iconUrl) {
+      return provider.iconUrl;
+    }
     const template = provider && provider.template ? provider.template : '';
     try {
       const url = template.replace(/\{query\}/g, 'test');

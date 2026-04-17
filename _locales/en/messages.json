@@ -494,11 +494,17 @@
   "shortcuts_group_builtin": {
     "message": "Built-in"
   },
+  "shortcuts_group_builtin_ai": {
+    "message": "AI"
+  },
   "shortcuts_badge_custom": {
     "message": "Custom"
   },
   "shortcuts_badge_builtin": {
     "message": "Built-in"
+  },
+  "shortcuts_badge_builtin_ai": {
+    "message": "AI"
   },
   "shortcuts_label_key": {
     "message": "Keyword"
@@ -544,6 +550,9 @@
   },
   "shortcuts_empty_builtin": {
     "message": "No built-in site searches"
+  },
+  "shortcuts_empty_builtin_ai": {
+    "message": "No built-in AI site searches"
   },
   "toast_saved": {
     "message": "Saved"

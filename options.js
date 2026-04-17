@@ -1,6 +1,7 @@
 (function() {
   const panel = document.getElementById('_x_extension_settings_panel_2024_unique_');
   const optionsRoot = document.getElementById('_x_extension_options_root_2024_unique_');
+  const pixelBlastMount = document.getElementById('_x_extension_settings_pixelblast_2026_unique_');
   const tabsRow = document.querySelector('._x_extension_settings_tabs_row_2024_unique_');
   const appearanceContent = document.querySelector('._x_extension_settings_content_2024_unique_[data-content="appearance"]');
   const themePicker = appearanceContent
@@ -32,6 +33,13 @@
   const overlaySizeTabsIndicator = overlaySizeTabsWrap
     ? overlaySizeTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
     : null;
+  const siteSearchBuiltinTabsWrap = document.getElementById('_x_extension_site_search_builtin_tabs_wrap_2026_unique_');
+  const siteSearchBuiltinTabButtons = Array.from(document.querySelectorAll('button[data-site-search-builtin-tab]'));
+  const siteSearchBuiltinTabsIndicator = siteSearchBuiltinTabsWrap
+    ? siteSearchBuiltinTabsWrap.querySelector('._x_extension_theme_indicator_2024_unique_')
+    : null;
+  const siteSearchBuiltinPanel = document.getElementById('_x_extension_site_search_builtin_panel_2026_unique_');
+  const siteSearchAiPanel = document.getElementById('_x_extension_site_search_ai_panel_2026_unique_');
   const bookmarkCountSelect = document.getElementById('_x_extension_bookmark_count_select_2024_unique_');
   const bookmarkColumnsSelect = document.getElementById('_x_extension_bookmark_columns_select_2024_unique_');
   const bookmarkColumnsSelectWrap = bookmarkColumnsSelect
@@ -70,6 +78,7 @@
   const customSelectWraps = Array.from(document.querySelectorAll('._x_extension_custom_select_2024_unique_'));
   const siteSearchCustomList = document.getElementById('_x_extension_site_search_custom_list_2024_unique_');
   const siteSearchBuiltinList = document.getElementById('_x_extension_site_search_builtin_list_2024_unique_');
+  const siteSearchAiBuiltinList = document.getElementById('_x_extension_site_search_ai_builtin_list_2024_unique_');
   const siteSearchKeyInput = document.getElementById('_x_extension_site_search_key_2024_unique_');
   const siteSearchNameInput = document.getElementById('_x_extension_site_search_name_2024_unique_');
   const siteSearchTemplateInput = document.getElementById('_x_extension_site_search_template_2024_unique_');
@@ -112,6 +121,9 @@
   const storageArea = (chrome && chrome.storage && chrome.storage.sync)
     ? chrome.storage.sync
     : (chrome && chrome.storage ? chrome.storage.local : null);
+  const localStorageArea = (chrome && chrome.storage && chrome.storage.local)
+    ? chrome.storage.local
+    : storageArea;
   const storageAreaName = storageArea
     ? (storageArea === (chrome && chrome.storage ? chrome.storage.sync : null) ? 'sync' : 'local')
     : null;
@@ -119,6 +131,133 @@
   function getRiSvg(id, sizeClass) {
     const size = sizeClass || 'ri-size-12';
     return `<i class="ri-icon ${size} ${id}" aria-hidden="true"></i>`;
+  }
+
+  function normalizeHost(hostname) {
+    const raw = String(hostname || '').trim().toLowerCase();
+    if (!raw) {
+      return '';
+    }
+    return raw.replace(/^www\./, '');
+  }
+
+  function getGoogleFaviconUrl(hostname) {
+    const normalized = normalizeHost(hostname);
+    if (!normalized) {
+      return '';
+    }
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(normalized)}&sz=64`;
+  }
+
+  function getProviderIconUrl(provider) {
+    if (provider && provider.icon) {
+      return String(provider.icon).trim();
+    }
+    if (provider && provider.iconUrl) {
+      return String(provider.iconUrl).trim();
+    }
+    const template = provider && provider.template ? String(provider.template) : '';
+    if (!template) {
+      return '';
+    }
+    try {
+      const resolvedUrl = template.replace(/\{query\}/g, 'test');
+      const host = normalizeHost(new URL(resolvedUrl).hostname);
+      return getGoogleFaviconUrl(host);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function getSiteSearchIconCacheKey(provider) {
+    if (!provider) {
+      return '';
+    }
+    try {
+      const template = String(provider.template || '').trim();
+      if (!template) {
+        return '';
+      }
+      const resolvedUrl = template.replace(/\{query\}/g, 'test');
+      return normalizeHost(new URL(resolvedUrl).hostname);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function ensureSiteSearchIconCacheLoaded() {
+    if (siteSearchIconCacheLoadPromise) {
+      return siteSearchIconCacheLoadPromise;
+    }
+    if (!localStorageArea) {
+      siteSearchIconCacheLoaded = true;
+      siteSearchIconCacheLoadPromise = Promise.resolve();
+      return siteSearchIconCacheLoadPromise;
+    }
+    if (siteSearchIconCacheLoaded) {
+      siteSearchIconCacheLoadPromise = Promise.resolve();
+      return siteSearchIconCacheLoadPromise;
+    }
+    siteSearchIconCacheLoaded = true;
+    siteSearchIconCacheLoadPromise = new Promise((resolve) => {
+      localStorageArea.get([SITE_SEARCH_ICON_CACHE_STORAGE_KEY], (result) => {
+        const items = Array.isArray(result && result[SITE_SEARCH_ICON_CACHE_STORAGE_KEY])
+          ? result[SITE_SEARCH_ICON_CACHE_STORAGE_KEY]
+          : [];
+        items.forEach((item) => {
+          if (!item || !item.key || !item.url) {
+            return;
+          }
+          siteSearchIconCache.set(String(item.key), String(item.url));
+        });
+        resolve();
+      });
+    });
+    return siteSearchIconCacheLoadPromise;
+  }
+
+  function scheduleSiteSearchIconCacheWrite() {
+    if (!localStorageArea) {
+      return;
+    }
+    if (siteSearchIconCacheWriteTimer !== null) {
+      clearTimeout(siteSearchIconCacheWriteTimer);
+    }
+    siteSearchIconCacheWriteTimer = window.setTimeout(() => {
+      siteSearchIconCacheWriteTimer = null;
+      const entries = Array.from(siteSearchIconCache.entries()).map(([key, url]) => ({ key, url }));
+      localStorageArea.set({ [SITE_SEARCH_ICON_CACHE_STORAGE_KEY]: entries }, () => {});
+    }, 120);
+  }
+
+  function primeSiteSearchIconCache(provider) {
+    const cacheKey = getSiteSearchIconCacheKey(provider);
+    if (!cacheKey || siteSearchIconCache.has(cacheKey)) {
+      return;
+    }
+    const iconUrl = getProviderIconUrl(provider);
+    if (!iconUrl) {
+      return;
+    }
+    siteSearchIconCache.set(cacheKey, iconUrl);
+    scheduleSiteSearchIconCacheWrite();
+  }
+
+  function getCachedSiteSearchIconUrl(provider) {
+    const explicitIcon = getProviderIconUrl(provider);
+    if (explicitIcon) {
+      const cacheKey = getSiteSearchIconCacheKey(provider);
+      if (cacheKey && !siteSearchIconCache.has(cacheKey)) {
+        siteSearchIconCache.set(cacheKey, explicitIcon);
+        scheduleSiteSearchIconCacheWrite();
+      }
+      return explicitIcon;
+    }
+    const cacheKey = getSiteSearchIconCacheKey(provider);
+    if (!cacheKey) {
+      return '';
+    }
+    return siteSearchIconCache.get(cacheKey) || '';
   }
 
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
@@ -137,6 +276,7 @@
   const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
+  const SITE_SEARCH_ICON_CACHE_STORAGE_KEY = '_x_extension_site_search_icon_cache_2026_unique_';
   const FALLBACK_SHORTCUT_STORAGE_KEY = '_x_extension_fallback_hotkey_2024_unique_';
   const SITE_SEARCH_STORAGE_KEY = '_x_extension_site_search_custom_2024_unique_';
   const SITE_SEARCH_DISABLED_STORAGE_KEY = '_x_extension_site_search_disabled_2024_unique_';
@@ -188,6 +328,10 @@
   let siteSearchFormExpanded = false;
   let siteSearchRefreshSuppressUntil = 0;
   let siteSearchRefreshTimer = null;
+  let siteSearchIconCacheLoaded = false;
+  let siteSearchIconCacheLoadPromise = null;
+  let siteSearchIconCacheWriteTimer = null;
+  const siteSearchIconCache = new Map();
   let currentShortcutLabel = null;
   let isCapturingFallbackShortcut = false;
   let cancelCaptureOnMouseLeave = false;
@@ -195,6 +339,364 @@
   let fallbackShortcutBaseWidth = 0;
   let isFallbackWidthReady = false;
   let searchBlacklistItems = [];
+
+  const SETTINGS_PIXEL_BLAST_CONFIG = Object.freeze({
+    color: '#B6BFE4',
+    pixelSize: 3,
+    patternScale: 2.5,
+    patternDensity: 0.6,
+    speed: 0.5,
+    edgeFade: 0.25
+  });
+
+  function hexToRgbTriplet(hex) {
+    const normalized = String(hex || '').trim().replace(/^#/, '');
+    if (!/^[0-9a-f]{6}$/i.test(normalized)) {
+      return [0.25098, 0.4902, 0.82745];
+    }
+    return [
+      parseInt(normalized.slice(0, 2), 16) / 255,
+      parseInt(normalized.slice(2, 4), 16) / 255,
+      parseInt(normalized.slice(4, 6), 16) / 255
+    ];
+  }
+
+  function createWebGLShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    if (!shader) {
+      return null;
+    }
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      return shader;
+    }
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  function createWebGLProgram(gl, vertexSource, fragmentSource) {
+    const vertexShader = createWebGLShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragmentShader = createWebGLShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    if (!vertexShader || !fragmentShader) {
+      if (vertexShader) {
+        gl.deleteShader(vertexShader);
+      }
+      if (fragmentShader) {
+        gl.deleteShader(fragmentShader);
+      }
+      return null;
+    }
+    const program = gl.createProgram();
+    if (!program) {
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      return null;
+    }
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    if (gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      return program;
+    }
+    gl.deleteProgram(program);
+    return null;
+  }
+
+  function initSettingsPixelBlastBackground(mount) {
+    if (!mount) {
+      return null;
+    }
+
+    const canvas = document.createElement('canvas');
+    mount.appendChild(canvas);
+
+    const gl = canvas.getContext('webgl', {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: false
+    });
+
+    if (!gl) {
+      mount.removeChild(canvas);
+      return null;
+    }
+
+    const vertexSource = `
+      attribute vec2 aPosition;
+
+      void main() {
+        gl_Position = vec4(aPosition, 0.0, 1.0);
+      }
+    `;
+
+    const fragmentSource = `
+      precision highp float;
+
+      uniform vec3 uColor;
+      uniform vec2 uResolution;
+      uniform float uTime;
+      uniform float uPixelSize;
+      uniform float uScale;
+      uniform float uDensity;
+      uniform float uEdgeFade;
+
+      float bayer2(vec2 value) {
+        value = floor(value);
+        return fract(value.x / 2.0 + value.y * value.y * 0.75);
+      }
+
+      float bayer4(vec2 value) {
+        return bayer2(value * 0.5) * 0.25 + bayer2(value);
+      }
+
+      float bayer8(vec2 value) {
+        return bayer4(value * 0.5) * 0.25 + bayer2(value);
+      }
+
+      float hash11(float value) {
+        return fract(sin(value) * 43758.5453);
+      }
+
+      float vnoise(vec3 point) {
+        vec3 ip = floor(point);
+        vec3 fp = fract(point);
+        float n000 = hash11(dot(ip + vec3(0.0, 0.0, 0.0), vec3(1.0, 57.0, 113.0)));
+        float n100 = hash11(dot(ip + vec3(1.0, 0.0, 0.0), vec3(1.0, 57.0, 113.0)));
+        float n010 = hash11(dot(ip + vec3(0.0, 1.0, 0.0), vec3(1.0, 57.0, 113.0)));
+        float n110 = hash11(dot(ip + vec3(1.0, 1.0, 0.0), vec3(1.0, 57.0, 113.0)));
+        float n001 = hash11(dot(ip + vec3(0.0, 0.0, 1.0), vec3(1.0, 57.0, 113.0)));
+        float n101 = hash11(dot(ip + vec3(1.0, 0.0, 1.0), vec3(1.0, 57.0, 113.0)));
+        float n011 = hash11(dot(ip + vec3(0.0, 1.0, 1.0), vec3(1.0, 57.0, 113.0)));
+        float n111 = hash11(dot(ip + vec3(1.0, 1.0, 1.0), vec3(1.0, 57.0, 113.0)));
+        vec3 smoothFactor = fp * fp * fp * (fp * (fp * 6.0 - 15.0) + 10.0);
+        float x00 = mix(n000, n100, smoothFactor.x);
+        float x10 = mix(n010, n110, smoothFactor.x);
+        float x01 = mix(n001, n101, smoothFactor.x);
+        float x11 = mix(n011, n111, smoothFactor.x);
+        float y0 = mix(x00, x10, smoothFactor.y);
+        float y1 = mix(x01, x11, smoothFactor.y);
+        return mix(y0, y1, smoothFactor.z) * 2.0 - 1.0;
+      }
+
+      float fbm2(vec2 uv, float timeValue) {
+        vec3 point = vec3(uv * uScale, timeValue);
+        float amplitude = 1.0;
+        float frequency = 1.0;
+        float sum = 1.0;
+        for (int i = 0; i < 5; ++i) {
+          sum += amplitude * vnoise(point * frequency);
+          frequency *= 1.25;
+          amplitude *= 1.0;
+        }
+        return sum * 0.5 + 0.5;
+      }
+
+      float maskDiamond(vec2 pixelUv, float coverage) {
+        float radius = sqrt(max(coverage, 0.0)) * 0.564;
+        return step(abs(pixelUv.x - 0.49) + abs(pixelUv.y - 0.49), radius);
+      }
+
+      void main() {
+        vec2 fragCoord = gl_FragCoord.xy - uResolution * 0.5;
+        float aspectRatio = uResolution.x / max(uResolution.y, 1.0);
+
+        vec2 pixelUv = fract(fragCoord / uPixelSize);
+        float cellPixelSize = 8.0 * uPixelSize;
+        vec2 cellId = floor(fragCoord / cellPixelSize);
+        vec2 cellCoord = cellId * cellPixelSize;
+        vec2 uv = cellCoord / uResolution * vec2(aspectRatio, 1.0);
+
+        float base = fbm2(uv, uTime * 0.05);
+        base = base * 0.5 - 0.65;
+
+        float feed = base + (uDensity - 0.5) * 0.3;
+        float bayer = bayer8(fragCoord / uPixelSize) - 0.5;
+        float filled = step(0.5, feed + bayer);
+        float alpha = maskDiamond(pixelUv, filled);
+
+        if (uEdgeFade > 0.0) {
+          vec2 normalized = gl_FragCoord.xy / uResolution;
+          float edgeDistance = min(
+            min(normalized.x, normalized.y),
+            min(1.0 - normalized.x, 1.0 - normalized.y)
+          );
+          alpha *= smoothstep(0.0, uEdgeFade, edgeDistance);
+        }
+
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `;
+
+    const program = createWebGLProgram(gl, vertexSource, fragmentSource);
+    if (!program) {
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      mount.removeChild(canvas);
+      return null;
+    }
+
+    const positionLocation = gl.getAttribLocation(program, 'aPosition');
+    const resolutionLocation = gl.getUniformLocation(program, 'uResolution');
+    const timeLocation = gl.getUniformLocation(program, 'uTime');
+    const colorLocation = gl.getUniformLocation(program, 'uColor');
+    const pixelSizeLocation = gl.getUniformLocation(program, 'uPixelSize');
+    const scaleLocation = gl.getUniformLocation(program, 'uScale');
+    const densityLocation = gl.getUniformLocation(program, 'uDensity');
+    const edgeFadeLocation = gl.getUniformLocation(program, 'uEdgeFade');
+
+    if (
+      positionLocation < 0 ||
+      !resolutionLocation ||
+      !timeLocation ||
+      !colorLocation ||
+      !pixelSizeLocation ||
+      !scaleLocation ||
+      !densityLocation ||
+      !edgeFadeLocation
+    ) {
+      gl.deleteProgram(program);
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      mount.removeChild(canvas);
+      return null;
+    }
+
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      gl.deleteProgram(program);
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      mount.removeChild(canvas);
+      return null;
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -1, -1,
+      1, -1,
+      -1, 1,
+      -1, 1,
+      1, -1,
+      1, 1
+    ]), gl.STATIC_DRAW);
+
+    gl.useProgram(program);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.clearColor(0, 0, 0, 0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const color = hexToRgbTriplet(SETTINGS_PIXEL_BLAST_CONFIG.color);
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let rafId = 0;
+    let startedAt = performance.now();
+    let disposed = false;
+
+    function resizeCanvas() {
+      const width = Math.max(1, Math.round(window.innerWidth * Math.min(window.devicePixelRatio || 1, 1.75)));
+      const height = Math.max(1, Math.round(window.innerHeight * Math.min(window.devicePixelRatio || 1, 1.75)));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      gl.viewport(0, 0, width, height);
+      return { width, height };
+    }
+
+    function drawFrame(seconds) {
+      if (disposed) {
+        return;
+      }
+      const size = resizeCanvas();
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(resolutionLocation, size.width, size.height);
+      gl.uniform1f(timeLocation, seconds * SETTINGS_PIXEL_BLAST_CONFIG.speed);
+      gl.uniform3f(colorLocation, color[0], color[1], color[2]);
+      gl.uniform1f(pixelSizeLocation, SETTINGS_PIXEL_BLAST_CONFIG.pixelSize * Math.min(window.devicePixelRatio || 1, 1.75));
+      gl.uniform1f(scaleLocation, SETTINGS_PIXEL_BLAST_CONFIG.patternScale);
+      gl.uniform1f(densityLocation, SETTINGS_PIXEL_BLAST_CONFIG.patternDensity);
+      gl.uniform1f(edgeFadeLocation, SETTINGS_PIXEL_BLAST_CONFIG.edgeFade);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    function stopLoop() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    }
+
+    function tick(now) {
+      rafId = 0;
+      if (disposed || document.hidden || reducedMotionQuery.matches) {
+        return;
+      }
+      drawFrame((now - startedAt) / 1000);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function startLoop() {
+      if (disposed || rafId || reducedMotionQuery.matches || document.hidden) {
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function handleResize() {
+      const elapsedSeconds = reducedMotionQuery.matches ? 0 : (performance.now() - startedAt) / 1000;
+      drawFrame(elapsedSeconds);
+    }
+
+    function handleReducedMotionChange() {
+      stopLoop();
+      startedAt = performance.now();
+      drawFrame(0);
+      startLoop();
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopLoop();
+        return;
+      }
+      if (reducedMotionQuery.matches) {
+        drawFrame(0);
+        return;
+      }
+      startedAt = performance.now();
+      startLoop();
+    }
+
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(handleResize)
+      : null;
+    resizeObserver?.observe(mount);
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
+
+    drawFrame(0);
+    startLoop();
+
+    return () => {
+      disposed = true;
+      stopLoop();
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
+      gl.deleteBuffer(buffer);
+      gl.deleteProgram(program);
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      if (canvas.parentNode === mount) {
+        mount.removeChild(canvas);
+      }
+    };
+  }
   let blacklistFormExpanded = false;
   const fallbackSiteSearchProviders = [
     { key: 'yt', aliases: ['youtube'], name: 'YouTube', template: 'https://www.youtube.com/results?search_query={query}' },
@@ -752,6 +1254,14 @@
     );
   }
 
+  function updateSiteSearchBuiltinTabsIndicator() {
+    updateInlineTabsIndicator(
+      siteSearchBuiltinTabsWrap,
+      siteSearchBuiltinTabsIndicator,
+      'button[data-site-search-builtin-tab][data-active="true"]'
+    );
+  }
+
   function updateNewtabWidthTabsIndicator() {
     updateInlineTabsIndicator(
       newtabWidthTabsWrap,
@@ -766,6 +1276,7 @@
     updateNewtabWidthTabsIndicator();
     updateRecentModeTabsIndicator();
     updateOverlaySizeTabsIndicator();
+    updateSiteSearchBuiltinTabsIndicator();
     updateRestrictedActionTabsIndicator();
     updateSearchResultPriorityTabsIndicator();
   }
@@ -802,6 +1313,23 @@
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     requestAnimationFrame(updateOverlaySizeTabsIndicator);
+  }
+
+  function setSiteSearchBuiltinTabState(tabKey) {
+    const nextTab = tabKey === 'ai' ? 'ai' : 'builtin';
+    siteSearchBuiltinTabButtons.forEach((button) => {
+      const buttonTab = button.getAttribute('data-site-search-builtin-tab') === 'ai' ? 'ai' : 'builtin';
+      const active = buttonTab === nextTab;
+      button.setAttribute('data-active', active ? 'true' : 'false');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    if (siteSearchBuiltinPanel) {
+      siteSearchBuiltinPanel.setAttribute('data-active', nextTab === 'builtin' ? 'true' : 'false');
+    }
+    if (siteSearchAiPanel) {
+      siteSearchAiPanel.setAttribute('data-active', nextTab === 'ai' ? 'true' : 'false');
+    }
+    requestAnimationFrame(updateSiteSearchBuiltinTabsIndicator);
   }
 
   function setNewtabWidthTabState(mode) {
@@ -2229,6 +2757,11 @@
         requestAnimationFrame(updateOverlaySizeTabsIndicator);
       });
     }
+    if (tabKey === 'shortcuts') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(updateSiteSearchBuiltinTabsIndicator);
+      });
+    }
     if (tabKey === 'general') {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -2388,6 +2921,7 @@
   }
 
   initTheme();
+  initSettingsPixelBlastBackground(pixelBlastMount);
 
   function playThemeOptionClickEffect(button) {
     if (!button) {
@@ -2438,6 +2972,7 @@
   });
 
   const initialTab = getInitialTabKey();
+  setSiteSearchBuiltinTabState('builtin');
   setActiveTab(initialTab);
   if (initialTab === 'shortcuts') {
     refreshSiteSearchProviders();
@@ -2456,6 +2991,7 @@
   window.addEventListener('resize', updateNewtabWidthTabsIndicator);
   window.addEventListener('resize', updateRecentModeTabsIndicator);
   window.addEventListener('resize', updateOverlaySizeTabsIndicator);
+  window.addEventListener('resize', updateSiteSearchBuiltinTabsIndicator);
   window.addEventListener('resize', updateRestrictedActionTabsIndicator);
   window.addEventListener('resize', updateSearchResultPriorityTabsIndicator);
   window.addEventListener('resize', syncFallbackShortcutWrapWidth);
@@ -3400,18 +3936,34 @@
   setBlacklistFormExpanded(false);
 
   function renderSiteSearchList() {
-    if (!siteSearchCustomList || !siteSearchBuiltinList) {
+    if (!siteSearchCustomList || !siteSearchBuiltinList || !siteSearchAiBuiltinList) {
       return;
     }
     siteSearchCustomList.innerHTML = '';
     siteSearchBuiltinList.innerHTML = '';
+    siteSearchAiBuiltinList.innerHTML = '';
     const builtinRowByTemplate = new Map();
     const customKeys = new Set(customSiteSearchProviders.map((item) => String(item.key || '').toLowerCase()));
     const displayDefaults = defaultSiteSearchProviders.filter((item) => {
       const key = String(item.key || '').toLowerCase();
       return key && !customKeys.has(key) && !disabledSiteSearchKeys.has(key);
     });
+    const classicBuiltinProviders = displayDefaults.filter((item) => !isBuiltinAiSiteSearchProvider(item));
+    const aiBuiltinProviders = displayDefaults.filter((item) => isBuiltinAiSiteSearchProvider(item));
     const builtinTemplateSet = new Set(defaultSiteSearchProviders.map((item) => normalizeSiteSearchTemplate(String(item.template || '').trim())).filter(Boolean));
+    function isBuiltinAiSiteSearchProvider(item) {
+      if (!item) {
+        return false;
+      }
+      if (String(item.action || '').trim() === 'openAndSubmit') {
+        return true;
+      }
+      const template = normalizeSiteSearchTemplate(String(item.template || '').trim());
+      return Boolean(template) && !template.includes('{query}');
+    }
+    function canEditSiteSearchItem(item) {
+      return Boolean(item);
+    }
     function getLocalizedBuiltinProviderName(item) {
       if (!item || item._xIsCustom) {
         return item && (item.name || item.key) ? (item.name || item.key) : '';
@@ -3453,12 +4005,30 @@
       title.className = '_x_extension_shortcut_item_title_2024_unique_';
       const badge = document.createElement('div');
       badge.className = '_x_extension_shortcut_badge_2024_unique_';
-      badge.textContent = item._xIsCustom
-        ? getMessage('shortcuts_badge_custom', '自定义')
-        : getMessage('shortcuts_badge_builtin', '内置');
+      if (item._xIsCustom) {
+        badge.textContent = getMessage('shortcuts_badge_custom', '自定义');
+      } else if (isBuiltinAiSiteSearchProvider(item)) {
+        badge.textContent = getMessage('shortcuts_badge_builtin_ai', 'AI');
+      } else {
+        badge.textContent = getMessage('shortcuts_badge_builtin', '内置');
+      }
+      const iconUrl = isBuiltinAiSiteSearchProvider(item) ? getCachedSiteSearchIconUrl(item) : '';
       const titleText = document.createElement('span');
       titleText.textContent = getLocalizedBuiltinProviderName(item);
       title.appendChild(badge);
+      if (iconUrl) {
+        const logo = document.createElement('img');
+        logo.className = '_x_extension_shortcut_title_logo_2026_unique_';
+        logo.alt = '';
+        logo.loading = 'lazy';
+        logo.decoding = 'async';
+        logo.referrerPolicy = 'no-referrer';
+        logo.src = iconUrl;
+        logo.addEventListener('error', () => {
+          logo.remove();
+        }, { once: true });
+        title.appendChild(logo);
+      }
       if (item._xIsCustom && normalizedTemplate && builtinTemplateSet.has(normalizedTemplate)) {
         const duplicateTag = document.createElement('button');
         duplicateTag.type = 'button';
@@ -3493,12 +4063,14 @@
       info.appendChild(meta);
       const actions = document.createElement('div');
       actions.className = '_x_extension_shortcut_item_actions_2024_unique_';
-      const editButton = document.createElement('button');
-      editButton.className = '_x_extension_shortcut_edit_2024_unique_';
-      editButton.innerHTML = getRiSvg('ri-edit-line', 'ri-size-14');
-      editButton.dataset.editKey = item.key || '';
-      editButton.dataset.editType = item._xIsCustom ? 'custom' : 'builtin';
-      actions.appendChild(editButton);
+      if (canEditSiteSearchItem(item)) {
+        const editButton = document.createElement('button');
+        editButton.className = '_x_extension_shortcut_edit_2024_unique_';
+        editButton.innerHTML = getRiSvg('ri-edit-line', 'ri-size-14');
+        editButton.dataset.editKey = item.key || '';
+        editButton.dataset.editType = item._xIsCustom ? 'custom' : 'builtin';
+        actions.appendChild(editButton);
+      }
       const removeButton = document.createElement('button');
       removeButton.className = '_x_extension_shortcut_remove_2024_unique_';
       removeButton.innerHTML = getRiSvg('ri-delete-bin-4-line', 'ri-size-14');
@@ -3530,6 +4102,10 @@
       header.appendChild(info);
       header.appendChild(actions);
       row.appendChild(header);
+      if (!canEditSiteSearchItem(item)) {
+        list.appendChild(row);
+        return;
+      }
       const editor = document.createElement('div');
       editor.className = '_x_extension_shortcut_editor_2024_unique_';
       const templateField = document.createElement('div');
@@ -3635,6 +4211,7 @@
       saveButton.addEventListener('click', () => {
         suspendSiteSearchRefresh(260);
         const nextKeyRaw = String(keyInput.value || '').trim();
+        const isBuiltinAiProvider = !item._xIsCustom && isBuiltinAiSiteSearchProvider(item);
         if (!nextKeyRaw) {
           showToast(getMessage('shortcuts_error_key', '请填写触发词。'), true);
           return;
@@ -3645,7 +4222,7 @@
         }
         const templateRaw = String(templateInput.value || '').trim();
         const template = normalizeSiteSearchTemplate(templateRaw);
-        if (!template || !template.includes('{query}')) {
+        if (!template || (!isBuiltinAiProvider && !template.includes('{query}'))) {
           showToast(getMessage('toast_error_template', '搜索模板必须包含 {query}。'), true);
           return;
         }
@@ -3656,12 +4233,14 @@
         if (previousKey && previousKey !== normalizedKey) {
           next = next.filter((entry) => String(entry.key || '').toLowerCase() !== previousKey);
         }
-        const shouldDisable = isDuplicateTemplate(template, defaultSiteSearchProviders);
+        const shouldDisable = item._xIsCustom && isDuplicateTemplate(template, defaultSiteSearchProviders);
         next.unshift({
           key: nextKeyRaw,
           name: String(nameInput.value || '').trim() || nextKeyRaw,
           template: template,
           aliases: aliases,
+          action: item._xIsCustom ? undefined : item.action,
+          submitStrategy: item._xIsCustom ? undefined : item.submitStrategy,
           disabled: shouldDisable,
           disabledReason: shouldDisable ? 'duplicate' : ''
         });
@@ -3729,14 +4308,24 @@
         renderItem({ ...item, _xIsCustom: true }, siteSearchCustomList);
       });
     }
-    if (displayDefaults.length === 0) {
+    if (classicBuiltinProviders.length === 0) {
       const empty = document.createElement('div');
       empty.className = '_x_extension_settings_placeholder_2024_unique_';
       empty.textContent = getMessage('shortcuts_empty_builtin', '暂无内置站内搜索');
       siteSearchBuiltinList.appendChild(empty);
     } else {
-      displayDefaults.forEach((item) => {
+      classicBuiltinProviders.forEach((item) => {
         renderItem({ ...item, _xIsCustom: false }, siteSearchBuiltinList);
+      });
+    }
+    if (aiBuiltinProviders.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = '_x_extension_settings_placeholder_2024_unique_';
+      empty.textContent = getMessage('shortcuts_empty_builtin_ai', '暂无 AI 站内搜索');
+      siteSearchAiBuiltinList.appendChild(empty);
+    } else {
+      aiBuiltinProviders.forEach((item) => {
+        renderItem({ ...item, _xIsCustom: false }, siteSearchAiBuiltinList);
       });
     }
     initTooltips();
@@ -4170,7 +4759,7 @@
   }
 
   function refreshSiteSearchProviders() {
-    if (!siteSearchCustomList || !siteSearchBuiltinList) {
+    if (!siteSearchCustomList || !siteSearchBuiltinList || !siteSearchAiBuiltinList) {
       return;
     }
     if (defaultSiteSearchProviders.length === 0) {
@@ -4213,12 +4802,19 @@
         disabledSiteSearchKeys = new Set();
         saveDisabledSiteSearchKeys(disabledSiteSearchKeys);
       }
+      defaultSiteSearchProviders.forEach((item) => {
+        if (isBuiltinAiSiteSearchProvider(item)) {
+          primeSiteSearchIconCache(item);
+        }
+      });
       renderSiteSearchList();
     });
   }
 
-  if (siteSearchCustomList && siteSearchBuiltinList) {
-    refreshSiteSearchProviders();
+  if (siteSearchCustomList && siteSearchBuiltinList && siteSearchAiBuiltinList) {
+    ensureSiteSearchIconCacheLoaded().finally(() => {
+      refreshSiteSearchProviders();
+    });
   }
   if (blacklistList) {
     loadSearchBlacklistItems().then((items) => {
@@ -4260,6 +4856,15 @@
   if (siteSearchBuiltinList) {
     siteSearchBuiltinList.addEventListener('click', handleSiteSearchListClick);
   }
+  if (siteSearchAiBuiltinList) {
+    siteSearchAiBuiltinList.addEventListener('click', handleSiteSearchListClick);
+  }
+  siteSearchBuiltinTabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextTab = button.getAttribute('data-site-search-builtin-tab') === 'ai' ? 'ai' : 'builtin';
+      setSiteSearchBuiltinTabState(nextTab);
+    });
+  });
   document.addEventListener('click', (event) => {
     if (!activePopconfirm) {
       return;

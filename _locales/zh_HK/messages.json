@@ -485,11 +485,17 @@
   "shortcuts_group_builtin": {
     "message": "內置"
   },
+  "shortcuts_group_builtin_ai": {
+    "message": "AI"
+  },
   "shortcuts_badge_custom": {
     "message": "自訂"
   },
   "shortcuts_badge_builtin": {
     "message": "內置"
+  },
+  "shortcuts_badge_builtin_ai": {
+    "message": "AI"
   },
   "shortcuts_duplicate_tag": {
     "message": "與內置重複"
@@ -544,6 +550,9 @@
   },
   "shortcuts_empty_builtin": {
     "message": "未有內置站內搜尋"
+  },
+  "shortcuts_empty_builtin_ai": {
+    "message": "未有 AI 站內搜尋"
   },
   "toast_saved": {
     "message": "已儲存"
