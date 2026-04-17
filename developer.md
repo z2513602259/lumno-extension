@@ -20,9 +20,9 @@
 - `newtab.js` 内 `style.cssText` 已清零，静态壳层样式已下沉到 `newtab.html` 的稳定类名。
 - `options.html` / `options.js` 内 `!important` 已清零。
 - `input-ui.js` 内字面量 `!important` 与 `style.cssText` 已清零；当前仅保留少量运行时 `setProperty(..., 'important')`，集中在宿主页面定位保护、特效载体几何同步与持续时间变量这类高风险位点。
-- `background.js` 已继续收敛浮层内部静态壳层与建议项状态样式：显式 `!important` 当前只剩 `37` 处，全部收敛在浮层根容器 `overlay.style.cssText`；运行时 `setProperty(..., 'important')` 当前只剩 `24` 处，集中在根容器尺寸同步、进入/回弹动画这类高风险位点。
+- `background.js` 已继续收敛浮层内部静态壳层与建议项状态样式，并把根容器拆成“外层保护壳 + 内层 panel”两层承载：显式 `!important` 当前只剩 `9` 处，全部收敛在外层保护壳的几何定位与层级保护；运行时 `setProperty(..., 'important')` 当前只剩 `24` 处，集中在根容器尺寸同步、进入/回弹动画这类高风险位点。
 - 已补齐 `[hidden]` 显隐规则，修复了清理过程中由类样式覆盖浏览器原生 `hidden` 导致的 `newtab` 展示异常。
-- 当前仓库显式 `!important` 总量已降到约 `38` 处（其中 `37` 处在 `background.js` 根容器保护、`1` 处在 vendor 的 `assets/remixicon/fonts/remixicon.css`）；运行时 `setProperty(..., 'important')` 仍约 `230` 处，但高风险区已明显集中到注入路径与动画/几何保护，不再继续盲删。
+- 当前仓库显式 `!important` 总量已降到约 `10` 处（其中 `9` 处在 `background.js` 外层保护壳、`1` 处在 vendor 的 `assets/remixicon/fonts/remixicon.css`）；运行时 `setProperty(..., 'important')` 仍约 `230` 处，但高风险区已明显集中到注入路径与动画/几何保护，不再继续盲删。
 
 ### 非退让约束
 - 不影响已有样式表现。

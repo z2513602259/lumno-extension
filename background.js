@@ -8038,7 +8038,6 @@ async function getSearchSuggestions(query) {
     applyNoTranslate(overlay);
     const initialOverlaySizePreset = getOverlaySizePreset(overlaySizeMode);
     overlay.style.cssText = `
-      all: unset !important;
       position: fixed !important;
       top: 20vh !important;
       left: 50% !important;
@@ -8047,35 +8046,37 @@ async function getSearchSuggestions(query) {
       width: ${initialOverlaySizePreset.width}px !important;
       max-width: calc(100vw - 24px) !important;
       max-height: ${initialOverlaySizePreset.maxHeightVh}vh !important;
-      background: var(--x-ov-bg, rgba(255, 255, 255, 0.95)) !important;
-      backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
-      -webkit-backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%)) !important;
-      border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08)) !important;
-      border-radius: 28px !important;
-      box-shadow: var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15)) !important;
       z-index: 2147483647 !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      overflow: hidden !important;
-      contain: layout style !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      color: var(--x-ov-text, #111827) !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-      opacity: 0 !important;
-      filter: blur(6px) !important;
-      will-change: transform, opacity, filter !important;
-      transition: transform 340ms cubic-bezier(0.2, 1, 0.36, 1), opacity 220ms ease, filter 300ms ease !important;
+      background: var(--x-ov-bg, rgba(255, 255, 255, 0.95));
+      backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%));
+      -webkit-backdrop-filter: blur(var(--x-ov-blur, 24px)) saturate(var(--x-ov-saturate, 165%));
+      border: 1px solid var(--x-ov-border, rgba(0, 0, 0, 0.08));
+      border-radius: 28px;
+      box-shadow: var(--x-ov-shadow, 0 17px 120px 0 rgba(0, 0, 0, 0.05), 0 32px 44.5px 0 rgba(0, 0, 0, 0.10), 0 80px 120px 0 rgba(0, 0, 0, 0.15));
+      display: block;
+      overflow: visible;
+      contain: layout style;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1;
+      text-decoration: none;
+      list-style: none;
+      outline: none;
+      color: var(--x-ov-text, #111827);
+      font-size: 100%;
+      font: inherit;
+      vertical-align: baseline;
+      opacity: 0;
+      filter: blur(6px);
+      will-change: transform, opacity, filter;
+      transition: transform 340ms cubic-bezier(0.2, 1, 0.36, 1), opacity 220ms ease, filter 300ms ease;
     `;
+
+    const overlayPanel = document.createElement('div');
+    overlayPanel.className = 'x-ov-panel';
+    applyNoTranslate(overlayPanel);
 
 
     const applyOverlayTheme = (mode) => {
@@ -8140,6 +8141,23 @@ async function getSearchSuggestions(query) {
     const overlayThemeStyle = document.createElement('style');
     overlayThemeStyle.id = '_x_extension_overlay_theme_style_2024_unique_';
     overlayThemeStyle.textContent = `
+      #_x_extension_overlay_2024_unique_ .x-ov-panel {
+        all: unset;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow: hidden;
+        border-radius: inherit;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+      }
       #_x_extension_overlay_2024_unique_ .ri-icon {
         width: var(--ri-size, 16px);
         height: var(--ri-size, 16px);
@@ -14739,8 +14757,9 @@ async function getSearchSuggestions(query) {
     suggestionsContainer.id = '_x_extension_suggestions_container_2024_unique_';
     suggestionsContainer.className = 'x-ov-suggestions-container';
 
-    overlay.appendChild(inputContainer);
-    overlay.appendChild(suggestionsContainer);
+    overlayPanel.appendChild(inputContainer);
+    overlayPanel.appendChild(suggestionsContainer);
+    overlay.appendChild(overlayPanel);
     applyNoTranslateDeep(overlay);
     document.body.appendChild(overlay);
     startOverlayViewportSizeSync(overlay);

@@ -4592,6 +4592,13 @@
     return Math.max(0, rect.height + marginTop + marginBottom);
   }
 
+  function getSearchEntryBlockHeight() {
+    const rootHeight = Math.max(55, Number(root && root.getBoundingClientRect().height) || 0);
+    const suggestionsHeight = getElementOuterHeight(suggestionsContainer);
+    // Keep the search entry vertically stable when the dropdown grows.
+    return Math.max(55, rootHeight - suggestionsHeight);
+  }
+
   function updateSearchEntryLayout() {
     if (!document.body || !root) {
       return;
@@ -4611,8 +4618,7 @@
     }
     const availableHeight = Math.max(0, viewportHeight - occupiedBottomHeight);
     const wordmarkOuterHeight = getElementOuterHeight(wordmarkContainer);
-    const rootHeight = Math.max(55, Number(root.getBoundingClientRect().height) || 0);
-    const searchBlockHeight = wordmarkOuterHeight + rootHeight;
+    const searchBlockHeight = wordmarkOuterHeight + getSearchEntryBlockHeight();
     const bookmarkVisible = Boolean(
       bookmarkSection &&
       bookmarkSection.style.getPropertyValue('display') !== 'none'
@@ -5349,40 +5355,35 @@
       updateSuggestionsFloatingLayout();
     }
     if (searchLayer) {
-      searchLayer.style.setProperty('z-index', visible ? '20' : '12', 'important');
-      searchLayer.style.setProperty('border-radius', visible ? '24px' : '24px', 'important');
-      searchLayer.style.setProperty('background', visible
+      searchLayer.style.zIndex = visible ? '20' : '12';
+      searchLayer.style.borderRadius = '24px';
+      searchLayer.style.background = visible
         ? 'var(--x-nt-suggestions-bg, rgba(255, 255, 255, 0.96))'
-        : 'var(--x-nt-input-bg, rgba(255, 255, 255, 0.9))', 'important');
-      searchLayer.style.setProperty('border', visible
+        : 'var(--x-nt-input-bg, rgba(255, 255, 255, 0.9))';
+      searchLayer.style.border = visible
         ? '1px solid transparent'
-        : '1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06))', 'important');
-      searchLayer.style.setProperty('box-shadow', visible
+        : '1px solid var(--x-nt-input-border, rgba(0, 0, 0, 0.06))';
+      searchLayer.style.boxShadow = visible
         ? 'none'
-        : 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))', 'important');
+        : 'var(--x-nt-input-shadow, 0 20px 60px rgba(0, 0, 0, 0.08))';
     }
     if (inputParts && inputParts.container) {
-      inputParts.container.style.setProperty('border-radius', '0', 'important');
-      inputParts.container.style.setProperty('border', 'none', 'important');
-      inputParts.container.style.setProperty('border-bottom', 'none', 'important');
-      inputParts.container.style.setProperty('box-shadow', 'none', 'important');
-      inputParts.container.style.setProperty('background', 'transparent', 'important');
-      inputParts.container.style.setProperty('z-index', '2', 'important');
+      inputParts.container.style.borderRadius = '0';
+      inputParts.container.style.border = 'none';
+      inputParts.container.style.borderBottom = 'none';
+      inputParts.container.style.boxShadow = 'none';
+      inputParts.container.style.background = 'transparent';
+      inputParts.container.style.zIndex = '2';
     }
     if (inputParts && inputParts.divider) {
-      inputParts.divider.style.setProperty('display', 'none', 'important');
-      inputParts.divider.style.setProperty('opacity', '0', 'important');
+      inputParts.divider.style.display = 'none';
+      inputParts.divider.style.opacity = '0';
     }
-    suggestionsContainer.style.setProperty('display', visible ? 'block' : 'none', 'important');
-    suggestionsContainer.style.setProperty('margin-top', visible ? '10px' : '0', 'important');
-    suggestionsContainer.style.setProperty('opacity', visible ? '1' : '0', 'important');
-    suggestionsContainer.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
-    suggestionsContainer.style.setProperty('pointer-events', visible ? 'auto' : 'none', 'important');
-    suggestionsContainer.style.setProperty('transform', visible ? 'translateY(0)' : 'translateY(-4px)', 'important');
-    suggestionsContainer.style.setProperty('border', 'none', 'important');
-    suggestionsContainer.style.setProperty('border-top', 'none', 'important');
-    suggestionsContainer.style.setProperty('border-radius', '0', 'important');
-    suggestionsContainer.style.setProperty('box-shadow', 'none', 'important');
+    suggestionsContainer.dataset.visible = visible ? 'true' : 'false';
+    suggestionsContainer.style.border = 'none';
+    suggestionsContainer.style.borderTop = 'none';
+    suggestionsContainer.style.borderRadius = '0';
+    suggestionsContainer.style.boxShadow = 'none';
   }
 
   function updateSuggestionsFloatingLayout() {
@@ -5394,7 +5395,7 @@
     const dropdownTopViewport = anchorRect.bottom - 1;
     const available = window.innerHeight - dropdownTopViewport - 14;
     const maxHeight = Math.max(120, Math.floor(available));
-    suggestionsContainer.style.setProperty('max-height', `${maxHeight}px`, 'important');
+    suggestionsContainer.style.maxHeight = `${maxHeight}px`;
   }
 
   function isEnglishQuery(query) {
@@ -8687,31 +8688,6 @@
     });
   }
 
-  function animateSuggestionsGrowth(container, fromHeight) {
-    if (!container || !fromHeight) {
-      return;
-    }
-    const toHeight = container.getBoundingClientRect().height;
-    if (toHeight <= fromHeight + 1) {
-      return;
-    }
-    container.style.setProperty('height', `${fromHeight}px`, 'important');
-    container.style.setProperty('overflow', 'hidden', 'important');
-    container.style.setProperty('transition', 'height 180ms ease', 'important');
-    requestAnimationFrame(() => {
-      container.style.setProperty('height', `${toHeight}px`, 'important');
-    });
-    const cleanup = () => {
-      container.style.removeProperty('height');
-      container.style.removeProperty('overflow');
-      container.style.removeProperty('transition');
-      container.removeEventListener('transitionend', cleanup);
-    };
-    container.addEventListener('transitionend', cleanup);
-    setTimeout(cleanup, 220);
-  }
-
-
   function renderTabSuggestions(tabList) {
     suggestionsContainer.innerHTML = '';
     suggestionItems.length = 0;
@@ -9540,9 +9516,6 @@
       });
 
       updateSelection();
-      if (shouldAnimateGrowth) {
-        animateSuggestionsGrowth(suggestionsContainer, previousHeight);
-      }
       setSuggestionsVisible(true);
     });
   }

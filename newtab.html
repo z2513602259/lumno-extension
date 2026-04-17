@@ -836,8 +836,7 @@
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transform: translateY(-4px);
-        transition: opacity 0.12s ease, transform 0.12s ease;
+        transition: opacity 0.12s ease;
         line-height: 1;
         text-decoration: none;
         list-style: none;
@@ -846,6 +845,13 @@
         font-size: 100%;
         font: inherit;
         vertical-align: baseline;
+      }
+      .x-nt-suggestions-container[data-visible="true"] {
+        display: block;
+        margin-top: 10px;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
       }
       .x-nt-top-action-tooltip {
         position: fixed;
