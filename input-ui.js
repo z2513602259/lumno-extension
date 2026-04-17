@@ -41,6 +41,12 @@
 
   let borderBeamInstanceCounter = 0;
   let aiSweepInstanceCounter = 0;
+  const SEARCH_INPUT_STYLE_TAG_ID = '_x_extension_search_input_styles_2026_unique_';
+  const SEARCH_INPUT_CONTAINER_CLASS = '_x_extension_input_container_base_2026_unique_';
+  const SEARCH_INPUT_FIELD_CLASS = '_x_extension_search_input_base_2026_unique_';
+  const SEARCH_INPUT_DIVIDER_CLASS = '_x_extension_input_divider_base_2026_unique_';
+  const SEARCH_INPUT_LEFT_ICON_CLASS = '_x_extension_search_icon_base_2026_unique_';
+  const SEARCH_INPUT_RIGHT_ICON_CLASS = '_x_extension_search_right_icon_base_2026_unique_';
 
   function clampNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -95,6 +101,130 @@
 
   function createSvgElement(tagName) {
     return document.createElementNS('http://www.w3.org/2000/svg', tagName);
+  }
+
+  function ensureSearchInputStyles() {
+    if (document.getElementById(SEARCH_INPUT_STYLE_TAG_ID)) {
+      return;
+    }
+    const host = document.head || document.documentElement;
+    if (!host) {
+      return;
+    }
+    const style = document.createElement('style');
+    style.id = SEARCH_INPUT_STYLE_TAG_ID;
+    style.textContent = `
+      .${SEARCH_INPUT_CONTAINER_CLASS} {
+        all: unset;
+        position: relative;
+        width: 100%;
+        flex-shrink: 0;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        display: block;
+        background: transparent;
+        border-radius: 28px 28px 0 0;
+        overflow: hidden;
+      }
+      .${SEARCH_INPUT_FIELD_CLASS} {
+        all: unset;
+        width: 100%;
+        padding: 20px 64px 20px 50px;
+        background: transparent;
+        border: none;
+        border-bottom: none;
+        color: var(--x-ext-input-text, #1F2937);
+        font-size: 16px;
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 500;
+        outline: none;
+        box-sizing: border-box;
+        margin: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        display: block;
+        text-align: left;
+        cursor: text;
+        vertical-align: baseline;
+        caret-color: var(--x-ext-input-caret, #7DB7FF);
+      }
+      .${SEARCH_INPUT_DIVIDER_CLASS} {
+        all: unset;
+        position: absolute;
+        left: var(--x-ext-input-divider-inset, 20px);
+        right: var(--x-ext-input-divider-inset, 20px);
+        bottom: 0;
+        height: 1px;
+        background: var(--x-ext-input-underline, #E5E7EB);
+        opacity: var(--x-ext-input-divider-opacity, 0.55);
+        pointer-events: none;
+        display: block;
+      }
+      .${SEARCH_INPUT_LEFT_ICON_CLASS} {
+        all: unset;
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--x-ext-input-icon, #9CA3AF);
+        pointer-events: none;
+        z-index: 1;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 6px 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .${SEARCH_INPUT_RIGHT_ICON_CLASS} {
+        all: unset;
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        z-index: 2;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--x-ext-input-icon, #9CA3AF);
+        cursor: pointer;
+        transition: background-color 140ms ease, color 140ms ease, transform 160ms ease;
+      }
+      .${SEARCH_INPUT_RIGHT_ICON_CLASS} > * {
+        pointer-events: none;
+        cursor: pointer;
+      }
+    `;
+    host.appendChild(style);
   }
 
   // Adapted from the MIT-licensed border-beam package by Jakub Antalik.
@@ -1786,36 +1916,15 @@
 
   window._x_extension_createSearchInput_2024_unique_ = function(options) {
     const config = options || {};
+    ensureSearchInputStyles();
     const input = document.createElement('input');
     applyNoTranslate(input);
     input.id = config.inputId || '_x_extension_search_input_2024_unique_';
+    input.className = SEARCH_INPUT_FIELD_CLASS;
     input.setAttribute('data-ai-sweep-distort', 'input');
     input.autocomplete = 'off';
     input.type = 'text';
     input.placeholder = config.placeholder || getMessage('search_placeholder', '搜索或输入网址...');
-    input.style.cssText = `
-      all: unset !important;
-      width: 100% !important;
-      padding: 20px 64px 20px 50px !important;
-      background: transparent !important;
-      border: none !important;
-      border-bottom: none !important;
-      color: var(--x-ext-input-text, #1F2937) !important;
-      font-size: 16px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      font-weight: 500 !important;
-      outline: none !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      display: block !important;
-      text-align: left !important;
-      cursor: text !important;
-      vertical-align: baseline !important;
-      caret-color: var(--x-ext-input-caret, #7DB7FF) !important;
-    `;
     applyStyleOverrides(input, config.inputStyleOverrides);
 
     const hasBorderOverride = Boolean(
@@ -1827,31 +1936,20 @@
     const divider = document.createElement('div');
     applyNoTranslate(divider);
     divider.id = config.dividerId || '_x_extension_input_divider_2024_unique_';
-    divider.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      left: var(--x-ext-input-divider-inset, 20px) !important;
-      right: var(--x-ext-input-divider-inset, 20px) !important;
-      bottom: 0 !important;
-      height: 1px !important;
-      background: var(--x-ext-input-underline, #E5E7EB) !important;
-      opacity: var(--x-ext-input-divider-opacity, 0.55) !important;
-      pointer-events: none !important;
-      display: block !important;
-    `;
+    divider.className = SEARCH_INPUT_DIVIDER_CLASS;
     applyStyleOverrides(divider, config.dividerStyleOverrides);
 
     function updateInputUnderline(value) {
       if (hasBorderOverride) {
-        divider.style.setProperty('display', 'none', 'important');
+        divider.style.display = 'none';
         return;
       }
       if (showUnderlineWhenEmpty) {
-        divider.style.setProperty('display', 'block', 'important');
+        divider.style.display = 'block';
         return;
       }
       const isEmpty = !value || !value.trim();
-      divider.style.setProperty('display', isEmpty ? 'none' : 'block', 'important');
+      divider.style.display = isEmpty ? 'none' : 'block';
     }
 
     updateInputUnderline(input.value);
@@ -1913,82 +2011,28 @@
     const icon = document.createElement('div');
     applyNoTranslate(icon);
     icon.id = config.iconId || '_x_extension_search_icon_2024_unique_';
+    icon.className = SEARCH_INPUT_LEFT_ICON_CLASS;
     icon.innerHTML = '<i class="_x_extension_svg_2024_unique_ ri-icon ri-size-16 ri-search-line" aria-hidden="true"></i>';
-    icon.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      left: 20px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      color: var(--x-ext-input-icon, #9CA3AF) !important;
-      pointer-events: none !important;
-      z-index: 1 !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 6px 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      background: transparent !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    `;
     applyStyleOverrides(icon, config.iconStyleOverrides);
 
     const rightIcon = document.createElement('button');
     applyNoTranslate(rightIcon);
     rightIcon.id = config.rightIconId || '_x_extension_search_right_icon_2024_unique_';
+    rightIcon.className = SEARCH_INPUT_RIGHT_ICON_CLASS;
     rightIcon.type = 'button';
     rightIcon.innerHTML = config.rightIconHtml || '<i class="_x_extension_svg_2024_unique_ ri-icon ri-size-16 ri-settings-6-line" aria-hidden="true"></i>';
     rightIcon.setAttribute('aria-label', config.rightIconAlt || getMessage('settings_button_aria', 'Settings'));
-    rightIcon.style.cssText = `
-      all: unset !important;
-      position: absolute !important;
-      right: 14px !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-      width: 30px !important;
-      height: 30px !important;
-      border-radius: 8px !important;
-      z-index: 2 !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      background: transparent !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      color: var(--x-ext-input-icon, #9CA3AF) !important;
-      cursor: pointer !important;
-      transition: background-color 140ms ease, color 140ms ease, transform 160ms ease !important;
-    `;
     applyStyleOverrides(rightIcon, config.rightIconStyleOverrides);
-    Array.from(rightIcon.querySelectorAll('*')).forEach((node) => {
-      if (!node || !node.style) {
-        return;
-      }
-      node.style.setProperty('pointer-events', 'none', 'important');
-      node.style.setProperty('cursor', 'pointer', 'important');
-    });
     const resetRightIconVisualState = () => {
-      rightIcon.style.setProperty('background', 'transparent', 'important');
-      rightIcon.style.setProperty('color', 'var(--x-ext-input-icon, #9CA3AF)', 'important');
-      rightIcon.style.setProperty('transform', 'translateY(-50%)', 'important');
+      rightIcon.style.background = 'transparent';
+      rightIcon.style.color = 'var(--x-ext-input-icon, #9CA3AF)';
+      rightIcon.style.transform = 'translateY(-50%)';
     };
     resetRightIconVisualState();
     rightIcon.addEventListener('mouseenter', () => {
-      rightIcon.style.setProperty('background', 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))', 'important');
-      rightIcon.style.setProperty('color', 'var(--x-ext-input-icon-hover, #4B5563)', 'important');
-      rightIcon.style.setProperty('transform', 'translateY(-50%) scale(1.06)', 'important');
+      rightIcon.style.background = 'var(--x-ext-input-icon-hover-bg, rgba(148, 163, 184, 0.16))';
+      rightIcon.style.color = 'var(--x-ext-input-icon-hover, #4B5563)';
+      rightIcon.style.transform = 'translateY(-50%) scale(1.06)';
     });
     rightIcon.addEventListener('mouseleave', resetRightIconVisualState);
     rightIcon.addEventListener('blur', resetRightIconVisualState);
@@ -2004,27 +2048,7 @@
     const container = document.createElement('div');
     applyNoTranslate(container);
     container.id = config.containerId || '_x_extension_input_container_2024_unique_';
-    container.style.cssText = `
-      all: unset !important;
-      position: relative !important;
-      width: 100% !important;
-      flex-shrink: 0 !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      color: inherit !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-      display: block !important;
-      background: transparent !important;
-      border-radius: 28px 28px 0 0 !important;
-      overflow: hidden !important;
-    `;
+    container.className = SEARCH_INPUT_CONTAINER_CLASS;
     applyStyleOverrides(container, config.containerStyleOverrides);
 
     container.appendChild(icon);
