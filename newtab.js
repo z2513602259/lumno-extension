@@ -9512,15 +9512,9 @@
           historyDeleteButton.setAttribute('aria-label', removeHistoryTooltipText);
           historyDeleteButton.className = 'x-nt-history-delete-button';
           historyDeleteButton.addEventListener('mouseenter', function() {
-            const itemIndex = suggestionItems.indexOf(suggestionItem);
-            const isSelected = itemIndex === selectedIndex;
-            const shouldAutoHighlight = selectedIndex === -1 && suggestionItem._xIsAutocompleteTop;
-            const shouldUseThemeHover = Boolean(isSelected || shouldAutoHighlight);
             const buttonThemeSource = suggestionItem._xTheme || defaultTheme;
             const resolvedTheme = getThemeForMode(buttonThemeSource);
-            const hoverColors = shouldUseThemeHover
-              ? getHoverColors(buttonThemeSource)
-              : getNeutralHoverActionColors();
+            const hoverColors = getHoverColors(buttonThemeSource);
             showTopActionTooltip(historyDeleteButton, removeHistoryTooltipText);
             historyDeleteButton.style.setProperty(
               'background',
@@ -9534,7 +9528,7 @@
             );
             historyDeleteButton.style.setProperty(
               'color',
-              shouldUseThemeHover ? resolvedTheme.buttonText : hoverColors.text,
+              resolvedTheme.buttonText,
               'important'
             );
             historyDeleteButton.style.setProperty('transform', 'scale(1.06)', 'important');

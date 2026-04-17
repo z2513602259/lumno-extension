@@ -8607,6 +8607,7 @@ async function getSearchSuggestions(query) {
         min-height: 0;
         max-height: 50vh;
         overflow-y: auto;
+        overscroll-behavior: contain;
         scrollbar-width: none;
         -ms-overflow-style: none;
         background: transparent;
@@ -14805,19 +14806,13 @@ async function getSearchSuggestions(query) {
             historyDeleteButton.setAttribute('aria-label', removeHistoryTooltipText);
             historyDeleteButton.setAttribute('title', removeHistoryTooltipText);
             historyDeleteButton.addEventListener('mouseenter', () => {
-              const itemIndex = suggestionItems.indexOf(suggestionItem);
-              const isSelected = itemIndex === selectedIndex;
-              const shouldAutoHighlight = selectedIndex === -1 && suggestionItem._xIsAutocompleteTop;
-              const shouldUseThemeHover = Boolean(isSelected || shouldAutoHighlight);
               const buttonThemeSource = suggestionItem._xTheme || defaultTheme;
               const resolvedTheme = getThemeForMode(buttonThemeSource);
-              const hoverColors = shouldUseThemeHover
-                ? getHoverColors(buttonThemeSource)
-                : getNeutralHoverActionColors();
+              const hoverColors = getHoverColors(buttonThemeSource);
               showTopActionTooltip(historyDeleteButton, removeHistoryTooltipText);
               historyDeleteButton.style.background = hoverColors.bg;
               historyDeleteButton.style.border = `1px solid ${hoverColors.border}`;
-              historyDeleteButton.style.color = shouldUseThemeHover ? resolvedTheme.buttonText : hoverColors.text;
+              historyDeleteButton.style.color = resolvedTheme.buttonText;
               historyDeleteButton.style.transform = 'scale(1.06)';
             });
             historyDeleteButton.addEventListener('mouseleave', () => {
@@ -15088,6 +15083,30 @@ async function getSearchSuggestions(query) {
     suggestionsContainer.addEventListener('mousemove', updateSuggestionPointerFromEvent, { passive: true });
     suggestionsContainer.addEventListener('mouseenter', updateSuggestionPointerFromEvent, { passive: true });
     suggestionsContainer.addEventListener('mouseleave', clearHoveredSuggestionFromPointer);
+    const handleOverlayWheel = (event) => {
+      if (!overlay || !overlay.isConnected) {
+        return;
+      }
+      pauseOverlayAntiTranslateObserverForScroll();
+      event.stopPropagation();
+      const maxScrollTop = Math.max(
+        0,
+        suggestionsContainer.scrollHeight - suggestionsContainer.clientHeight
+      );
+      if (maxScrollTop <= 0) {
+        event.preventDefault();
+        return;
+      }
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, suggestionsContainer.scrollTop + event.deltaY)
+      );
+      if (nextScrollTop !== suggestionsContainer.scrollTop) {
+        suggestionsContainer.scrollTop = nextScrollTop;
+      }
+      event.preventDefault();
+    };
+    overlayPanel.addEventListener('wheel', handleOverlayWheel, { passive: false });
 
     overlayPanel.appendChild(inputContainer);
     overlayPanel.appendChild(suggestionsContainer);
