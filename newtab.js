@@ -2597,6 +2597,36 @@
     ];
   }
 
+  function rgbToHsl(rgb) {
+    const r = rgb[0] / 255;
+    const g = rgb[1] / 255;
+    const b = rgb[2] / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    let h = 0;
+    const l = (max + min) / 2;
+    let s = 0;
+    if (delta !== 0) {
+      s = delta / (1 - Math.abs(2 * l - 1));
+      switch (max) {
+        case r:
+          h = 60 * (((g - b) / delta) % 6);
+          break;
+        case g:
+          h = 60 * (((b - r) / delta) + 2);
+          break;
+        default:
+          h = 60 * (((r - g) / delta) + 4);
+          break;
+      }
+    }
+    if (h < 0) {
+      h += 360;
+    }
+    return [h, s, l];
+  }
+
   function buildFallbackThemeForHost(hostname) {
     if (!hostname) {
       return null;
@@ -4259,7 +4289,7 @@
     background: #0F172A !important;
     color: #F8FAFC !important;
     border: 1px solid rgba(15, 23, 42, 0.12) !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
     font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     font-weight: 500 !important;
     line-height: 1.35 !important;
@@ -7583,6 +7613,142 @@
     return null;
   }
 
+  function splitNavigationMatchTerms(value) {
+    return Array.from(new Set(
+      String(value || '')
+        .toLowerCase()
+        .split(/[^a-z0-9\u4e00-\u9fff]+/i)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ));
+  }
+
+  function buildComparableNavigationUrl(url) {
+    try {
+      const parsed = new URL(String(url || '').trim());
+      parsed.protocol = String(parsed.protocol || '').toLowerCase();
+      parsed.hostname = normalizeHost(parsed.hostname);
+      if ((parsed.protocol === 'http:' && parsed.port === '80') || (parsed.protocol === 'https:' && parsed.port === '443')) {
+        parsed.port = '';
+      }
+      parsed.hash = '';
+      parsed.pathname = parsed.pathname !== '/'
+        ? (parsed.pathname.replace(/\/+$/, '') || '/')
+        : '/';
+      return parsed.toString().toLowerCase();
+    } catch (e) {
+      return String(url || '').trim().toLowerCase();
+    }
+  }
+
+  function getNavigationSuggestionPathDepth(url) {
+    try {
+      return new URL(String(url || '').trim()).pathname.split('/').filter(Boolean).length;
+    } catch (e) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+  }
+
+  function getStrongNavigationMatchScore(suggestion, rawQuery) {
+    if (!suggestion || !suggestion.url || suggestion.type === 'newtab' || suggestion.type === 'googleSuggest') {
+      return 0;
+    }
+    const query = String(rawQuery || '').trim();
+    if (!query) {
+      return 0;
+    }
+
+    const queryLower = query.toLowerCase();
+    const directUrl = getDirectNavigationUrl(query);
+    const suggestionUrlKey = buildComparableNavigationUrl(suggestion.url);
+    const suggestionUrlText = (getUrlDisplay(suggestion.url) || '').toLowerCase();
+    const titleLower = String(suggestion.title || '').toLowerCase();
+
+    if (directUrl) {
+      const directUrlKey = buildComparableNavigationUrl(directUrl);
+      if (suggestion.type !== 'directUrl' && suggestionUrlKey === directUrlKey) {
+        return 520;
+      }
+      if (suggestionUrlText && suggestionUrlText === queryLower) {
+        return suggestion.type === 'directUrl' ? 420 : 480;
+      }
+      if (suggestion.type === 'directUrl' && suggestionUrlKey === directUrlKey) {
+        return 400;
+      }
+      if (suggestionUrlText && suggestionUrlText.startsWith(queryLower)) {
+        return suggestion.type === 'directUrl' ? 320 : 280;
+      }
+      return 0;
+    }
+
+    if (/\s/.test(query) || queryLower.length < 4) {
+      return 0;
+    }
+
+    const genericTerms = new Set(['home', 'login', 'account', 'settings', 'dashboard', 'search', 'docs', 'help', 'api']);
+    if (genericTerms.has(queryLower)) {
+      return 0;
+    }
+
+    let score = 0;
+    const titleTerms = splitNavigationMatchTerms(titleLower);
+    if (titleTerms.includes(queryLower)) {
+      score += 140;
+    } else if (titleLower.startsWith(queryLower)) {
+      score += 100;
+    } else if (titleLower.includes(queryLower)) {
+      score += 42;
+    } else {
+      return 0;
+    }
+
+    const depth = getNavigationSuggestionPathDepth(suggestion.url);
+    if (depth === 0) {
+      score += 90;
+    } else if (depth === 1) {
+      score += 36;
+    } else if (Number.isFinite(depth)) {
+      score -= Math.min(32, (depth - 1) * 8);
+    }
+
+    if (/(^|[\s-])(home|首页)([\s-]|$)/i.test(titleLower)) {
+      score += 28;
+    }
+    if (suggestion.type === 'bookmark') {
+      score += 16;
+    } else if (suggestion.type === 'history') {
+      score += 10;
+    } else if (suggestion.type === 'topSite' || suggestion.isTopSite) {
+      score += 12;
+    }
+
+    return score;
+  }
+
+  function promoteStrongNavigationMatch(list, rawQuery) {
+    if (!Array.isArray(list)) {
+      return null;
+    }
+    let bestIndex = -1;
+    let bestScore = 0;
+    for (let i = 0; i < list.length; i += 1) {
+      const score = getStrongNavigationMatchScore(list[i], rawQuery);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    if (bestScore < 140 || bestIndex < 0) {
+      return null;
+    }
+    if (bestIndex > 0) {
+      const [picked] = list.splice(bestIndex, 1);
+      list.unshift(picked);
+      return picked;
+    }
+    return list[0] || null;
+  }
+
   function getDomainPrefixCandidate(allSuggestions, rawQuery) {
     if (!Array.isArray(allSuggestions) || !rawQuery) {
       return null;
@@ -7854,6 +8020,36 @@
     }
   }
 
+  function normalizeSiteSearchTemplate(template) {
+    if (!template) {
+      return '';
+    }
+    return String(template)
+      .replace(/\{\{\{s\}\}\}/g, '{query}')
+      .replace(/\{s\}/g, '{query}')
+      .replace(/\{searchTerms\}/g, '{query}');
+  }
+
+  function normalizeSiteSearchProvider(item) {
+    if (!item || !item.key || !item.template) {
+      return null;
+    }
+    const template = normalizeSiteSearchTemplate(item.template);
+    if (!template) {
+      return null;
+    }
+    return {
+      key: String(item.key).trim(),
+      aliases: Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : [],
+      name: item.name || item.key,
+      template: template,
+      action: String(item.action || '').trim(),
+      submitStrategy: String(item.submitStrategy || '').trim(),
+      icon: item.icon || '',
+      iconUrl: item.iconUrl || ''
+    };
+  }
+
   function mergeCustomProvidersLocal(baseItems, customItems) {
     const merged = [];
     const seen = new Set();
@@ -7925,7 +8121,10 @@
             const key = String(item && item.key ? item.key : '').toLowerCase();
             return key && !disabledKeys.includes(key);
           });
-          const merged = mergeCustomProvidersLocal(filteredBase, customItems);
+          const merged = mergeCustomProvidersLocal(
+            filteredBase.map(normalizeSiteSearchProvider).filter(Boolean),
+            customItems.map(normalizeSiteSearchProvider).filter(Boolean)
+          );
           siteSearchProvidersCache = merged;
           resolve(merged);
         });
@@ -9113,6 +9312,7 @@
       let autocompleteCandidate = null;
       let primaryHighlightIndex = -1;
       let primaryHighlightReason = 'none';
+      let strongNavigationMatch = null;
       let topSiteMatch = null;
       let siteSearchPrompt = null;
       let mergedProvider = null;
@@ -9122,12 +9322,17 @@
       const preferAutocompleteFirst = searchResultPriorityMode !== 'search';
       if (!modeCommandActive && !hasCommand) {
         if (!siteSearchState && !inlineEnabled && preferAutocompleteFirst) {
+          strongNavigationMatch = promoteStrongNavigationMatch(allSuggestions, latestRawQuery.trim());
+          if (strongNavigationMatch) {
+            primaryHighlightIndex = 0;
+            primaryHighlightReason = 'navigation';
+          }
           topSiteMatch = promoteTopSiteMatch(allSuggestions, latestRawQuery.trim());
         }
         siteSearchTrigger = (!siteSearchState && !inlineEnabled)
           ? getSiteSearchTriggerCandidate(rawTagInput, providersForTags, topSiteMatch)
           : null;
-        if (siteSearchTrigger && !topSiteMatch) {
+        if (siteSearchTrigger && !topSiteMatch && !strongNavigationMatch) {
           siteSearchPrompt = {
             type: 'siteSearchPrompt',
             title: formatMessage('search_in_site', '在 {site} 中搜索', {
@@ -9145,7 +9350,7 @@
             siteSearchPrompt = null;
           }
         }
-        if (!siteSearchState && !inlineEnabled && !siteSearchPrompt && preferAutocompleteFirst) {
+        if (!siteSearchState && !inlineEnabled && !siteSearchPrompt && !strongNavigationMatch && preferAutocompleteFirst) {
           autocompleteCandidate = getAutocompleteCandidate(allSuggestions, latestRawQuery);
           if (autocompleteCandidate) {
             const candidateIndex = allSuggestions.findIndex((suggestion) => {
@@ -9177,7 +9382,7 @@
           allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
           primaryHighlightIndex = 0;
           primaryHighlightReason = 'inline';
-        } else if (!siteSearchPrompt && topSiteMatch && preferAutocompleteFirst) {
+        } else if (!siteSearchPrompt && !strongNavigationMatch && topSiteMatch && preferAutocompleteFirst) {
           primaryHighlightIndex = 0;
           primaryHighlightReason = 'topSite';
         }
@@ -10860,14 +11065,38 @@
     transform: translateY(-50%) !important;
     left: 50px !important;
     display: none !important;
-    white-space: nowrap !important;
-    font-size: 16px !important;
+    align-items: center !important;
+    max-width: 0 !important;
+    padding: 0 8px !important;
+    height: 22px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: var(--x-ext-tag-bg, #EEF6FF) !important;
+    color: #FFFFFF !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
     font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
     line-height: 1 !important;
-    color: var(--x-nt-subtext, #6B7280) !important;
     pointer-events: none !important;
     z-index: 1 !important;
   `;
+  const siteSearchPrefixLabel = document.createElement('span');
+  siteSearchPrefixLabel.setAttribute('translate', 'no');
+  siteSearchPrefixLabel.setAttribute('lang', 'zxx');
+  siteSearchPrefixLabel.setAttribute('data-no-translate', 'true');
+  siteSearchPrefixLabel.classList.add('notranslate');
+  siteSearchPrefixLabel.style.cssText = `
+    all: unset !important;
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    line-height: 1 !important;
+  `;
+  siteSearchPrefix.appendChild(siteSearchPrefixLabel);
   inputContainer.appendChild(siteSearchPrefix);
   inputContainer.style.setProperty('position', 'relative', 'important');
   inputContainer.style.setProperty('z-index', '2', 'important');
@@ -11004,35 +11233,63 @@
     const basePadding = getBaseInputPaddingLeft();
     siteSearchPrefix.style.setProperty('left', `${basePadding}px`, 'important');
     if (siteSearchPrefix.style.display === 'none') {
+      siteSearchPrefix.style.setProperty('max-width', '0px', 'important');
       searchInput.style.setProperty('padding-left', `${basePadding}px`, 'important');
       return;
     }
+    const inputContainerWidth = inputContainer ? inputContainer.getBoundingClientRect().width : 0;
+    const availableWidth = Math.max(72, Math.floor(inputContainerWidth - basePadding - 108));
+    siteSearchPrefix.style.setProperty('max-width', `${availableWidth}px`, 'important');
     const prefixWidth = siteSearchPrefix.getBoundingClientRect().width;
     const paddedLeft = Math.max(basePadding + prefixWidth + prefixGap, basePadding);
     searchInput.style.setProperty('padding-left', `${paddedLeft}px`, 'important');
   }
 
   function setSiteSearchPrefix(provider, theme) {
-    const prefixText = formatMessage('search_in_site_ellipsis', '在 {site} 中搜索...', {
+    const prefixText = formatMessage('search_in_site', '在 {site} 中搜索', {
       site: getSiteSearchDisplayName(provider)
     });
-    siteSearchPrefix.textContent = prefixText;
+    siteSearchPrefixLabel.textContent = prefixText;
     siteSearchPrefix.style.setProperty('display', 'inline-flex', 'important');
-    const resolvedTheme = theme ? getThemeForMode(theme) : null;
-    if (resolvedTheme && resolvedTheme.placeholderText) {
-      siteSearchPrefix.style.setProperty('color', resolvedTheme.placeholderText, 'important');
+    const resolvedTheme = getThemeForMode(theme || defaultTheme);
+    const accentRgb = resolvedTheme && (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
+      ? (resolvedTheme.accentRgb || parseCssColor(resolvedTheme.accent))
+      : defaultAccentColor;
+    const [h, s, l] = rgbToHsl(accentRgb);
+    let nextS = s;
+    let nextL = l;
+    if (s < 0.52) {
+      nextS = Math.min(0.78, s + 0.18 + ((0.52 - s) * 0.42));
     }
+    if (l > 0.58) {
+      nextL = Math.max(0.42, l - (0.08 + ((l - 0.58) * 0.55)));
+    } else if (l < 0.34) {
+      nextL = Math.min(0.46, l + 0.06);
+    }
+    const compensatedAccent = hslToRgb(h, nextS, nextL);
+    const backgroundColor = rgbToCss(mixColor(compensatedAccent, [255, 255, 255], isNewtabDarkMode() ? 0.02 : 0.05));
+    const shadowAlpha = isNewtabDarkMode() ? 0.26 : 0.22;
+    const shadowSoftAlpha = isNewtabDarkMode() ? 0.14 : 0.12;
+    const tagShadow = `0 4px 10px rgba(${compensatedAccent[0]}, ${compensatedAccent[1]}, ${compensatedAccent[2]}, ${shadowAlpha}), 0 1px 2px rgba(${compensatedAccent[0]}, ${compensatedAccent[1]}, ${compensatedAccent[2]}, ${shadowSoftAlpha})`;
+    siteSearchPrefix.style.setProperty('background', backgroundColor, 'important');
+    siteSearchPrefix.style.setProperty('color', '#FFFFFF', 'important');
+    siteSearchPrefix.style.setProperty('border', 'none', 'important');
+    siteSearchPrefix.style.setProperty('box-shadow', tagShadow, 'important');
     searchInput.placeholder = '';
-    if (resolvedTheme && resolvedTheme.placeholderText) {
-      searchInput.style.setProperty('caret-color', resolvedTheme.placeholderText, 'important');
+    if (resolvedTheme && resolvedTheme.accent) {
+      searchInput.style.setProperty('caret-color', resolvedTheme.accent, 'important');
     }
     setAiModeDecorActive(isInteractiveSiteSearchProvider(provider));
     updateSiteSearchPrefixLayout();
   }
 
   function clearSiteSearchPrefix() {
-    siteSearchPrefix.textContent = '';
+    siteSearchPrefixLabel.textContent = '';
     siteSearchPrefix.style.setProperty('display', 'none', 'important');
+    siteSearchPrefix.style.setProperty('background', 'var(--x-ext-tag-bg, #EEF6FF)', 'important');
+    siteSearchPrefix.style.setProperty('color', '#FFFFFF', 'important');
+    siteSearchPrefix.style.setProperty('border', 'none', 'important');
+    siteSearchPrefix.style.setProperty('box-shadow', 'none', 'important');
     searchInput.placeholder = defaultPlaceholder;
     searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
     setAiModeDecorActive(false);
