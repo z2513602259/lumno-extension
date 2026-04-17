@@ -92,6 +92,8 @@
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
   let aiModeDecor = null;
+  let aiModeSweep = null;
+  let aiModeSweepActive = false;
   let aiModeDecorFrame = null;
   let aiModeDecorFrameObserver = null;
   let aiModeDecorFrameResizeHandler = null;
@@ -1747,7 +1749,10 @@
     document.body.setAttribute('data-theme', resolved);
     applyWordmarkThemeAppearance(resolved);
     if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
-      aiModeDecor.setTheme('auto');
+      syncAiModeDecorAppearance();
+    }
+    if (aiModeSweep && typeof aiModeSweep.setTheme === 'function') {
+      aiModeSweep.setTheme('auto');
     }
     const didResolvedThemeChange = previousResolved !== resolved;
     suggestionItems.forEach((item) => {
@@ -7803,6 +7808,13 @@
     );
   }
 
+  function shouldRestrictInteractiveSiteSearchSuggestions(provider, query) {
+    return Boolean(
+      isInteractiveSiteSearchProvider(provider) &&
+      String(query || '').trim()
+    );
+  }
+
   function runSiteSearchProviderQuery(provider, query, disposition) {
     const trimmedQuery = String(query || '').trim();
     if (!provider || !trimmedQuery) {
@@ -9086,6 +9098,14 @@
           });
         }
       }
+      if (shouldRestrictInteractiveSiteSearchSuggestions(siteSearchState, query)) {
+        const primaryInteractiveSuggestion = allSuggestions.find((item) =>
+          item &&
+          item.provider === siteSearchState &&
+          item.searchQuery === query
+        );
+        allSuggestions = primaryInteractiveSuggestion ? [primaryInteractiveSuggestion] : [];
+      }
       allSuggestions = filterBlacklistedSuggestions(allSuggestions, query);
       const onlyKeywordSuggestions = allSuggestions.length > 0 &&
         allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
@@ -9549,6 +9569,7 @@
         }
 
         const textWrapper = document.createElement('div');
+        textWrapper.setAttribute('data-ai-sweep-distort', 'text');
         textWrapper.style.cssText = `
           all: unset !important;
           display: flex !important;
@@ -10831,6 +10852,7 @@
 
   const siteSearchPrefix = document.createElement('span');
   siteSearchPrefix.id = '_x_extension_newtab_site_search_prefix_2024_unique_';
+  siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
   siteSearchPrefix.style.cssText = `
     all: unset !important;
     position: absolute !important;
@@ -10923,13 +10945,51 @@
     return aiModeDecor;
   }
 
-  function setAiModeDecorActive(active) {
-    const decor = ensureAiModeDecor();
-    if (!decor) {
+  function ensureAiModeSweep() {
+    if (aiModeSweep) {
+      return aiModeSweep;
+    }
+    ensureAiModeDecor();
+    if (!aiModeDecorFrame || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
+      return null;
+    }
+    aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
+      target: aiModeDecorFrame,
+      themeTarget: document.body || root,
+      borderRadius: 28,
+      zIndex: 1,
+      duration: 2280,
+      maxDisplacement: 24,
+      distortionSelector: '[data-ai-sweep-distort]'
+    });
+    return aiModeSweep;
+  }
+
+  function syncAiModeDecorAppearance() {
+    if (!aiModeDecor || !aiModeDecor.beam || !document.body) {
       return;
     }
-    decor.setTheme('auto');
-    decor.setActive(Boolean(active));
+    const resolvedTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const strength = resolvedTheme === 'light' ? 0.64 : 0.82;
+    aiModeDecor.beam.style.setProperty('--beam-strength', String(strength), 'important');
+    aiModeDecor.setTheme(resolvedTheme);
+  }
+
+  function setAiModeDecorActive(active) {
+    const nextActive = Boolean(active);
+    const decor = ensureAiModeDecor();
+    if (decor) {
+      syncAiModeDecorAppearance();
+      decor.setActive(nextActive);
+    }
+    const sweep = ensureAiModeSweep();
+    if (sweep) {
+      sweep.setTheme('auto');
+      if (nextActive && !aiModeSweepActive) {
+        sweep.play();
+      }
+    }
+    aiModeSweepActive = nextActive;
   }
 
   function getBaseInputPaddingLeft() {

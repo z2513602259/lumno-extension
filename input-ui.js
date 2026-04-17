@@ -40,6 +40,7 @@
   }
 
   let borderBeamInstanceCounter = 0;
+  let aiSweepInstanceCounter = 0;
 
   function clampNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -90,6 +91,10 @@
       return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
     }
     return color;
+  }
+
+  function createSvgElement(tagName) {
+    return document.createElementNS('http://www.w3.org/2000/svg', tagName);
   }
 
   // Adapted from the MIT-licensed border-beam package by Jakub Antalik.
@@ -1027,11 +1032,764 @@
     };
   };
 
+  function buildAiSweepStyle(config) {
+    const id = config.id;
+    const theme = config.theme === 'dark' ? 'dark' : 'light';
+    const borderRadius = clampNumber(config.borderRadius, 28, 0, 999);
+    const durationMs = Math.round(clampNumber(config.duration, 2280, 220, 6000));
+    const durationCss = `var(--ai-sweep-duration-${id}, ${durationMs}ms)`;
+    const arcBlendMode = 'screen';
+    const prismBlendMode = theme === 'dark' ? 'screen' : 'overlay';
+    const washBlendMode = theme === 'dark' ? 'screen' : 'soft-light';
+    const backdropBlurPx = theme === 'dark' ? 20 : 15;
+    const backdropSaturate = theme === 'dark' ? 195 : 182;
+    const backdropBrightness = theme === 'dark' ? 1.16 : 1.05;
+    const whiteRim = theme === 'dark' ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.92)';
+    const magenta = theme === 'dark' ? 'rgba(255, 108, 163, 0.9)' : 'rgba(255, 108, 163, 0.54)';
+    const amber = theme === 'dark' ? 'rgba(255, 193, 87, 0.74)' : 'rgba(255, 193, 87, 0.46)';
+    const cyan = theme === 'dark' ? 'rgba(93, 208, 255, 0.86)' : 'rgba(93, 208, 255, 0.52)';
+    const mint = theme === 'dark' ? 'rgba(104, 255, 214, 0.68)' : 'rgba(104, 255, 214, 0.4)';
+    const violet = theme === 'dark' ? 'rgba(180, 126, 255, 0.76)' : 'rgba(180, 126, 255, 0.46)';
+    const veilBase = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.22)';
+    const veilCore = theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.3)';
+    const lensVeil = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.12)';
+    const lensCore = theme === 'dark' ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.2)';
+    const prismCore = theme === 'dark' ? 'rgba(255, 255, 255, 0.52)' : 'rgba(255, 255, 255, 0.62)';
+    const lensMaxOpacity = theme === 'dark' ? 0.54 : 0.4;
+    const refractMaxOpacity = theme === 'dark' ? 0.34 : 0.24;
+    const washMaxOpacity = theme === 'dark' ? 0.8 : 0.68;
+    const prismMaxOpacity = theme === 'dark' ? 0.86 : 0.82;
+    const edgeMaxOpacity = theme === 'dark' ? 0.84 : 0.9;
+    return `
+[data-ai-sweep="${id}"] {
+  position: absolute;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: ${borderRadius}px;
+  pointer-events: none;
+  opacity: 0;
+  contain: paint;
+}
+
+[data-ai-sweep="${id}"][data-playing] {
+  opacity: 1;
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-carrier] {
+  position: absolute;
+  left: -24%;
+  top: -66%;
+  width: 148%;
+  height: 252%;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+  transform: translate3d(0, 0%, 0) scaleX(1.01) scaleY(0.95);
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-lens],
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-a],
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-b],
+[data-ai-sweep="${id}"] [data-ai-sweep-wash],
+[data-ai-sweep="${id}"] [data-ai-sweep-prism],
+[data-ai-sweep="${id}"] [data-ai-sweep-edge] {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-lens] {
+  display: none;
+  background:
+    radial-gradient(ellipse 62% 17% at 50% 61%, ${lensCore} 0%, transparent 76%),
+    linear-gradient(90deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      ${lensVeil} 18%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  backdrop-filter: blur(${backdropBlurPx + 2}px) saturate(${backdropSaturate + 10}%) brightness(${(backdropBrightness + 0.02).toFixed(2)});
+  -webkit-backdrop-filter: blur(${backdropBlurPx + 2}px) saturate(${backdropSaturate + 10}%) brightness(${(backdropBrightness + 0.02).toFixed(2)});
+  mix-blend-mode: ${theme === 'dark' ? 'screen' : 'soft-light'};
+  -webkit-mask-image: radial-gradient(
+    ellipse 74% 44% at 50% 100%,
+    transparent 47%,
+    rgba(0, 0, 0, 0.16) 51.5%,
+    rgba(0, 0, 0, 0.98) 55.4%,
+    rgba(0, 0, 0, 0.92) 58.8%,
+    transparent 64.5%
+  );
+  mask-image: radial-gradient(
+    ellipse 74% 44% at 50% 100%,
+    transparent 47%,
+    rgba(0, 0, 0, 0.16) 51.5%,
+    rgba(0, 0, 0, 0.98) 55.4%,
+    rgba(0, 0, 0, 0.92) 58.8%,
+    transparent 64.5%
+  );
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-a],
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-b] {
+  display: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.001), rgba(255, 255, 255, 0.001));
+  backdrop-filter: blur(${Math.max(2, backdropBlurPx - 8)}px) saturate(${backdropSaturate + 28}%) brightness(${(backdropBrightness + 0.05).toFixed(2)});
+  -webkit-backdrop-filter: blur(${Math.max(2, backdropBlurPx - 8)}px) saturate(${backdropSaturate + 28}%) brightness(${(backdropBrightness + 0.05).toFixed(2)});
+  mix-blend-mode: normal;
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-a] {
+  -webkit-mask-image: radial-gradient(
+    ellipse 78% 42% at 48.8% 100%,
+    transparent 48.8%,
+    rgba(0, 0, 0, 0.08) 52.2%,
+    rgba(0, 0, 0, 0.98) 55.2%,
+    rgba(0, 0, 0, 0.88) 57.6%,
+    transparent 62.2%
+  );
+  mask-image: radial-gradient(
+    ellipse 78% 42% at 48.8% 100%,
+    transparent 48.8%,
+    rgba(0, 0, 0, 0.08) 52.2%,
+    rgba(0, 0, 0, 0.98) 55.2%,
+    rgba(0, 0, 0, 0.88) 57.6%,
+    transparent 62.2%
+  );
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-refract-b] {
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 43% at 51.2% 100%,
+    transparent 49.8%,
+    rgba(0, 0, 0, 0.08) 53%,
+    rgba(0, 0, 0, 0.98) 56.1%,
+    rgba(0, 0, 0, 0.84) 58.3%,
+    transparent 62.8%
+  );
+  mask-image: radial-gradient(
+    ellipse 80% 43% at 51.2% 100%,
+    transparent 49.8%,
+    rgba(0, 0, 0, 0.08) 53%,
+    rgba(0, 0, 0, 0.98) 56.1%,
+    rgba(0, 0, 0, 0.84) 58.3%,
+    transparent 62.8%
+  );
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-wash] {
+  background:
+    radial-gradient(ellipse 72% 32% at 50% 61%, ${veilCore} 0%, transparent 74%),
+    linear-gradient(90deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      ${veilBase} 14%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  mix-blend-mode: ${washBlendMode};
+  -webkit-mask-image: radial-gradient(
+    ellipse 76% 55% at 50% 100%,
+    transparent 42%,
+    rgba(0, 0, 0, 0.24) 50%,
+    rgba(0, 0, 0, 0.96) 58%,
+    rgba(0, 0, 0, 0.78) 66%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 76% 55% at 50% 100%,
+    transparent 42%,
+    rgba(0, 0, 0, 0.24) 50%,
+    rgba(0, 0, 0, 0.96) 58%,
+    rgba(0, 0, 0, 0.78) 66%,
+    transparent 78%
+  );
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-prism] {
+  background:
+    radial-gradient(ellipse 70% 24% at 50% 61%, ${prismCore} 0%, transparent 73%),
+    linear-gradient(90deg,
+      ${magenta} 0%,
+      ${amber} 18%,
+      ${mint} 42%,
+      ${cyan} 67%,
+      ${violet} 86%,
+      ${magenta} 100%
+    );
+  mix-blend-mode: ${prismBlendMode};
+  filter: blur(${theme === 'dark' ? 24 : 20}px) saturate(${theme === 'dark' ? 1.48 : 1.3});
+  -webkit-mask-image: radial-gradient(
+    ellipse 82% 49% at 50% 100%,
+    transparent 46%,
+    rgba(0, 0, 0, 0.18) 54%,
+    rgba(0, 0, 0, 0.95) 61.5%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 82% 49% at 50% 100%,
+    transparent 46%,
+    rgba(0, 0, 0, 0.18) 54%,
+    rgba(0, 0, 0, 0.95) 61.5%,
+    transparent 75%
+  );
+}
+
+[data-ai-sweep="${id}"] [data-ai-sweep-edge] {
+  background:
+    radial-gradient(ellipse 80% 44% at 50% 100%, transparent 51%, ${whiteRim} 57.8%, transparent 61.8%),
+    radial-gradient(ellipse 82% 45% at 48.8% 100%, transparent 53%, ${magenta} 59.2%, transparent 64.4%),
+    radial-gradient(ellipse 84% 46% at 50% 100%, transparent 54.5%, ${amber} 60.8%, transparent 66.4%),
+    radial-gradient(ellipse 86% 47% at 51.2% 100%, transparent 55.6%, ${cyan} 62.1%, transparent 68.2%),
+    radial-gradient(ellipse 88% 48% at 49.6% 100%, transparent 56.8%, ${mint} 63.4%, transparent 70%),
+    radial-gradient(ellipse 90% 49% at 50.4% 100%, transparent 57.2%, ${violet} 64.6%, transparent 71.2%);
+  mix-blend-mode: ${arcBlendMode};
+  filter: blur(${theme === 'dark' ? 2.4 : 1.8}px) saturate(${theme === 'dark' ? 1.4 : 1.24});
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 50% at 50% 100%,
+    transparent 47%,
+    rgba(0, 0, 0, 0.12) 54%,
+    rgba(0, 0, 0, 0.98) 61.8%,
+    transparent 73%
+  );
+  mask-image: radial-gradient(
+    ellipse 90% 50% at 50% 100%,
+    transparent 47%,
+    rgba(0, 0, 0, 0.12) 54%,
+    rgba(0, 0, 0, 0.98) 61.8%,
+    transparent 73%
+  );
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-lens] {
+  animation: ai-sweep-lens-${id} ${durationCss} cubic-bezier(0.16, 0.74, 0.22, 1) both;
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-refract-a] {
+  animation: ai-sweep-refract-a-${id} ${durationCss} linear both;
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-refract-b] {
+  animation: ai-sweep-refract-b-${id} ${durationCss} linear both;
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-wash] {
+  animation: ai-sweep-wash-${id} ${durationCss} cubic-bezier(0.18, 0.72, 0.22, 1) both;
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-prism] {
+  animation: ai-sweep-prism-${id} ${durationCss} cubic-bezier(0.18, 0.72, 0.22, 1) both;
+}
+
+[data-ai-sweep="${id}"][data-playing] [data-ai-sweep-edge] {
+  animation: ai-sweep-edge-${id} ${durationCss} cubic-bezier(0.14, 0.8, 0.2, 1) both;
+}
+
+@keyframes ai-sweep-lens-${id} {
+  0% {
+    opacity: ${(lensMaxOpacity * 0.32).toFixed(3)};
+  }
+  12% {
+    opacity: ${(lensMaxOpacity * 0.58).toFixed(3)};
+  }
+  28% {
+    opacity: ${(lensMaxOpacity * 0.82).toFixed(3)};
+  }
+  46% {
+    opacity: ${lensMaxOpacity.toFixed(3)};
+  }
+  68% {
+    opacity: ${(lensMaxOpacity * 0.74).toFixed(3)};
+  }
+  84% {
+    opacity: ${(lensMaxOpacity * 0.28).toFixed(3)};
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ai-sweep-refract-a-${id} {
+  0% {
+    opacity: ${(refractMaxOpacity * 0.26).toFixed(3)};
+    transform: translate3d(-1.4%, 1.8%, 0) scaleX(1.035) scaleY(0.985);
+  }
+  20% {
+    opacity: ${(refractMaxOpacity * 0.54).toFixed(3)};
+    transform: translate3d(1.8%, 0.8%, 0) scaleX(0.995) scaleY(1);
+  }
+  42% {
+    opacity: ${refractMaxOpacity.toFixed(3)};
+    transform: translate3d(-2.2%, 0, 0) scaleX(1.05) scaleY(1.01);
+  }
+  62% {
+    opacity: ${(refractMaxOpacity * 0.74).toFixed(3)};
+    transform: translate3d(1.6%, -0.8%, 0) scaleX(0.99) scaleY(1.015);
+  }
+  82% {
+    opacity: ${(refractMaxOpacity * 0.28).toFixed(3)};
+    transform: translate3d(-0.8%, -1.4%, 0) scaleX(1.018) scaleY(1.01);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -1.6%, 0) scaleX(1) scaleY(1);
+  }
+}
+
+@keyframes ai-sweep-refract-b-${id} {
+  0% {
+    opacity: ${(refractMaxOpacity * 0.18).toFixed(3)};
+    transform: translate3d(1.2%, 2.2%, 0) scaleX(0.992) scaleY(0.988);
+  }
+  18% {
+    opacity: ${(refractMaxOpacity * 0.48).toFixed(3)};
+    transform: translate3d(-1.6%, 1.1%, 0) scaleX(1.026) scaleY(1.002);
+  }
+  36% {
+    opacity: ${(refractMaxOpacity * 0.82).toFixed(3)};
+    transform: translate3d(2.1%, 0.2%, 0) scaleX(0.986) scaleY(1.01);
+  }
+  56% {
+    opacity: ${(refractMaxOpacity * 0.96).toFixed(3)};
+    transform: translate3d(-1.8%, -0.4%, 0) scaleX(1.034) scaleY(1.016);
+  }
+  78% {
+    opacity: ${(refractMaxOpacity * 0.32).toFixed(3)};
+    transform: translate3d(0.9%, -1.3%, 0) scaleX(1.006) scaleY(1.01);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -1.8%, 0) scaleX(1) scaleY(1);
+  }
+}
+
+@keyframes ai-sweep-wash-${id} {
+  0% {
+    opacity: ${(washMaxOpacity * 0.38).toFixed(3)};
+  }
+  8% {
+    opacity: ${(washMaxOpacity * 0.68).toFixed(3)};
+  }
+  22% {
+    opacity: ${(washMaxOpacity * 0.82).toFixed(3)};
+  }
+  40% {
+    opacity: ${(washMaxOpacity * 0.96).toFixed(3)};
+  }
+  56% {
+    opacity: ${washMaxOpacity.toFixed(3)};
+  }
+  78% {
+    opacity: ${(washMaxOpacity * 0.54).toFixed(3)};
+  }
+  90% {
+    opacity: ${(washMaxOpacity * 0.24).toFixed(3)};
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ai-sweep-prism-${id} {
+  0% {
+    opacity: ${(prismMaxOpacity * 0.34).toFixed(3)};
+    transform: scale(0.955) translateY(9%);
+  }
+  8% {
+    opacity: ${(prismMaxOpacity * 0.66).toFixed(3)};
+    transform: scale(0.985) translateY(6%);
+  }
+  22% {
+    opacity: ${(prismMaxOpacity * 0.88).toFixed(3)};
+    transform: scale(1.008) translateY(3%);
+  }
+  38% {
+    opacity: ${(prismMaxOpacity * 0.98).toFixed(3)};
+    transform: scale(1.04) translateY(1%);
+  }
+  54% {
+    opacity: ${prismMaxOpacity.toFixed(3)};
+    transform: scale(1.03) translateY(0);
+  }
+  80% {
+    opacity: ${(prismMaxOpacity * 0.52).toFixed(3)};
+    transform: scale(1.06) translateY(-2%);
+  }
+  92% {
+    opacity: ${(prismMaxOpacity * 0.18).toFixed(3)};
+    transform: scale(1.07) translateY(-3%);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08) translateY(-4%);
+  }
+}
+
+@keyframes ai-sweep-edge-${id} {
+  0% {
+    opacity: ${(edgeMaxOpacity * 0.44).toFixed(3)};
+  }
+  8% {
+    opacity: ${(edgeMaxOpacity * 0.76).toFixed(3)};
+  }
+  22% {
+    opacity: ${(edgeMaxOpacity * 0.9).toFixed(3)};
+  }
+  38% {
+    opacity: ${(edgeMaxOpacity * 0.98).toFixed(3)};
+  }
+  54% {
+    opacity: ${edgeMaxOpacity.toFixed(3)};
+  }
+  80% {
+    opacity: ${(edgeMaxOpacity * 0.42).toFixed(3)};
+  }
+  92% {
+    opacity: ${(edgeMaxOpacity * 0.16).toFixed(3)};
+  }
+  100% {
+    opacity: 0;
+  }
+}
+`;
+  }
+
+  window._x_extension_createAiSweepEffect_2026_unique_ = function(options) {
+    const config = options || {};
+    const target = config.target;
+    if (!target || !target.appendChild) {
+      return null;
+    }
+    const themeTarget = config.themeTarget && typeof config.themeTarget.getAttribute === 'function'
+      ? config.themeTarget
+      : target;
+    const id = `_x_extension_ai_sweep_${Date.now().toString(36)}_${aiSweepInstanceCounter++}`;
+    const filterId = `${id}_filter`;
+    const borderRadius = clampNumber(config.borderRadius, 28, 0, 999);
+    const zIndex = Number.isFinite(Number(config.zIndex)) ? String(config.zIndex) : '4';
+    const durationMs = Math.round(clampNumber(config.duration, 2280, 220, 6000));
+    const maxDisplacement = clampNumber(config.maxDisplacement, 24, 0, 40);
+    const distortionSelector = typeof config.distortionSelector === 'string'
+      ? config.distortionSelector.trim()
+      : '';
+    const style = document.createElement('style');
+    style.id = `${id}_style`;
+    const host = document.createElement('div');
+    applyNoTranslate(host);
+    host.setAttribute('aria-hidden', 'true');
+    host.setAttribute('data-ai-sweep', id);
+    host.style.cssText = `
+      position: absolute !important;
+      inset: 0 !important;
+      display: block !important;
+      box-sizing: border-box !important;
+      border-radius: ${borderRadius}px !important;
+      pointer-events: none !important;
+      z-index: ${zIndex} !important;
+      overflow: hidden !important;
+    `;
+
+    const carrier = document.createElement('div');
+    applyNoTranslate(carrier);
+    carrier.setAttribute('aria-hidden', 'true');
+    carrier.setAttribute('data-ai-sweep-carrier', 'true');
+
+    const lens = document.createElement('div');
+    applyNoTranslate(lens);
+    lens.setAttribute('aria-hidden', 'true');
+    lens.setAttribute('data-ai-sweep-lens', 'true');
+
+    const refractA = document.createElement('div');
+    applyNoTranslate(refractA);
+    refractA.setAttribute('aria-hidden', 'true');
+    refractA.setAttribute('data-ai-sweep-refract-a', 'true');
+
+    const refractB = document.createElement('div');
+    applyNoTranslate(refractB);
+    refractB.setAttribute('aria-hidden', 'true');
+    refractB.setAttribute('data-ai-sweep-refract-b', 'true');
+
+    const wash = document.createElement('div');
+    applyNoTranslate(wash);
+    wash.setAttribute('aria-hidden', 'true');
+    wash.setAttribute('data-ai-sweep-wash', 'true');
+
+    const prism = document.createElement('div');
+    applyNoTranslate(prism);
+    prism.setAttribute('aria-hidden', 'true');
+    prism.setAttribute('data-ai-sweep-prism', 'true');
+
+    const edge = document.createElement('div');
+    applyNoTranslate(edge);
+    edge.setAttribute('aria-hidden', 'true');
+    edge.setAttribute('data-ai-sweep-edge', 'true');
+
+    carrier.appendChild(lens);
+    carrier.appendChild(refractA);
+    carrier.appendChild(refractB);
+    carrier.appendChild(wash);
+    carrier.appendChild(prism);
+    carrier.appendChild(edge);
+    host.appendChild(carrier);
+
+    const filterSvg = createSvgElement('svg');
+    filterSvg.setAttribute('aria-hidden', 'true');
+    filterSvg.setAttribute('focusable', 'false');
+    filterSvg.setAttribute('width', '0');
+    filterSvg.setAttribute('height', '0');
+    filterSvg.style.cssText = 'position:absolute !important;width:0 !important;height:0 !important;overflow:hidden !important;pointer-events:none !important;';
+    const filter = createSvgElement('filter');
+    filter.setAttribute('id', filterId);
+    filter.setAttribute('x', '-18%');
+    filter.setAttribute('y', '-18%');
+    filter.setAttribute('width', '136%');
+    filter.setAttribute('height', '136%');
+    filter.setAttribute('color-interpolation-filters', 'sRGB');
+    const turbulence = createSvgElement('feTurbulence');
+    turbulence.setAttribute('type', 'fractalNoise');
+    turbulence.setAttribute('baseFrequency', '0.007 0.022');
+    turbulence.setAttribute('numOctaves', '2');
+    turbulence.setAttribute('seed', '3');
+    turbulence.setAttribute('stitchTiles', 'stitch');
+    turbulence.setAttribute('result', 'noise');
+    const displacement = createSvgElement('feDisplacementMap');
+    displacement.setAttribute('in', 'SourceGraphic');
+    displacement.setAttribute('in2', 'noise');
+    displacement.setAttribute('scale', '0');
+    displacement.setAttribute('xChannelSelector', 'R');
+    displacement.setAttribute('yChannelSelector', 'G');
+    filter.appendChild(turbulence);
+    filter.appendChild(displacement);
+    filterSvg.appendChild(filter);
+    host.appendChild(filterSvg);
+
+    const previousInlinePosition = target.style.getPropertyValue('position');
+    const previousInlinePositionPriority = target.style.getPropertyPriority('position');
+    const previousInlineOverflow = target.style.getPropertyValue('overflow');
+    const previousInlineOverflowPriority = target.style.getPropertyPriority('overflow');
+    const computedTargetStyle = window.getComputedStyle(target);
+    const updatedPosition = computedTargetStyle.position === 'static';
+    const updatedOverflow = computedTargetStyle.overflow !== 'hidden';
+    if (updatedPosition) {
+      target.style.setProperty('position', 'relative', 'important');
+    }
+    if (updatedOverflow) {
+      target.style.setProperty('overflow', 'hidden', 'important');
+    }
+
+    let fadeTimer = null;
+    let animationRaf = null;
+    let playCounter = 0;
+    let resolvedTheme = 'light';
+    let currentPlayDurationMs = durationMs;
+    let currentThemeKey = '';
+    const distortionBaseStyles = typeof WeakMap === 'function' ? new WeakMap() : null;
+    let distortionEntries = [];
+
+    function computeDynamicDuration() {
+      const geometry = measureSweepGeometry();
+      const dynamic = 720 + (Math.max(0, geometry.travelPx) * 1.18);
+      return Math.round(clampNumber(dynamic, durationMs, 860, 2280));
+    }
+
+    function updateTheme(nextTheme) {
+      const nextResolvedTheme = resolveBorderBeamTheme(nextTheme, target, themeTarget);
+      if (style.textContent && nextResolvedTheme === resolvedTheme && currentThemeKey === nextResolvedTheme) {
+        return resolvedTheme;
+      }
+      resolvedTheme = nextResolvedTheme;
+      currentThemeKey = nextResolvedTheme;
+      style.textContent = buildAiSweepStyle({
+        id: id,
+        filterId: filterId,
+        theme: resolvedTheme,
+        borderRadius: borderRadius,
+        duration: durationMs
+      });
+      return resolvedTheme;
+    }
+
+    function easeSweepTravel(progress) {
+      const clamped = clampNumber(progress, 0, 0, 1);
+      return 1 - Math.pow(1 - clamped, 2.6);
+    }
+
+    function measureSweepGeometry() {
+      const rect = target.getBoundingClientRect();
+      const width = Math.max(1, Number.isFinite(rect.width) ? rect.width : 0);
+      const height = Math.max(1, Number.isFinite(rect.height) ? rect.height : 0);
+      const carrierWidth = Math.max(width * 1.48, 360);
+      const carrierHeight = Math.max(height * 2.52, carrierWidth / 2.12, 220);
+      const left = (width - carrierWidth) / 2;
+      const top = height - (carrierHeight * 0.659);
+      const travelPx = carrierHeight * 0.74;
+      return {
+        width: width,
+        height: height,
+        carrierWidth: carrierWidth,
+        carrierHeight: carrierHeight,
+        left: left,
+        top: top,
+        travelPx: travelPx
+      };
+    }
+
+    function syncCarrierGeometry() {
+      const geometry = measureSweepGeometry();
+      carrier.style.setProperty('left', `${geometry.left.toFixed(2)}px`, 'important');
+      carrier.style.setProperty('top', `${geometry.top.toFixed(2)}px`, 'important');
+      carrier.style.setProperty('width', `${geometry.carrierWidth.toFixed(2)}px`, 'important');
+      carrier.style.setProperty('height', `${geometry.carrierHeight.toFixed(2)}px`, 'important');
+      return geometry;
+    }
+
+    function computeCarrierTransform(progress, geometry) {
+      const travelProgress = easeSweepTravel(progress);
+      const sweepGeometry = geometry || measureSweepGeometry();
+      const driftPx = -sweepGeometry.travelPx * travelProgress;
+      const scaleX = 1.01 + (0.16 * Math.pow(travelProgress, 0.92));
+      const scaleY = 0.95 + (0.1 * Math.pow(travelProgress, 1.08));
+      return `translate3d(0, ${driftPx.toFixed(2)}px, 0) scaleX(${scaleX.toFixed(4)}) scaleY(${scaleY.toFixed(4)})`;
+    }
+
+    function stopDistortionLoop() {
+      if (animationRaf !== null) {
+        cancelAnimationFrame(animationRaf);
+        animationRaf = null;
+      }
+    }
+
+    function composeInlineTransform(baseTransform, extraTransform) {
+      const base = String(baseTransform || '').trim();
+      const extra = String(extraTransform || '').trim();
+      if (base && extra) {
+        return `${base} ${extra}`;
+      }
+      return base || extra || '';
+    }
+
+    function composeInlineFilter(baseFilter, extraFilter) {
+      const base = String(baseFilter || '').trim();
+      const extra = String(extraFilter || '').trim();
+      if (base && extra) {
+        return `${base} ${extra}`;
+      }
+      return base || extra || '';
+    }
+
+    function collectContentRefractionTargets() {
+      distortionEntries = [];
+    }
+
+    function resetContentRefraction() {
+      distortionEntries = [];
+    }
+
+    function applyContentRefraction(progress) {
+      return;
+    }
+
+    function play() {
+      if (!host.isConnected) {
+        return;
+      }
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      stopDistortionLoop();
+      const reducedMotion = (() => {
+        try {
+          return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        } catch (error) {
+          return false;
+        }
+      })();
+      playCounter += 1;
+      const geometry = syncCarrierGeometry();
+      currentPlayDurationMs = computeDynamicDuration();
+      host.style.setProperty(`--ai-sweep-duration-${id}`, `${currentPlayDurationMs}ms`, 'important');
+      turbulence.setAttribute('seed', String(3 + playCounter));
+      carrier.style.transform = computeCarrierTransform(0, geometry);
+      collectContentRefractionTargets();
+      host.removeAttribute('data-playing');
+      void host.offsetWidth;
+      host.setAttribute('data-playing', 'true');
+
+      if (!reducedMotion) {
+        const startAt = performance.now();
+        const playId = playCounter;
+        const tick = (now) => {
+          if (playId !== playCounter) {
+            return;
+          }
+          const progress = Math.min(1, (now - startAt) / currentPlayDurationMs);
+          carrier.style.transform = computeCarrierTransform(progress, geometry);
+          if (progress < 1) {
+            animationRaf = requestAnimationFrame(tick);
+            return;
+          }
+          carrier.style.transform = computeCarrierTransform(1, geometry);
+          stopDistortionLoop();
+        };
+        animationRaf = requestAnimationFrame(tick);
+      } else {
+        carrier.style.transform = computeCarrierTransform(1, geometry);
+      }
+
+      fadeTimer = window.setTimeout(() => {
+        host.removeAttribute('data-playing');
+        fadeTimer = null;
+        stopDistortionLoop();
+      }, currentPlayDurationMs + 80);
+    }
+
+    function destroy() {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      stopDistortionLoop();
+      if (host.parentNode) {
+        host.parentNode.removeChild(host);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+      if (updatedPosition) {
+        if (previousInlinePosition) {
+          target.style.setProperty('position', previousInlinePosition, previousInlinePositionPriority || '');
+        } else {
+          target.style.removeProperty('position');
+        }
+      }
+      if (updatedOverflow) {
+        if (previousInlineOverflow) {
+          target.style.setProperty('overflow', previousInlineOverflow, previousInlineOverflowPriority || '');
+        } else {
+          target.style.removeProperty('overflow');
+        }
+      }
+    }
+
+    updateTheme(config.theme || 'auto');
+    (document.head || document.documentElement).appendChild(style);
+    target.insertBefore(host, target.firstChild);
+
+    return {
+      host: host,
+      setTheme: updateTheme,
+      play: play,
+      destroy: destroy
+    };
+  };
+
   window._x_extension_createSearchInput_2024_unique_ = function(options) {
     const config = options || {};
     const input = document.createElement('input');
     applyNoTranslate(input);
     input.id = config.inputId || '_x_extension_search_input_2024_unique_';
+    input.setAttribute('data-ai-sweep-distort', 'input');
     input.autocomplete = 'off';
     input.type = 'text';
     input.placeholder = config.placeholder || getMessage('search_placeholder', '搜索或输入网址...');

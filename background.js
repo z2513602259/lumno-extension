@@ -7940,6 +7940,8 @@ async function getSearchSuggestions(query) {
   }
 
   let aiModeDecor = null;
+  let aiModeSweep = null;
+  let aiModeSweepActive = false;
 
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
@@ -7950,6 +7952,11 @@ async function getSearchSuggestions(query) {
       aiModeDecor.destroy();
       aiModeDecor = null;
     }
+    if (aiModeSweep && typeof aiModeSweep.destroy === 'function') {
+      aiModeSweep.destroy();
+      aiModeSweep = null;
+    }
+    aiModeSweepActive = false;
     if (overlayElement) {
       overlayElement.remove();
     }
@@ -8087,7 +8094,10 @@ async function getSearchSuggestions(query) {
       applyOverlayThemeVariables(overlay, mode);
       const nextResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
       if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
-        aiModeDecor.setTheme('auto');
+        syncAiModeDecorAppearance();
+      }
+      if (aiModeSweep && typeof aiModeSweep.setTheme === 'function') {
+        aiModeSweep.setTheme('auto');
       }
       suggestionItems.forEach((item) => {
         if (item && item._xTheme) {
@@ -10617,6 +10627,7 @@ async function getSearchSuggestions(query) {
 
     const siteSearchPrefix = document.createElement('span');
     siteSearchPrefix.id = '_x_extension_site_search_prefix_2024_unique_';
+    siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
     siteSearchPrefix.style.cssText = `
       all: unset !important;
       position: absolute !important;
@@ -10659,13 +10670,50 @@ async function getSearchSuggestions(query) {
       return aiModeDecor;
     }
 
-    function setAiModeDecorActive(active) {
-      const decor = ensureAiModeDecor();
-      if (!decor) {
+    function ensureAiModeSweep() {
+      if (aiModeSweep) {
+        return aiModeSweep;
+      }
+      if (!overlay || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
+        return null;
+      }
+      aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
+        target: overlay,
+        themeTarget: overlay,
+        borderRadius: 28,
+        zIndex: 4,
+        duration: 2280,
+        maxDisplacement: 24,
+        distortionSelector: '[data-ai-sweep-distort]'
+      });
+      return aiModeSweep;
+    }
+
+    function syncAiModeDecorAppearance() {
+      if (!aiModeDecor || !aiModeDecor.beam || !overlay) {
         return;
       }
-      decor.setTheme('auto');
-      decor.setActive(Boolean(active));
+      const resolvedTheme = overlay.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      const strength = resolvedTheme === 'light' ? 0.64 : 0.82;
+      aiModeDecor.beam.style.setProperty('--beam-strength', String(strength), 'important');
+      aiModeDecor.setTheme(resolvedTheme);
+    }
+
+    function setAiModeDecorActive(active) {
+      const nextActive = Boolean(active);
+      const decor = ensureAiModeDecor();
+      if (decor) {
+        syncAiModeDecorAppearance();
+        decor.setActive(nextActive);
+      }
+      const sweep = ensureAiModeSweep();
+      if (sweep) {
+        sweep.setTheme('auto');
+        if (nextActive && !aiModeSweepActive) {
+          sweep.play();
+        }
+      }
+      aiModeSweepActive = nextActive;
     }
 
     function getBaseInputPaddingLeft() {
@@ -11166,6 +11214,13 @@ async function getSearchSuggestions(query) {
         provider &&
         provider.action === 'openAndSubmit' &&
         provider.submitStrategy === 'geminiPrompt'
+      );
+    }
+
+    function shouldRestrictInteractiveSiteSearchSuggestions(provider, query) {
+      return Boolean(
+        isInteractiveSiteSearchProvider(provider) &&
+        String(query || '').trim()
       );
     }
 
@@ -13556,6 +13611,14 @@ async function getSearchSuggestions(query) {
             });
           }
         }
+        if (shouldRestrictInteractiveSiteSearchSuggestions(siteSearchState, query)) {
+          const primaryInteractiveSuggestion = allSuggestions.find((item) =>
+            item &&
+            item.provider === siteSearchState &&
+            item.searchQuery === query
+          );
+          allSuggestions = primaryInteractiveSuggestion ? [primaryInteractiveSuggestion] : [];
+        }
         allSuggestions = filterOverlayBlacklistedSuggestions(allSuggestions, query);
         const onlyKeywordSuggestions = allSuggestions.length > 0 &&
           allSuggestions.every((item) => item && (item.type === 'googleSuggest' || item.type === 'newtab'));
@@ -14028,6 +14091,7 @@ async function getSearchSuggestions(query) {
           
           // Create text wrapper for title and tag
           const textWrapper = document.createElement('div');
+          textWrapper.setAttribute('data-ai-sweep-distort', 'text');
           textWrapper.style.cssText = `
             all: unset !important;
             display: flex !important;
