@@ -11015,18 +11015,7 @@
       aiModeDecorFrame = document.createElement('div');
       aiModeDecorFrame.id = '_x_extension_newtab_ai_mode_decor_frame_2026_unique_';
       aiModeDecorFrame.setAttribute('aria-hidden', 'true');
-      aiModeDecorFrame.style.cssText = `
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        box-sizing: border-box !important;
-        border-radius: 28px !important;
-        pointer-events: none !important;
-        overflow: visible !important;
-        z-index: 4 !important;
-      `;
+      aiModeDecorFrame.className = 'x-nt-ai-mode-decor-frame';
       document.body.appendChild(aiModeDecorFrame);
     }
 

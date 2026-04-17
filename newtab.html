@@ -227,6 +227,11 @@
         pointer-events: none;
         z-index: 1;
       }
+      .x-nt-mode-badge[hidden],
+      .x-nt-wordmark[hidden],
+      .x-nt-site-search-prefix[hidden] {
+        display: none;
+      }
       .x-nt-wordmark {
         width: 90vw;
         max-width: var(--x-nt-search-max-width, 720px);
@@ -315,6 +320,18 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         line-height: 1;
+      }
+      .x-nt-ai-mode-decor-frame {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 0;
+        height: 0;
+        box-sizing: border-box;
+        border-radius: 28px;
+        pointer-events: none;
+        overflow: visible;
+        z-index: 4;
       }
       #_x_extension_newtab_recent_sites_2024_unique_ {
         width: min(96vw, var(--x-nt-content-max-width, 1040px));
