@@ -740,8 +740,12 @@
         pointer-events: auto;
       }
       ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="left"][data-can-reset="false"] {
-        opacity: 0 !important;
-        pointer-events: none !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      ._x_extension_shortcuts_hotkey_wrap_2024_unique_:not([data-capturing="true"]):hover ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="left"][data-can-reset="false"] {
+        opacity: 0;
+        pointer-events: none;
       }
       ._x_extension_shortcuts_hotkey_action_2024_unique_[data-side="left"] {
         left: 8px;
@@ -1220,7 +1224,7 @@
         z-index: 3;
       }
       ._x_extension_tooltip_host_2024_unique_[data-tooltip]::after {
-        content: none !important;
+        content: none;
       }
       ._x_extension_tooltip_host_2024_unique_[data-tooltip] {
         cursor: pointer;
