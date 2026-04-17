@@ -333,6 +333,216 @@
         overflow: visible;
         z-index: 4;
       }
+      .x-nt-inline-icon {
+        width: 16px;
+        height: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      .x-nt-inline-icon--subtext {
+        color: var(--x-nt-subtext, #6b7280);
+      }
+      .x-nt-action-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--x-ext-tag-bg, #eef6ff);
+        color: var(--x-ext-tag-text, #1e3a8a);
+        border: 1px solid var(--x-ext-tag-border, #bfdbfe);
+        padding: 4px 10px 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        box-sizing: border-box;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      .x-nt-action-tag-label {
+        font-weight: 500;
+        line-height: 1;
+      }
+      .x-nt-action-tag-keycap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: var(--x-ext-key-bg, #ffffff);
+        color: var(--x-ext-key-text, #1e3a8a);
+        border: 1px solid var(--x-ext-key-border, #bfdbfe);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      .x-nt-url-line {
+        color: var(--x-nt-link, #2563eb);
+        font-size: 12px;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        text-decoration: none;
+        display: inline-block;
+        max-width: 60%;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      .x-nt-result-tag {
+        font-size: 10px;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        padding: 4px 6px;
+        border-radius: 8px;
+        box-sizing: border-box;
+        line-height: 1.2;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        vertical-align: middle;
+        flex-shrink: 0;
+      }
+      .x-nt-result-tag--neutral {
+        background: var(--x-nt-tag-bg, #f3f4f6);
+        color: var(--x-nt-tag-text, #6b7280);
+      }
+      .x-nt-result-tag--bookmark {
+        background: var(--x-nt-bookmark-tag-bg, #fef3c7);
+        color: var(--x-nt-bookmark-tag-text, #d97706);
+      }
+      .x-nt-bookmark-path {
+        color: var(--x-nt-link, #2563eb);
+        font-size: 12px;
+        font-family: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1.2;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      .x-nt-suggestion-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+      .x-nt-action-tags {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: inherit;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+        flex-shrink: 0;
+      }
+      .x-nt-history-delete-slot {
+        width: 0;
+        height: 28px;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        vertical-align: baseline;
+        opacity: 0;
+        transition: width 180ms ease, margin-left 180ms ease, opacity 160ms ease;
+      }
+      .x-nt-history-delete-button {
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        border-radius: 8px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+        text-decoration: none;
+        list-style: none;
+        outline: none;
+        background: transparent;
+        color: var(--x-nt-subtext, #6b7280);
+        display: inline-flex;
+        visibility: hidden;
+        pointer-events: none;
+        opacity: 0;
+        align-items: center;
+        justify-content: center;
+        font-size: 0;
+        cursor: pointer;
+        transform: translateX(4px);
+        transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+          transform 160ms ease, opacity 160ms ease, visibility 160ms ease;
+        vertical-align: baseline;
+      }
+      .x-nt-history-delete-button .ri-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        transform: none;
+        pointer-events: none;
+        cursor: pointer;
+      }
       #_x_extension_newtab_recent_sites_2024_unique_ {
         width: min(96vw, var(--x-nt-content-max-width, 1040px));
         position: relative;

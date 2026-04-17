@@ -4016,55 +4016,20 @@
     });
   }
 
-  function createSearchIcon() {
+  function createInlineIcon(iconHtml, classNames) {
     const icon = document.createElement('span');
-    icon.innerHTML = getRiSvg('ri-search-line', 'ri-size-16');
-    icon.style.cssText = `
-      all: unset !important;
-      width: 16px !important;
-      height: 16px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      background: transparent !important;
-      color: inherit !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-    `;
+    icon.innerHTML = iconHtml;
+    icon.className = classNames || 'x-nt-inline-icon';
+    return icon;
+  }
+
+  function createSearchIcon() {
+    const icon = createInlineIcon(getRiSvg('ri-search-line', 'ri-size-16'));
     return icon;
   }
 
   function createLinkIcon() {
-    const icon = document.createElement('span');
-    icon.innerHTML = getRiSvg('ri-link', 'ri-size-16');
-    icon.style.cssText = `
-      all: unset !important;
-      width: 16px !important;
-      height: 16px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      background: transparent !important;
-      color: inherit !important;
-      font-size: 100% !important;
-      font: inherit !important;
-      vertical-align: baseline !important;
-    `;
+    const icon = createInlineIcon(getRiSvg('ri-link', 'ri-size-16'));
     return icon;
   }
 
@@ -4108,52 +4073,15 @@
 
   function createActionTag(labelText, keyLabel) {
     const tag = document.createElement('span');
-    tag.style.cssText = `
-      all: unset !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 6px !important;
-      background: var(--x-ext-tag-bg, #EEF6FF) !important;
-      color: var(--x-ext-tag-text, #1E3A8A) !important;
-      border: 1px solid var(--x-ext-tag-border, #BFDBFE) !important;
-      padding: 4px 10px 4px 8px !important;
-      border-radius: 999px !important;
-      font-size: 11px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      line-height: 1 !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      outline: none !important;
-      box-sizing: border-box !important;
-      vertical-align: middle !important;
-      white-space: nowrap !important;
-    `;
+    tag.className = 'x-nt-action-tag';
 
     const label = document.createElement('span');
     label.textContent = labelText;
-    label.style.cssText = `
-      all: unset !important;
-      font-weight: 500 !important;
-      line-height: 1 !important;
-    `;
+    label.className = 'x-nt-action-tag-label';
 
     const keycap = document.createElement('span');
     keycap.textContent = keyLabel;
-    keycap.style.cssText = `
-      all: unset !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 2px 7px !important;
-      border-radius: 6px !important;
-      background: var(--x-ext-key-bg, #FFFFFF) !important;
-      color: var(--x-ext-key-text, #1E3A8A) !important;
-      border: 1px solid var(--x-ext-key-border, #BFDBFE) !important;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12) !important;
-      font-size: 10px !important;
-      font-weight: 500 !important;
-      line-height: 1 !important;
-    `;
+    keycap.className = 'x-nt-action-tag-keycap';
 
     tag.appendChild(label);
     tag.appendChild(keycap);
@@ -7940,23 +7868,15 @@
     }
     const urlLine = document.createElement('span');
     urlLine.textContent = url;
-    urlLine.style.cssText = `
-      all: unset !important;
-      color: var(--x-nt-link, #2563EB) !important;
-      font-size: 12px !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      text-decoration: none !important;
-      display: inline-block !important;
-      max-width: 60% !important;
-      line-height: 1.4 !important;
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    `;
+    urlLine.className = 'x-nt-url-line';
     return urlLine;
+  }
+
+  function createResultTag(labelText, className) {
+    const tag = document.createElement('span');
+    tag.textContent = labelText;
+    tag.className = className || 'x-nt-result-tag';
+    return tag;
   }
 
   function buildSearchUrl(template, query) {
@@ -9525,78 +9445,21 @@
         let iconNode = null;
         let iconWrapper = null;
         if (suggestion.type === 'browserPage') {
-          const themedIcon = document.createElement('span');
-          themedIcon.innerHTML = getRiSvg('ri-window-2-line', 'ri-size-16');
-          themedIcon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          const themedIcon = createInlineIcon(getRiSvg('ri-window-2-line', 'ri-size-16'));
           iconNode = themedIcon;
         } else if (suggestion.type === 'directUrl') {
           iconNode = createSearchIcon();
         } else if (suggestion.type === 'commandNewTab') {
-          const plusIcon = document.createElement('span');
-          plusIcon.innerHTML = getRiSvg('ri-add-line', 'ri-size-16');
-          plusIcon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: var(--x-nt-subtext, #6B7280) !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          const plusIcon = createInlineIcon(
+            getRiSvg('ri-add-line', 'ri-size-16'),
+            'x-nt-inline-icon x-nt-inline-icon--subtext'
+          );
           iconNode = plusIcon;
         } else if (suggestion.type === 'commandSettings') {
-          const gearIcon = document.createElement('span');
-          gearIcon.innerHTML = getRiSvg('ri-settings-3-line', 'ri-size-16');
-          gearIcon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: var(--x-nt-subtext, #6B7280) !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          const gearIcon = createInlineIcon(
+            getRiSvg('ri-settings-3-line', 'ri-size-16'),
+            'x-nt-inline-icon x-nt-inline-icon--subtext'
+          );
           iconNode = gearIcon;
         } else if (suggestion.type === 'modeSwitch' && suggestion.favicon) {
           const favicon = document.createElement('img');
@@ -9869,30 +9732,13 @@
           if (urlLine) {
             textWrapper.appendChild(urlLine);
           }
-          const historyTag = document.createElement('span');
-          historyTag.textContent = t('search_tag_history', '历史');
+          const historyTag = createResultTag(
+            t('search_tag_history', '历史'),
+            'x-nt-result-tag x-nt-result-tag--neutral'
+          );
           historyTag._xDefaultBg = 'var(--x-nt-tag-bg, #F3F4F6)';
           historyTag._xDefaultText = 'var(--x-nt-tag-text, #6B7280)';
           historyTag._xDefaultBorder = 'transparent';
-          historyTag.style.cssText = `
-            all: unset !important;
-            background: var(--x-nt-tag-bg, #F3F4F6) !important;
-            color: var(--x-nt-tag-text, #6B7280) !important;
-            font-size: 10px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            padding: 4px 6px !important;
-            border-radius: 8px !important;
-            box-sizing: border-box !important;
-            line-height: 1.2 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            border: 1px solid transparent !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            vertical-align: middle !important;
-            flex-shrink: 0 !important;
-          `;
           textWrapper.appendChild(historyTag);
           suggestionItem._xHistoryTag = historyTag;
         }
@@ -9902,30 +9748,13 @@
           if (urlLine) {
             textWrapper.appendChild(urlLine);
           }
-          const topSiteTag = document.createElement('span');
-          topSiteTag.textContent = t('search_tag_top_site', '常用');
+          const topSiteTag = createResultTag(
+            t('search_tag_top_site', '常用'),
+            'x-nt-result-tag x-nt-result-tag--neutral'
+          );
           topSiteTag._xDefaultBg = 'var(--x-nt-tag-bg, #F3F4F6)';
           topSiteTag._xDefaultText = 'var(--x-nt-tag-text, #6B7280)';
           topSiteTag._xDefaultBorder = 'transparent';
-          topSiteTag.style.cssText = `
-            all: unset !important;
-            background: var(--x-nt-tag-bg, #F3F4F6) !important;
-            color: var(--x-nt-tag-text, #6B7280) !important;
-            font-size: 10px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            padding: 4px 6px !important;
-            border-radius: 8px !important;
-            box-sizing: border-box !important;
-            line-height: 1.2 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            border: 1px solid transparent !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            vertical-align: middle !important;
-            flex-shrink: 0 !important;
-          `;
           textWrapper.appendChild(topSiteTag);
           suggestionItem._xTopSiteTag = topSiteTag;
         }
@@ -9934,94 +9763,25 @@
           if (suggestion.path) {
             const bookmarkPath = document.createElement('span');
             bookmarkPath.textContent = suggestion.path;
-            bookmarkPath.style.cssText = `
-              all: unset !important;
-              color: var(--x-nt-link, #2563EB) !important;
-              font-size: 12px !important;
-              font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-              text-decoration: none !important;
-              white-space: nowrap !important;
-              overflow: hidden !important;
-              text-overflow: ellipsis !important;
-              max-width: 100% !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1.2 !important;
-              display: inline-block !important;
-              vertical-align: middle !important;
-            `;
+            bookmarkPath.className = 'x-nt-bookmark-path';
             textWrapper.appendChild(bookmarkPath);
           }
-          const bookmarkTag = document.createElement('span');
-          bookmarkTag.textContent = t('search_tag_bookmark', '书签');
+          const bookmarkTag = createResultTag(
+            t('search_tag_bookmark', '书签'),
+            'x-nt-result-tag x-nt-result-tag--bookmark'
+          );
           bookmarkTag._xDefaultBg = 'var(--x-nt-bookmark-tag-bg, #FEF3C7)';
           bookmarkTag._xDefaultText = 'var(--x-nt-bookmark-tag-text, #D97706)';
           bookmarkTag._xDefaultBorder = 'transparent';
-          bookmarkTag.style.cssText = `
-            all: unset !important;
-            background: var(--x-nt-bookmark-tag-bg, #FEF3C7) !important;
-            color: var(--x-nt-bookmark-tag-text, #D97706) !important;
-            font-size: 10px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            padding: 4px 6px !important;
-            border-radius: 8px !important;
-            box-sizing: border-box !important;
-            line-height: 1.2 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            border: 1px solid transparent !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            vertical-align: middle !important;
-            flex-shrink: 0 !important;
-          `;
           textWrapper.appendChild(bookmarkTag);
           suggestionItem._xBookmarkTag = bookmarkTag;
         }
 
         const rightSide = document.createElement('div');
-        rightSide.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 6px !important;
-          flex-shrink: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-        `;
+        rightSide.className = 'x-nt-suggestion-right';
 
         const actionTags = document.createElement('div');
-        actionTags.style.cssText = `
-          all: unset !important;
-          display: none !important;
-          align-items: center !important;
-          gap: 6px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-          flex-shrink: 0 !important;
-        `;
+        actionTags.className = 'x-nt-action-tags';
 
         const isTopSiteMatch = Boolean(topSiteMatch && suggestion === topSiteMatch);
         const isDirectHighlight = isPrimaryHighlight &&
@@ -10106,69 +9866,13 @@
         let historyDeleteSlot = null;
         if (suggestion.type === 'history' && !suggestion.isTopSite) {
           historyDeleteSlot = document.createElement('div');
-          historyDeleteSlot.style.cssText = `
-            all: unset !important;
-            width: 0 !important;
-            height: 28px !important;
-            flex: 0 0 auto !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            vertical-align: baseline !important;
-            opacity: 0 !important;
-            transition: width 180ms ease, margin-left 180ms ease, opacity 160ms ease !important;
-          `;
+          historyDeleteSlot.className = 'x-nt-history-delete-slot';
           historyDeleteButton = document.createElement('button');
           historyDeleteButton.type = 'button';
           const removeHistoryTooltipText = t('search_remove_history_tooltip', '移除该历史');
           historyDeleteButton.innerHTML = getRiSvg('ri-delete-bin-6-line', 'ri-size-14');
           historyDeleteButton.setAttribute('aria-label', removeHistoryTooltipText);
-          historyDeleteButton.style.cssText = `
-            all: unset !important;
-            width: 24px !important;
-            height: 24px !important;
-            flex: 0 0 24px !important;
-            border-radius: 8px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: var(--x-nt-subtext, #6B7280) !important;
-            display: inline-flex !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-            opacity: 0 !important;
-            align-items: center !important;
-            justify-content: center !important;
-            font-size: 0 !important;
-            cursor: pointer !important;
-            transform: translateX(4px) !important;
-            transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 160ms ease, opacity 160ms ease, visibility 160ms ease !important;
-            vertical-align: baseline !important;
-          `;
-          const historyDeleteIcon = historyDeleteButton.querySelector('.ri-icon');
-          if (historyDeleteIcon) {
-            historyDeleteIcon.style.setProperty('display', 'inline-flex', 'important');
-            historyDeleteIcon.style.setProperty('align-items', 'center', 'important');
-            historyDeleteIcon.style.setProperty('justify-content', 'center', 'important');
-            historyDeleteIcon.style.setProperty('line-height', '1', 'important');
-            historyDeleteIcon.style.setProperty('transform', 'none', 'important');
-            historyDeleteIcon.style.setProperty('pointer-events', 'none', 'important');
-            historyDeleteIcon.style.setProperty('cursor', 'pointer', 'important');
-          }
+          historyDeleteButton.className = 'x-nt-history-delete-button';
           historyDeleteButton.addEventListener('mouseenter', function() {
             const itemIndex = suggestionItems.indexOf(suggestionItem);
             const isSelected = itemIndex === selectedIndex;
