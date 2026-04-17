@@ -13,6 +13,14 @@
 - 大量样式通过 `style.cssText` 和 `style.setProperty(..., 'important')` 动态注入。
 - 当前注入 UI 未使用 Shadow DOM，浮层与输入框仍直接暴露在宿主页面样式环境中。
 
+### 当前进展
+- 第一阶段已开始落地，当前只处理 `newtab` 自有页面，不触碰 `background.js`、`input-ui.js`、`hotkey-listener.js`。
+- `newtab.js` 内静态 `!important` 已清零。
+- `newtab.html` 内 `!important` 已清零。
+- `newtab.js` 内 `style.cssText` 已清零，静态壳层样式已下沉到 `newtab.html` 的稳定类名。
+- 已补齐 `[hidden]` 显隐规则，修复了清理过程中由类样式覆盖浏览器原生 `hidden` 导致的 `newtab` 展示异常。
+- 当前仓库总量已从计划记录时的约 `1969` 处降到约 `1124` 处，但高风险区仍主要集中在注入路径，暂不贸然继续下探。
+
 ### 非退让约束
 - 不影响已有样式表现。
   - 所有治理必须以“视觉等价”为前提，不能顺手改版、换层级、改间距、改动效。

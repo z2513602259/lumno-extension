@@ -313,24 +313,7 @@
     }
     pageNoticeBanner = document.createElement('div');
     pageNoticeBanner.id = '_x_extension_newtab_notice_banner_2026_unique_';
-    pageNoticeBanner.style.cssText = `
-      all: unset !important;
-      width: min(82vw, calc(var(--x-nt-search-max-width, 720px) - 84px)) !important;
-      margin: 12px auto 0 !important;
-      padding: 7px 12px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: space-between !important;
-      gap: 10px !important;
-      box-sizing: border-box !important;
-      border-radius: 999px !important;
-      background: rgba(17, 24, 39, 0.92) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18) !important;
-      color: #f9fafb !important;
-      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-      backdrop-filter: blur(12px) !important;
-    `;
+    pageNoticeBanner.className = 'x-nt-page-notice-banner';
     return pageNoticeBanner;
   }
 
@@ -339,58 +322,21 @@
     banner.textContent = '';
 
     const content = document.createElement('div');
-    content.style.cssText = `
-      flex: 1 1 auto !important;
-      min-width: 0 !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 10px !important;
-    `;
+    content.className = 'x-nt-page-notice-content';
 
     const icon = document.createElement('div');
     icon.setAttribute('aria-hidden', 'true');
     icon.innerHTML = getRiSvg('ri-error-warning-line', 'ri-size-20');
-    icon.style.cssText = `
-      flex: 0 0 auto !important;
-      width: 20px !important;
-      height: 20px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      color: #fbbf24 !important;
-      opacity: 0.96 !important;
-    `;
+    icon.className = 'x-nt-page-notice-icon';
 
     const message = document.createElement('div');
     message.textContent = t('newtab_file_access_notice_title', '由于浏览器限制，若要在本地文件页面（如 PDF、HTML）中唤起聚焦搜索，请手动开启“允许访问文件网址”');
-    message.style.cssText = `
-      min-width: 0 !important;
-      font-size: 13px !important;
-      font-weight: 400 !important;
-      line-height: 1.45 !important;
-      color: rgba(249, 250, 251, 0.96) !important;
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-    `;
+    message.className = 'x-nt-page-notice-message';
 
     const primaryButton = document.createElement('button');
     primaryButton.type = 'button';
     primaryButton.textContent = t('newtab_file_access_notice_open_cta', '前往开启');
-    primaryButton.style.cssText = `
-      all: unset !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 5px 10px !important;
-      border-radius: 999px !important;
-      background: rgba(255, 255, 255, 0.12) !important;
-      color: #ffffff !important;
-      font-size: 12px !important;
-      font-weight: 600 !important;
-      cursor: pointer !important;
-      white-space: nowrap !important;
-    `;
+    primaryButton.className = 'x-nt-page-notice-primary';
     primaryButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -420,18 +366,7 @@
     closeButton.type = 'button';
     closeButton.setAttribute('aria-label', t('newtab_file_access_notice_close', '关闭提示'));
     closeButton.innerHTML = getRiSvg('ri-close-line', 'ri-size-16');
-    closeButton.style.cssText = `
-      all: unset !important;
-      flex: 0 0 auto !important;
-      width: 24px !important;
-      height: 24px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      border-radius: 999px !important;
-      color: rgba(249, 250, 251, 0.72) !important;
-      cursor: pointer !important;
-    `;
+    closeButton.className = 'x-nt-page-notice-close';
     closeButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2815,13 +2750,13 @@
     #_x_extension_newtab_root_2024_unique_ button,
     #_x_extension_newtab_root_2024_unique_ a,
     #_x_extension_newtab_root_2024_unique_ [role="button"] {
-      cursor: pointer !important;
+      cursor: pointer;
     }
     #_x_extension_newtab_root_2024_unique_ button .ri-icon,
     #_x_extension_newtab_root_2024_unique_ a .ri-icon,
     #_x_extension_newtab_root_2024_unique_ [role="button"] .ri-icon {
-      cursor: inherit !important;
-      pointer-events: none !important;
+      cursor: inherit;
+      pointer-events: none;
     }
     #_x_extension_newtab_search_input_2024_unique_::placeholder {
       color: var(--x-nt-placeholder, #9CA3AF);
@@ -3674,12 +3609,7 @@
       img.closest && img.closest('#_x_extension_newtab_suggestions_container_2024_unique_')
     );
     if (isFolderPreview) {
-      node.className = 'x-nt-folder-preview-favicon x-nt-folder-preview-favicon--fallback _x_extension_favicon_fallback_2024_unique_';
-      node.style.cssText = `
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-      `;
+      node.className = 'x-nt-folder-preview-favicon x-nt-folder-preview-favicon--fallback x-nt-favicon-fallback x-nt-favicon-fallback--folder-preview _x_extension_favicon_fallback_2024_unique_';
       node.innerHTML = getRiSvg('ri-link', 'ri-size-12');
       img.parentElement.insertBefore(node, img);
       node._xFallbackForImage = img;
@@ -3692,22 +3622,13 @@
     const fallbackBackground = isBookmarkLeadingIcon
       ? 'var(--x-nt-bookmark-icon-color, var(--x-nt-bookmark-icon-bg, rgba(241, 245, 249, 0.92)))'
       : (isSearchSuggestionIcon ? 'transparent' : 'var(--x-nt-tag-bg, #F3F4F6)');
-    node.className = '_x_extension_favicon_fallback_2024_unique_';
-    node.style.cssText = `
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      width: ${fallbackWidth}px !important;
-      height: ${fallbackHeight}px !important;
-      border-radius: ${isSearchSuggestionIcon ? 2 : 6}px !important;
-      background: ${fallbackBackground} !important;
-      color: ${isSearchSuggestionIcon ? 'var(--x-nt-subtext, #6B7280)' : 'var(--x-nt-tag-text, #6B7280)'} !important;
-      box-sizing: border-box !important;
-      padding: ${isSearchSuggestionIcon ? 0 : 3}px !important;
-      margin: 0 !important;
-      flex-shrink: 0 !important;
-      line-height: 1 !important;
-    `;
+    node.className = 'x-nt-favicon-fallback _x_extension_favicon_fallback_2024_unique_';
+    node.style.width = `${fallbackWidth}px`;
+    node.style.height = `${fallbackHeight}px`;
+    node.style.borderRadius = `${isSearchSuggestionIcon ? 2 : 6}px`;
+    node.style.background = fallbackBackground;
+    node.style.color = isSearchSuggestionIcon ? 'var(--x-nt-subtext, #6B7280)' : 'var(--x-nt-tag-text, #6B7280)';
+    node.style.padding = `${isSearchSuggestionIcon ? 0 : 3}px`;
     node.innerHTML = getRiSvg('ri-link', 'ri-size-16');
     img.parentElement.insertBefore(node, img.nextSibling);
     node._xFallbackForImage = img;
@@ -4023,13 +3944,13 @@
     return icon;
   }
 
-  function createSearchIcon() {
-    const icon = createInlineIcon(getRiSvg('ri-search-line', 'ri-size-16'));
+  function createSearchIcon(classNames) {
+    const icon = createInlineIcon(getRiSvg('ri-search-line', 'ri-size-16'), classNames);
     return icon;
   }
 
-  function createLinkIcon() {
-    const icon = createInlineIcon(getRiSvg('ri-link', 'ri-size-16'));
+  function createLinkIcon(classNames) {
+    const icon = createInlineIcon(getRiSvg('ri-link', 'ri-size-16'), classNames);
     return icon;
   }
 
@@ -4168,70 +4089,10 @@
 
   const suggestionsContainer = document.createElement('div');
   suggestionsContainer.id = '_x_extension_newtab_suggestions_container_2024_unique_';
-  suggestionsContainer.style.cssText = `
-    all: unset !important;
-    width: 100% !important;
-    margin-top: 0 !important;
-    position: relative !important;
-    left: auto !important;
-    right: auto !important;
-    top: auto !important;
-    z-index: 1 !important;
-    background: transparent !important;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 8px !important;
-    box-sizing: border-box !important;
-    display: none !important;
-    max-height: calc(100vh - 220px) !important;
-    overflow-y: auto !important;
-    overscroll-behavior: contain !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    transform: translateY(-4px) !important;
-    transition: opacity 0.12s ease, transform 0.12s ease !important;
-    line-height: 1 !important;
-    text-decoration: none !important;
-    list-style: none !important;
-    outline: none !important;
-    color: inherit !important;
-    font-size: 100% !important;
-    font: inherit !important;
-    vertical-align: baseline !important;
-  `;
+  suggestionsContainer.className = 'x-nt-suggestions-container';
   const topActionTooltip = document.createElement('div');
   topActionTooltip.id = '_x_extension_newtab_top_action_tooltip_2026_unique_';
-  topActionTooltip.style.cssText = `
-    all: unset !important;
-    position: fixed !important;
-    left: 8px !important;
-    top: 8px !important;
-    display: block !important;
-    visibility: hidden !important;
-    width: max-content !important;
-    max-width: 420px !important;
-    padding: 8px 12px !important;
-    border-radius: 10px !important;
-    background: #0F172A !important;
-    color: #F8FAFC !important;
-    border: 1px solid rgba(15, 23, 42, 0.12) !important;
-    font-size: 13px !important;
-    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-    font-weight: 500 !important;
-    line-height: 1.35 !important;
-    white-space: normal !important;
-    overflow-wrap: break-word !important;
-    text-align: left !important;
-    box-sizing: border-box !important;
-    pointer-events: none !important;
-    z-index: 4 !important;
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18) !important;
-    opacity: 0 !important;
-    transform: translateY(4px) !important;
-    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease !important;
-  `;
+  topActionTooltip.className = 'x-nt-top-action-tooltip';
   document.body.appendChild(topActionTooltip);
   let topActionTooltipHideTimer = null;
 
@@ -4404,53 +4265,13 @@
   let recentLoadedOnce = false;
   const bottomDock = document.createElement('div');
   bottomDock.id = '_x_extension_newtab_bottom_dock_2024_unique_';
-  bottomDock.style.cssText = `
-    all: unset !important;
-    position: fixed !important;
-    left: 50% !important;
-    bottom: 0 !important;
-    transform: translateX(-50%) !important;
-    width: min(96vw, var(--x-nt-content-max-width, 1040px)) !important;
-    max-height: calc(100vh - 240px) !important;
-    display: none !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    box-sizing: border-box !important;
-    z-index: 2 !important;
-    pointer-events: auto !important;
-    overflow: visible !important;
-  `;
+  bottomDock.className = 'x-nt-bottom-dock';
   const bottomDockScroller = document.createElement('div');
   bottomDockScroller.id = '_x_extension_newtab_bottom_dock_scroller_2024_unique_';
-  bottomDockScroller.style.cssText = `
-    all: unset !important;
-    width: calc(100% + 24px) !important;
-    max-height: 100% !important;
-    margin: -24px -12px 0 !important;
-    padding: 24px 12px 60px 12px !important;
-    box-sizing: border-box !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: ${SECTION_VERTICAL_GAP_PX}px !important;
-    pointer-events: auto !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    overscroll-behavior: contain !important;
-  `;
+  bottomDockScroller.className = 'x-nt-bottom-dock-scroller';
   const sectionSafeCorridor = document.createElement('div');
   sectionSafeCorridor.id = '_x_extension_newtab_section_safe_corridor_2026_unique_';
-  sectionSafeCorridor.style.cssText = `
-    all: unset !important;
-    width: 100% !important;
-    height: ${SECTION_SAFE_CORRIDOR_PX}px !important;
-    min-height: ${SECTION_SAFE_CORRIDOR_PX}px !important;
-    flex: 0 0 ${SECTION_SAFE_CORRIDOR_PX}px !important;
-    display: none !important;
-    pointer-events: auto !important;
-    box-sizing: border-box !important;
-    user-select: none !important;
-  `;
+  sectionSafeCorridor.className = 'x-nt-section-safe-corridor';
   applyNewtabWidthMode();
 
   bookmarkPagerPrevButton.addEventListener('click', () => {
@@ -7879,6 +7700,98 @@
     return tag;
   }
 
+  function createSuggestionFavicon(options) {
+    const settings = options || {};
+    const favicon = document.createElement('img');
+    favicon.setAttribute('data-x-nt-suggestion-icon', '1');
+    favicon.decoding = 'async';
+    favicon.loading = 'eager';
+    favicon.referrerPolicy = 'no-referrer';
+    if (settings.highPriority) {
+      favicon.fetchPriority = 'high';
+    }
+    favicon.className = 'x-nt-suggestion-favicon';
+    if (settings.contain) {
+      favicon.classList.add('x-nt-suggestion-favicon--contain');
+    }
+    if (settings.fallbackSize) {
+      favicon.classList.add('x-nt-suggestion-favicon--fallback-size');
+    }
+    return favicon;
+  }
+
+  function setSuggestionFaviconFallbackSize(img, enabled) {
+    if (!img || !img.classList) {
+      return;
+    }
+    img.classList.toggle('x-nt-suggestion-favicon--fallback-size', Boolean(enabled));
+  }
+
+  function createIconSlot() {
+    const iconSlot = document.createElement('span');
+    iconSlot.className = 'x-nt-icon-slot';
+    return iconSlot;
+  }
+
+  function createSuggestionLeft(animate) {
+    const leftSide = document.createElement('div');
+    leftSide.className = animate
+      ? 'x-nt-suggestion-left x-nt-suggestion-left--animated'
+      : 'x-nt-suggestion-left';
+    return leftSide;
+  }
+
+  function createSuggestionTextWrapper(animate) {
+    const textWrapper = document.createElement('div');
+    textWrapper.className = animate
+      ? 'x-nt-suggestion-text x-nt-suggestion-text--animated'
+      : 'x-nt-suggestion-text';
+    return textWrapper;
+  }
+
+  function createSuggestionTitle() {
+    const title = document.createElement('span');
+    title.className = 'x-nt-suggestion-title';
+    return title;
+  }
+
+  function createTabSwitchButton(labelHtml) {
+    const switchButton = document.createElement('button');
+    switchButton.className = 'x-nt-tab-switch-button';
+    switchButton.innerHTML = labelHtml;
+    return switchButton;
+  }
+
+  function createRankDebugChip(text) {
+    const rankDebug = document.createElement('span');
+    rankDebug.className = 'x-nt-rank-debug';
+    rankDebug.textContent = text;
+    return rankDebug;
+  }
+
+  function createReasonLine(text) {
+    const reasonLine = document.createElement('span');
+    reasonLine.className = 'x-nt-suggestion-reason';
+    reasonLine.textContent = text;
+    return reasonLine;
+  }
+
+  function createSuggestionItemShell(options) {
+    const settings = options || {};
+    const suggestionItem = document.createElement('div');
+    suggestionItem.className = settings.search
+      ? 'x-nt-suggestion-item x-nt-suggestion-item--search'
+      : 'x-nt-suggestion-item';
+    suggestionItem.style.marginBottom = settings.isLast ? '0' : '6px';
+    if (settings.background) {
+      suggestionItem.style.background = settings.background;
+    }
+    if (settings.border) {
+      suggestionItem.style.border = settings.border;
+    }
+    return suggestionItem;
+  }
+
   function buildSearchUrl(template, query) {
     if (!template) {
       return '';
@@ -8817,59 +8730,16 @@
       }
     });
     list.forEach((tab, index) => {
-      const suggestionItem = document.createElement('div');
+      const suggestionItem = createSuggestionItemShell({
+        isLast: index === list.length - 1
+      });
       suggestionItem.id = `_x_extension_newtab_suggestion_item_${index}_2024_unique_`;
-      const isLastItem = index === list.length - 1;
-      suggestionItem.style.cssText = `
-        all: unset !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        padding: 12px 16px !important;
-        background: transparent !important;
-        border: 1px solid transparent !important;
-        border-radius: 16px !important;
-        cursor: pointer !important;
-        transition: background-color 0.2s ease !important;
-        box-sizing: border-box !important;
-        margin: 0 0 ${isLastItem ? '0' : '6px'} 0 !important;
-        line-height: 1.5 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        color: inherit !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
       suggestionItem._xIsSearchSuggestion = false;
       suggestionItem._xIsAutocompleteTop = false;
       suggestionItems.push(suggestionItem);
 
-      const leftSide = document.createElement('div');
-      leftSide.style.cssText = `
-        all: unset !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        flex: 1 !important;
-        min-width: 0 !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        color: inherit !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
+      const leftSide = createSuggestionLeft(false);
 
-      const favicon = document.createElement('img');
-      favicon.setAttribute('data-x-nt-suggestion-icon', '1');
       let hostForTab = '';
       try {
         hostForTab = tab && tab.url ? new URL(tab.url).hostname : '';
@@ -8877,32 +8747,10 @@
         hostForTab = '';
       }
       const useFallback = !tab.favIconUrl || shouldBlockFaviconForHost(hostForTab);
-      favicon.decoding = 'async';
-      favicon.loading = 'eager';
-      favicon.referrerPolicy = 'no-referrer';
-      if (index < 4) {
-        favicon.fetchPriority = 'high';
-      }
-      const isFallbackIcon = useFallback;
-      favicon.style.cssText = `
-        all: unset !important;
-        width: ${isFallbackIcon ? '18px' : '16px'} !important;
-        height: ${isFallbackIcon ? '18px' : '16px'} !important;
-        border-radius: 2px !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        color: inherit !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-        display: block !important;
-      `;
+      const favicon = createSuggestionFavicon({
+        highPriority: index < 4,
+        fallbackSize: useFallback
+      });
       applyFaviconOpticalAlignment(favicon);
       favicon.addEventListener('load', function() {
         applyFaviconOpticalShift(favicon);
@@ -8912,90 +8760,24 @@
       } else {
         favicon.src = tab.favIconUrl;
       }
-      const iconSlot = document.createElement('span');
-      iconSlot.style.cssText = `
-        all: unset !important;
-        width: 24px !important;
-        height: 24px !important;
-        flex: 0 0 24px !important;
-        flex-shrink: 0 !important;
-        border-radius: 8px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        transition: background-color 0.2s ease !important;
-        color: var(--x-nt-subtext, #6B7280) !important;
-        font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
+      const iconSlot = createIconSlot();
       iconSlot.appendChild(favicon);
       suggestionItem._xIconWrap = iconSlot;
       suggestionItem._xIconIsFavicon = !useFallback;
       favicon.onerror = function() {
         reportMissingIcon('tab', tab && tab.url ? tab.url : '', favicon.src);
         applyFallbackIcon(favicon);
-        favicon.style.width = '18px';
-        favicon.style.height = '18px';
+        setSuggestionFaviconFallbackSize(favicon, true);
         suggestionItem._xIconIsFavicon = false;
       };
 
-      const title = document.createElement('span');
+      const title = createSuggestionTitle();
       title.textContent = sanitizeDisplayText(tab.title || t('untitled', '无标题'));
-      title.style.cssText = `
-        all: unset !important;
-        color: var(--x-nt-text, #111827) !important;
-        font-size: 14px !important;
-        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        line-height: 1.5 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        background: transparent !important;
-        display: inline-block !important;
-        vertical-align: baseline !important;
-      `;
       suggestionItem._xTitle = title;
 
-      const switchButton = document.createElement('button');
-      switchButton.innerHTML = `${t('switch_to_tab', '切换到标签页')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`;
-      switchButton.style.cssText = `
-        all: unset !important;
-        background: transparent !important;
-        color: var(--x-nt-subtext, #6B7280) !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-size: 12px !important;
-        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-        cursor: pointer !important;
-        transition: background-color 0.2s ease !important;
-        padding: 6px 12px !important;
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        line-height: 1.5 !important;
-        text-decoration: none !important;
-        list-style: none !important;
-        outline: none !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 4px !important;
-        vertical-align: baseline !important;
-      `;
+      const switchButton = createTabSwitchButton(
+        `${t('switch_to_tab', '切换到标签页')} ${getRiSvg('ri-arrow-right-line', 'ri-size-12')}`
+      );
       suggestionItem._xSwitchButton = switchButton;
 
       suggestionItem.addEventListener('mouseenter', function() {
@@ -9042,25 +8824,7 @@
       leftSide.appendChild(iconSlot);
       leftSide.appendChild(title);
       if (tabRankScoreDebugEnabled) {
-        const rankDebug = document.createElement('span');
-        rankDebug.textContent = formatTabRankDebugText(tab);
-        rankDebug.style.cssText = `
-          all: unset !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          margin-left: 8px !important;
-          padding: 1px 6px !important;
-          border-radius: 999px !important;
-          color: var(--x-nt-subtext, #6B7280) !important;
-          background: color-mix(in srgb, var(--x-nt-suggestions-bg, rgba(255, 255, 255, 0.96)) 70%, #94A3B8 30%) !important;
-          border: 1px solid color-mix(in srgb, var(--x-nt-border, rgba(0, 0, 0, 0.08)) 75%, #94A3B8 25%) !important;
-          font-size: 10px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          line-height: 1.2 !important;
-          white-space: nowrap !important;
-          vertical-align: baseline !important;
-          flex-shrink: 0 !important;
-        `;
+        const rankDebug = createRankDebugChip(formatTabRankDebugText(tab));
         leftSide.appendChild(rankDebug);
       }
       suggestionItem.appendChild(leftSide);
@@ -9371,8 +9135,6 @@
         if (index < startIndex) {
           return;
         }
-        const suggestionItem = document.createElement('div');
-        suggestionItem.id = `_x_extension_newtab_suggestion_item_${index}_2024_unique_`;
         const isLastItem = index === allSuggestions.length - 1;
         const isPrimaryHighlight = index === primaryHighlightIndex;
         const isPrimarySearchSuggest = isPrimaryHighlight && suggestion.type === 'googleSuggest';
@@ -9390,57 +9152,20 @@
           }
         }
         const initialHighlight = isPrimaryHighlight ? getHighlightColors(immediateTheme) : null;
-        suggestionItem.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          padding: 12px 16px !important;
-          min-height: 44px !important;
-          background: ${isPrimaryHighlight ? initialHighlight.bg : 'transparent'} !important;
-          border: ${isPrimaryHighlight ? `1px solid ${initialHighlight.border}` : '1px solid transparent'} !important;
-          border-radius: 16px !important;
-          cursor: pointer !important;
-          transition: background-color 0.2s ease !important;
-          box-sizing: border-box !important;
-          margin: 0 0 ${isLastItem ? '0' : '6px'} 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          color: inherit !important;
-          font-size: 100% !important;
-        font: inherit !important;
-        vertical-align: baseline !important;
-      `;
+        const suggestionItem = createSuggestionItemShell({
+          search: true,
+          isLast: isLastItem,
+          background: isPrimaryHighlight ? initialHighlight.bg : 'transparent',
+          border: isPrimaryHighlight ? `1px solid ${initialHighlight.border}` : '1px solid transparent'
+        });
+        suggestionItem.id = `_x_extension_newtab_suggestion_item_${index}_2024_unique_`;
         suggestionItems.push(suggestionItem);
         suggestionItem._xIsSearchSuggestion = true;
         suggestionItem._xTheme = immediateTheme;
         suggestionItem._xIsAutocompleteTop = isPrimaryHighlight;
         applyThemeVariables(suggestionItem, immediateTheme);
 
-        const leftSide = document.createElement('div');
-        leftSide.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 12px !important;
-          flex: 1 !important;
-          min-width: 0 !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-          transition: gap 160ms ease, transform 160ms ease !important;
-        `;
+        const leftSide = createSuggestionLeft(true);
 
         let iconNode = null;
         let iconWrapper = null;
@@ -9462,46 +9187,20 @@
           );
           iconNode = gearIcon;
         } else if (suggestion.type === 'modeSwitch' && suggestion.favicon) {
-          const favicon = document.createElement('img');
-          favicon.setAttribute('data-x-nt-suggestion-icon', '1');
-          favicon.decoding = 'async';
-          favicon.loading = 'eager';
-          favicon.referrerPolicy = 'no-referrer';
-          if (index < 4) {
-            favicon.fetchPriority = 'high';
-          }
-          favicon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            border-radius: 2px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-            display: block !important;
-          `;
+          const favicon = createSuggestionFavicon({
+            highPriority: index < 4
+          });
           applyFaviconOpticalAlignment(favicon);
           favicon.src = suggestion.favicon || '';
           favicon.onerror = function() {
-            const fallbackIcon = createSearchIcon();
-            fallbackIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            const fallbackIcon = createSearchIcon('x-nt-inline-icon x-nt-inline-icon--subtext');
             if (favicon.parentNode) {
               favicon.parentNode.replaceChild(fallbackIcon, favicon);
             }
           };
           iconNode = favicon;
         } else if (suggestion.type === 'newtab' || suggestion.type === 'googleSuggest') {
-          const searchIcon = createSearchIcon();
-          searchIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+          const searchIcon = createSearchIcon('x-nt-inline-icon x-nt-inline-icon--subtext');
           iconNode = searchIcon;
         } else if (
           suggestion.favicon &&
@@ -9509,39 +9208,14 @@
             suggestion.type === 'inlineSiteSearch' ||
             suggestion.type === 'siteSearchPrompt')
         ) {
-          const favicon = document.createElement('img');
-          favicon.setAttribute('data-x-nt-suggestion-icon', '1');
-          favicon.decoding = 'async';
-          favicon.loading = 'eager';
-          favicon.referrerPolicy = 'no-referrer';
-          if (index < 4) {
-            favicon.fetchPriority = 'high';
-          }
-          favicon.style.cssText = `
-            all: unset !important;
-            width: 16px !important;
-            height: 16px !important;
-            border-radius: 2px !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            color: inherit !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-            display: block !important;
-            object-fit: contain !important;
-          `;
+          const favicon = createSuggestionFavicon({
+            highPriority: index < 4,
+            contain: true
+          });
           applyFaviconOpticalAlignment(favicon);
           favicon.src = suggestion.favicon || '';
           favicon.onerror = function() {
-            const fallbackIcon = createSearchIcon();
-            fallbackIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            const fallbackIcon = createSearchIcon('x-nt-inline-icon x-nt-inline-icon--subtext');
             if (favicon.parentNode) {
               favicon.parentNode.replaceChild(fallbackIcon, favicon);
             }
@@ -9553,35 +9227,11 @@
           if (isLocalSuggestion) {
             iconNode = createLinkIcon();
           } else {
-            const favicon = document.createElement('img');
-            favicon.setAttribute('data-x-nt-suggestion-icon', '1');
-            favicon.decoding = 'async';
-            favicon.loading = 'eager';
-            favicon.referrerPolicy = 'no-referrer';
-            if (index < 4) {
-              favicon.fetchPriority = 'high';
-            }
+            const favicon = createSuggestionFavicon({
+              highPriority: index < 4,
+              contain: true
+            });
             const faviconPageUrl = suggestion && suggestion.url ? suggestion.url : (suggestion.favicon || '');
-            favicon.style.cssText = `
-              all: unset !important;
-              width: 16px !important;
-              height: 16px !important;
-              border-radius: 2px !important;
-              box-sizing: border-box !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              line-height: 1 !important;
-              text-decoration: none !important;
-              list-style: none !important;
-              outline: none !important;
-              background: transparent !important;
-              color: inherit !important;
-              font-size: 100% !important;
-              font: inherit !important;
-              vertical-align: baseline !important;
-              display: block !important;
-              object-fit: contain !important;
-            `;
             applyFaviconOpticalAlignment(favicon);
             attachFaviconWithFallbacks(favicon, faviconPageUrl, suggestionHost);
             iconNode = favicon;
@@ -9589,43 +9239,17 @@
         } else {
           const suggestionHost = suggestion && suggestion.url ? getHostFromUrl(suggestion.url) : '';
           if (suggestionHost && shouldBlockFaviconForHost(suggestionHost)) {
-            const linkIcon = createLinkIcon();
-            linkIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            const linkIcon = createLinkIcon('x-nt-inline-icon x-nt-inline-icon--subtext');
             iconNode = linkIcon;
           } else {
-            const searchIcon = createSearchIcon();
-            searchIcon.style.setProperty('color', 'var(--x-nt-subtext, #6B7280)', 'important');
+            const searchIcon = createSearchIcon('x-nt-inline-icon x-nt-inline-icon--subtext');
             iconNode = searchIcon;
           }
         }
 
         if (iconNode) {
           const isFaviconIcon = iconNode.tagName === 'IMG';
-          const iconSlot = document.createElement('span');
-          iconSlot.style.cssText = `
-            all: unset !important;
-            width: 24px !important;
-            height: 24px !important;
-            flex: 0 0 24px !important;
-            flex-shrink: 0 !important;
-            border-radius: 8px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-            text-decoration: none !important;
-            list-style: none !important;
-            outline: none !important;
-            background: transparent !important;
-            transition: background-color 0.2s ease !important;
-            color: var(--x-nt-subtext, #6B7280) !important;
-            font-size: 100% !important;
-            font: inherit !important;
-            vertical-align: baseline !important;
-          `;
+          const iconSlot = createIconSlot();
           iconSlot._xIsFavicon = isFaviconIcon;
           iconSlot.appendChild(iconNode);
           iconNode = iconSlot;
@@ -9636,32 +9260,10 @@
           }
         }
 
-        const textWrapper = document.createElement('div');
+        const textWrapper = createSuggestionTextWrapper(true);
         textWrapper.setAttribute('data-ai-sweep-distort', 'text');
-        textWrapper.style.cssText = `
-          all: unset !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 6px !important;
-          flex: 1 !important;
-          min-width: 0 !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 8px 0 0 !important;
-          line-height: 1 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          color: inherit !important;
-          font-size: 100% !important;
-          font: inherit !important;
-          vertical-align: baseline !important;
-          transition: gap 160ms ease, transform 160ms ease !important;
-        `;
 
-        const title = document.createElement('span');
+        const title = createSuggestionTitle();
         const baseTitle = suggestion.title || '';
         let highlightedTitle;
         if (isPrimarySearchSuggest ||
@@ -9681,27 +9283,6 @@
           background: 'var(--x-ext-mark-bg, #CFE8FF)',
           color: 'var(--x-ext-mark-text, #1E3A8A)'
         });
-        title.style.cssText = `
-          all: unset !important;
-          color: var(--x-nt-text, #111827) !important;
-          font-size: 14px !important;
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-          font-weight: 400 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          max-width: 100% !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          line-height: 1.5 !important;
-          text-decoration: none !important;
-          list-style: none !important;
-          outline: none !important;
-          background: transparent !important;
-          display: inline-block !important;
-          vertical-align: baseline !important;
-        `;
         suggestionItem._xTitle = title;
 
         textWrapper.appendChild(title);
@@ -9709,21 +9290,7 @@
           ? suggestion.reasons.map((item) => String(item || '').trim()).filter(Boolean).join(' · ')
           : '';
         if (tabRankScoreDebugEnabled && reasonText) {
-          const reasonLine = document.createElement('span');
-          reasonLine.textContent = reasonText;
-          reasonLine.style.cssText = `
-            all: unset !important;
-            color: var(--x-nt-subtext, #6B7280) !important;
-            font-size: 11px !important;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-            line-height: 1.2 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            max-width: 100% !important;
-            display: inline-block !important;
-            vertical-align: middle !important;
-          `;
+          const reasonLine = createReasonLine(reasonText);
           textWrapper.appendChild(reasonLine);
         }
 
