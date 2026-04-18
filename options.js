@@ -50,6 +50,7 @@
   const pinnedTabRecoveryToggle = document.getElementById('_x_extension_pinned_tab_recovery_toggle_2026_unique_');
   const overlayTabQuickSwitchToggle = document.getElementById('_x_extension_overlay_tab_quick_switch_2024_unique_');
   const newtabWordmarkToggle = document.getElementById('_x_extension_newtab_wordmark_toggle_2026_unique_');
+  const newtabOpenNewTabToggle = document.getElementById('_x_extension_newtab_open_new_tab_toggle_2026_unique_');
   const restrictedActionSelect = document.getElementById('_x_extension_restricted_action_select_2024_unique_');
   const searchResultPrioritySelect = document.getElementById('_x_extension_search_result_priority_select_2026_unique_');
   const syncStatus = document.getElementById('_x_extension_sync_status_2024_unique_');
@@ -282,6 +283,7 @@
   const PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY = '_x_extension_pinned_tab_recovery_enabled_2026_unique_';
   const OVERLAY_TAB_PRIORITY_STORAGE_KEY = '_x_extension_overlay_tab_priority_2024_unique_';
   const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
+  const NEWTAB_OPEN_NEW_TAB_STORAGE_KEY = '_x_extension_newtab_open_new_tab_2026_unique_';
   const RESTRICTED_ACTION_STORAGE_KEY = '_x_extension_restricted_action_2024_unique_';
   const SEARCH_RESULT_PRIORITY_STORAGE_KEY = '_x_extension_search_result_priority_2026_unique_';
   const SITE_SEARCH_ICON_CACHE_STORAGE_KEY = '_x_extension_site_search_icon_cache_2026_unique_';
@@ -307,6 +309,7 @@
     PINNED_TAB_RECOVERY_ENABLED_STORAGE_KEY,
     OVERLAY_TAB_PRIORITY_STORAGE_KEY,
     NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY,
+    NEWTAB_OPEN_NEW_TAB_STORAGE_KEY,
     RESTRICTED_ACTION_STORAGE_KEY,
     SEARCH_RESULT_PRIORITY_STORAGE_KEY,
     FALLBACK_SHORTCUT_STORAGE_KEY,
@@ -1194,6 +1197,10 @@
   }
 
   function normalizeNewtabWordmarkVisible(value) {
+    return value !== false;
+  }
+
+  function normalizeNewtabOpenNewTab(value) {
     return value !== false;
   }
 
@@ -3378,6 +3385,15 @@
       storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
     });
   }
+  if (newtabOpenNewTabToggle) {
+    newtabOpenNewTabToggle.addEventListener('change', () => {
+      const next = normalizeNewtabOpenNewTab(newtabOpenNewTabToggle.checked);
+      if (!storageArea) {
+        return;
+      }
+      storageArea.set({ [NEWTAB_OPEN_NEW_TAB_STORAGE_KEY]: next });
+    });
+  }
   if (autoPipToggle) {
     autoPipToggle.addEventListener('change', () => {
       const next = Boolean(autoPipToggle.checked);
@@ -3845,6 +3861,17 @@
       }
       if (rawValue !== stored) {
         storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: stored });
+      }
+      refreshCustomSelects();
+    });
+    storageArea.get([NEWTAB_OPEN_NEW_TAB_STORAGE_KEY], (result) => {
+      const rawValue = result[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY];
+      const stored = normalizeNewtabOpenNewTab(rawValue);
+      if (newtabOpenNewTabToggle) {
+        newtabOpenNewTabToggle.checked = stored;
+      }
+      if (rawValue !== stored) {
+        storageArea.set({ [NEWTAB_OPEN_NEW_TAB_STORAGE_KEY]: stored });
       }
       refreshCustomSelects();
     });
@@ -5191,6 +5218,15 @@
       newtabWordmarkToggle.checked = next;
       if (raw !== next && storageArea) {
         storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: next });
+      }
+      refreshCustomSelects();
+    }
+    if (changes[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY] && newtabOpenNewTabToggle) {
+      const raw = changes[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY].newValue;
+      const next = normalizeNewtabOpenNewTab(raw);
+      newtabOpenNewTabToggle.checked = next;
+      if (raw !== next && storageArea) {
+        storageArea.set({ [NEWTAB_OPEN_NEW_TAB_STORAGE_KEY]: next });
       }
       refreshCustomSelects();
     }

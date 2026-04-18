@@ -29,6 +29,7 @@
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
   const NEWTAB_WIDTH_MODE_STORAGE_KEY = '_x_extension_newtab_width_mode_2026_unique_';
   const NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY = '_x_extension_newtab_wordmark_visible_2026_unique_';
+  const NEWTAB_OPEN_NEW_TAB_STORAGE_KEY = '_x_extension_newtab_open_new_tab_2026_unique_';
   const BOOKMARK_COUNT_STORAGE_KEY = '_x_extension_bookmark_count_2024_unique_';
   const BOOKMARK_COLUMNS_STORAGE_KEY = '_x_extension_bookmark_columns_2024_unique_';
   const DEFAULT_SEARCH_ENGINE_STORAGE_KEY = '_x_extension_default_search_engine_2024_unique_';
@@ -101,6 +102,7 @@
   let wordmarkImageEl = null;
   let pageNoticeBanner = null;
   let newtabWordmarkVisible = true;
+  let openInNewTabWhenInNewtab = true;
   let bookmarkCurrentPage = 0;
   let bookmarkAllItems = [];
   let bookmarkCurrentFolderId = '1';
@@ -171,6 +173,10 @@
   }
 
   function normalizeNewtabWordmarkVisible(value) {
+    return value !== false;
+  }
+
+  function normalizeNewtabOpenNewTab(value) {
     return value !== false;
   }
 
@@ -1870,6 +1876,14 @@
       }
       applyNewtabWordmarkVisibility();
     }
+    if (changes[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY]) {
+      const raw = changes[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY].newValue;
+      const nextValue = normalizeNewtabOpenNewTab(raw);
+      openInNewTabWhenInNewtab = nextValue;
+      if (storageArea && raw !== nextValue) {
+        storageArea.set({ [NEWTAB_OPEN_NEW_TAB_STORAGE_KEY]: nextValue });
+      }
+    }
     if (changes[RECENT_MODE_STORAGE_KEY]) {
       const nextMode = changes[RECENT_MODE_STORAGE_KEY].newValue;
       currentRecentMode = nextMode === 'most' ? 'most' : 'latest';
@@ -2007,6 +2021,10 @@
         storageArea.set({ [NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY]: nextValue });
       }
       applyNewtabWordmarkVisibility();
+    });
+    storageArea.get([NEWTAB_OPEN_NEW_TAB_STORAGE_KEY], (result) => {
+      const raw = result[NEWTAB_OPEN_NEW_TAB_STORAGE_KEY];
+      openInNewTabWhenInNewtab = normalizeNewtabOpenNewTab(raw);
     });
     storageArea.get([RECENT_MODE_STORAGE_KEY], (result) => {
       const stored = result[RECENT_MODE_STORAGE_KEY];
@@ -2251,6 +2269,7 @@
     RECENT_COUNT_STORAGE_KEY,
     NEWTAB_WIDTH_MODE_STORAGE_KEY,
     NEWTAB_WORDMARK_VISIBLE_STORAGE_KEY,
+    NEWTAB_OPEN_NEW_TAB_STORAGE_KEY,
     BOOKMARK_COUNT_STORAGE_KEY,
     BOOKMARK_COLUMNS_STORAGE_KEY,
     TAB_RANK_SCORE_DEBUG_STORAGE_KEY,
@@ -4018,6 +4037,10 @@
 
   function navigateToUrl(url) {
     if (!url) {
+      return;
+    }
+    if (openInNewTabWhenInNewtab) {
+      window.open(url, '_blank');
       return;
     }
     if (chrome.tabs && chrome.tabs.getCurrent) {

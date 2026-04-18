@@ -323,6 +323,9 @@
   "settings_newtab_wordmark_title": {
     "message": "在新分頁搜尋框上方顯示 Logo"
   },
+  "settings_newtab_open_new_tab_title": {
+    "message": "在新分頁中打開搜尋結果與書籤"
+  },
   "settings_wallpaper_title": {
     "message": "新分頁壁紙"
   },

@@ -323,6 +323,9 @@
   "settings_newtab_wordmark_title": {
     "message": "Show logo above the New Tab search bar"
   },
+  "settings_newtab_open_new_tab_title": {
+    "message": "Open search results and bookmarks in a new tab"
+  },
   "settings_wallpaper_title": {
     "message": "New Tab wallpaper"
   },

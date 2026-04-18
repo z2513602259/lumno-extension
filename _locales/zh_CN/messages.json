@@ -323,6 +323,9 @@
   "settings_newtab_wordmark_title": {
     "message": "在新标签页搜索框上方显示 Logo"
   },
+  "settings_newtab_open_new_tab_title": {
+    "message": "在新标签页中打开搜索结果与书签"
+  },
   "settings_wallpaper_title": {
     "message": "新标签页壁纸"
   },
