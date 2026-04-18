@@ -8189,30 +8189,12 @@ async function getSearchSuggestions(query) {
     applyOverlaySizeForPageZoom(overlayElement);
   }
 
-  let aiModeDecor = null;
-  let aiModeSweep = null;
-  let aiModeSweepActive = false;
-  let aiModeEffectClip = null;
-  let aiModeSweepFrame = null;
-  const AI_MODE_SWEEP_DURATION_MS = 1800;
-
   // Helper function to remove overlay and clean up styles
   function removeOverlay(overlayElement) {
     clearOverlayEnterAnimationFrames();
     clearSiteSearchShellAnimation();
     stopOverlayViewportSizeSync();
     stopOverlayAntiTranslateObserver();
-    if (aiModeDecor && typeof aiModeDecor.destroy === 'function') {
-      aiModeDecor.destroy();
-      aiModeDecor = null;
-    }
-    if (aiModeSweep && typeof aiModeSweep.destroy === 'function') {
-      aiModeSweep.destroy();
-      aiModeSweep = null;
-    }
-    aiModeSweepActive = false;
-    aiModeEffectClip = null;
-    aiModeSweepFrame = null;
     if (overlayElement) {
       overlayElement.remove();
     }
@@ -8354,12 +8336,6 @@ async function getSearchSuggestions(query) {
       const previousResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
       applyOverlayThemeVariables(overlay, mode);
       const nextResolvedTheme = overlay ? overlay.getAttribute('data-theme') : '';
-      if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
-        syncAiModeDecorAppearance();
-      }
-      if (aiModeSweep && typeof aiModeSweep.setTheme === 'function') {
-        aiModeSweep.setTheme('auto');
-      }
       suggestionItems.forEach((item) => {
         if (item && item._xTheme) {
           applyThemeVariables(item, item._xTheme);
@@ -8428,15 +8404,6 @@ async function getSearchSuggestions(query) {
         margin: 0;
         padding: 0;
         background: transparent;
-      }
-      #_x_extension_overlay_2024_unique_ .x-ov-ai-mode-effect-clip {
-        position: absolute;
-        inset: 0;
-        box-sizing: border-box;
-        border-radius: inherit;
-        pointer-events: none;
-        overflow: hidden;
-        z-index: 0;
       }
       #_x_extension_overlay_2024_unique_ .ri-icon {
         width: var(--ri-size, 16px);
@@ -9113,21 +9080,6 @@ async function getSearchSuggestions(query) {
     const inputChromeLayer = inputParts.chromeLayer || inputContainer;
     const rightIcon = inputParts.rightIcon;
     const overlayInputHeight = 56;
-    aiModeEffectClip = document.createElement('div');
-    applyNoTranslate(aiModeEffectClip);
-    aiModeEffectClip.setAttribute('aria-hidden', 'true');
-    aiModeEffectClip.className = 'x-ov-ai-mode-effect-clip';
-    aiModeSweepFrame = document.createElement('div');
-    applyNoTranslate(aiModeSweepFrame);
-    aiModeSweepFrame.setAttribute('aria-hidden', 'true');
-    aiModeSweepFrame.className = 'x-ov-ai-mode-sweep-frame';
-    aiModeSweepFrame.style.position = 'absolute';
-    aiModeSweepFrame.style.inset = '0';
-    aiModeSweepFrame.style.boxSizing = 'border-box';
-    aiModeSweepFrame.style.borderRadius = 'inherit';
-    aiModeSweepFrame.style.pointerEvents = 'none';
-    aiModeSweepFrame.style.overflow = 'visible';
-    aiModeEffectClip.appendChild(aiModeSweepFrame);
     applyNoTranslate(searchInput);
     applyNoTranslate(inputContainer);
     applyNoTranslate(rightIcon);
@@ -11506,7 +11458,6 @@ async function getSearchSuggestions(query) {
 
     const siteSearchPrefix = document.createElement('span');
     siteSearchPrefix.id = '_x_extension_site_search_prefix_2024_unique_';
-    siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
     siteSearchPrefix.className = 'x-ov-site-search-prefix';
     siteSearchPrefix.style.display = 'none';
     siteSearchPrefix.style.maxWidth = '0px';
@@ -11517,82 +11468,6 @@ async function getSearchSuggestions(query) {
     inputChromeLayer.appendChild(siteSearchPrefix);
     inputContainer.style.position = 'relative';
     inputContainer.style.zIndex = '2';
-
-    function ensureAiModeDecor() {
-      if (aiModeDecor) {
-        return aiModeDecor;
-      }
-      if (
-        !aiModeSweepFrame ||
-        typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function'
-      ) {
-        return null;
-      }
-      aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
-        target: aiModeSweepFrame,
-        themeTarget: overlay,
-        borderRadius: 28,
-        borderWidth: 1,
-        zIndex: 0,
-        spread: 6,
-        duration: 2.4,
-        hueRange: 13,
-        strength: 0.82,
-        theme: 'auto',
-        active: false
-      });
-      return aiModeDecor;
-    }
-
-    function ensureAiModeSweep() {
-      if (aiModeSweep) {
-        return aiModeSweep;
-      }
-      if (
-        !aiModeSweepFrame ||
-        typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function'
-      ) {
-        return null;
-      }
-      aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
-        target: aiModeSweepFrame,
-        themeTarget: overlay,
-        borderRadius: 28,
-        zIndex: 0,
-        duration: AI_MODE_SWEEP_DURATION_MS,
-        maxDisplacement: 24,
-        preserveTargetOverflow: true,
-        distortionSelector: '[data-ai-sweep-distort]'
-      });
-      return aiModeSweep;
-    }
-
-    function syncAiModeDecorAppearance() {
-      if (!aiModeDecor || !aiModeDecor.beam || !overlay) {
-        return;
-      }
-      const resolvedTheme = overlay.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      const strength = resolvedTheme === 'light' ? 0.64 : 0.82;
-      aiModeDecor.beam.style.setProperty('--beam-strength', String(strength));
-      aiModeDecor.setTheme(resolvedTheme);
-    }
-
-    function setAiModeDecorActive(active) {
-      const nextActive = Boolean(active);
-      const decor = ensureAiModeDecor();
-      if (decor) {
-        syncAiModeDecorAppearance();
-        decor.setActive(nextActive);
-      }
-      const sweep = ensureAiModeSweep();
-      if (sweep) {
-        sweep.setTheme('auto');
-        if (nextActive && !aiModeSweepActive) {
-          sweep.play();
-        }
-      }
-      aiModeSweepActive = nextActive;
-    }
 
     function getBaseInputPaddingLeft() {
       if (baseInputPaddingLeft === null) {
@@ -11661,7 +11536,6 @@ async function getSearchSuggestions(query) {
       siteSearchPrefix.style.boxShadow = 'none';
       searchInput.placeholder = defaultPlaceholderText || defaultPlaceholder;
       searchInput.style.caretColor = defaultCaretColor;
-      setAiModeDecorActive(false);
       updateSiteSearchPrefixLayout();
     }
 
@@ -11670,7 +11544,6 @@ async function getSearchSuggestions(query) {
         site: getSiteSearchDisplayName(provider)
       });
       setInputModePrefix(prefixText, theme);
-      setAiModeDecorActive(isAiSiteSearchProvider(provider));
     }
 
     function setOpenTabsSearchPrefix(theme) {
@@ -14741,8 +14614,6 @@ async function getSearchSuggestions(query) {
           
           // Create text wrapper for title and tag
           const textWrapper = createSuggestionTextWrapper();
-          textWrapper.setAttribute('data-ai-sweep-distort', 'text');
-          
           // Create title with highlighted query
           const title = createSuggestionTitle();
           applyNoTranslate(title);
@@ -15211,7 +15082,6 @@ async function getSearchSuggestions(query) {
     };
     overlayPanel.addEventListener('wheel', handleOverlayWheel, { passive: false });
 
-    overlayShadowRoot.appendChild(aiModeEffectClip);
     overlayPanel.appendChild(inputContainer);
     overlayPanel.appendChild(suggestionsContainer);
     overlayShadowRoot.appendChild(overlayPanel);

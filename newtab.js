@@ -88,15 +88,9 @@
   let currentRecentCount = 4;
   let currentBookmarkCount = 8;
   let currentBookmarkColumns = 4;
-  const AI_MODE_SWEEP_DURATION_MS = 1800;
   let tabRankScoreDebugEnabled = false;
   let themeFaviconRescueTimer = null;
   let searchLayer = null;
-  let aiModeDecor = null;
-  let aiModeSweep = null;
-  let aiModeSweepActive = false;
-  let aiModeDecorFrame = null;
-  let aiModeSweepFrame = null;
   let wordmarkContainer = null;
   let wordmarkImageEl = null;
   let pageNoticeBanner = null;
@@ -1690,12 +1684,6 @@
     const resolved = resolveTheme(mode, mediaMatchesOverride);
     document.body.setAttribute('data-theme', resolved);
     applyWordmarkThemeAppearance(resolved);
-    if (aiModeDecor && typeof aiModeDecor.setTheme === 'function') {
-      syncAiModeDecorAppearance();
-    }
-    if (aiModeSweep && typeof aiModeSweep.setTheme === 'function') {
-      aiModeSweep.setTheme('auto');
-    }
     const didResolvedThemeChange = previousResolved !== resolved;
     suggestionItems.forEach((item) => {
       if (item && item._xTheme) {
@@ -2184,7 +2172,7 @@
 
   let latestQuery = '';
   let latestRawQuery = '';
-  let lastDeletionAt = 0;
+  let suppressAutocompleteForCurrentFocus = false;
   let fallbackShortcutRaw = '';
   let fallbackShortcutSpec = null;
   let fallbackShortcutRefreshAt = 0;
@@ -7627,7 +7615,7 @@
       clearAutocomplete();
       return;
     }
-    if (Date.now() - lastDeletionAt < 250) {
+    if (suppressAutocompleteForCurrentFocus) {
       clearAutocomplete();
       return;
     }
@@ -9364,8 +9352,6 @@
         }
 
         const textWrapper = createSuggestionTextWrapper(true);
-        textWrapper.setAttribute('data-ai-sweep-distort', 'text');
-
         const title = createSuggestionTitle();
         const baseTitle = suggestion.title || '';
         let highlightedTitle;
@@ -9723,15 +9709,18 @@
     rightIconStyleOverrides: {
       cursor: 'pointer'
     },
+    onFocus: function() {
+      suppressAutocompleteForCurrentFocus = false;
+    },
     onInput: function(event) {
       const rawValue = event.target.value;
       const query = rawValue.trim();
-      updateModeBadge(rawValue);
       const inputType = event && event.inputType;
       const isPaste = inputType === 'insertFromPaste';
       const isDelete = inputType && inputType.startsWith('delete');
+      updateModeBadge(rawValue);
       if (isDelete) {
-        lastDeletionAt = Date.now();
+        suppressAutocompleteForCurrentFocus = true;
       }
       if (isComposing) {
         latestQuery = query;
@@ -9768,6 +9757,7 @@
       requestSuggestions(query);
     },
     onBlur: function(event) {
+      suppressAutocompleteForCurrentFocus = false;
       const rawValue = event && event.target ? event.target.value : '';
       if (!isSlashCommandInput(rawValue)) {
         return;
@@ -9782,6 +9772,10 @@
       updateModeBadge('');
     },
     onKeyDown: function(event) {
+      if ((event.key === 'Backspace' || event.key === 'Delete') &&
+          !event.metaKey && !event.ctrlKey && !event.altKey) {
+        suppressAutocompleteForCurrentFocus = true;
+      }
       dismissAutocompletePreviewOnNonTabKey(event);
       if (event.key !== 'Backspace' && !event.metaKey && !event.ctrlKey && !event.altKey) {
         latestRawQuery = inputParts.input.value;
@@ -10355,7 +10349,6 @@
 
   const siteSearchPrefix = document.createElement('span');
   siteSearchPrefix.id = '_x_extension_newtab_site_search_prefix_2024_unique_';
-  siteSearchPrefix.setAttribute('data-ai-sweep-distort', 'prefix');
   siteSearchPrefix.className = 'x-nt-site-search-prefix';
   siteSearchPrefix.hidden = true;
   const siteSearchPrefixLabel = document.createElement('span');
@@ -10368,101 +10361,6 @@
   inputChromeLayer.appendChild(siteSearchPrefix);
   inputContainer.classList.add('x-nt-input-container');
   suggestionsContainer.classList.add('x-nt-suggestions-layer');
-
-  function ensureAiModeDecor() {
-    if (aiModeDecor) {
-      return aiModeDecor;
-    }
-    if (
-      !searchLayer ||
-      typeof window._x_extension_createBorderBeamEffect_2026_unique_ !== 'function'
-    ) {
-      return null;
-    }
-    if (!aiModeDecorFrame) {
-      aiModeDecorFrame = document.createElement('div');
-      aiModeDecorFrame.id = '_x_extension_newtab_ai_mode_decor_frame_2026_unique_';
-      aiModeDecorFrame.setAttribute('aria-hidden', 'true');
-      aiModeDecorFrame.className = 'x-nt-ai-mode-decor-frame';
-    }
-    if (aiModeDecorFrame.parentNode !== searchLayer) {
-      searchLayer.insertBefore(aiModeDecorFrame, searchLayer.firstChild || null);
-    }
-    const borderRadius = parseFloat(window.getComputedStyle(searchLayer).borderRadius) || 24;
-
-    aiModeDecor = window._x_extension_createBorderBeamEffect_2026_unique_({
-      target: aiModeDecorFrame,
-      themeTarget: document.body || root,
-      borderRadius: borderRadius,
-      borderWidth: 1,
-      edgeOffset: 0,
-      zIndex: 0,
-      spread: 6,
-      duration: 2.4,
-      hueRange: 13,
-      strength: 0.82,
-      theme: 'auto',
-      active: false
-    });
-    return aiModeDecor;
-  }
-
-  function ensureAiModeSweep() {
-    if (aiModeSweep) {
-      return aiModeSweep;
-    }
-    ensureAiModeDecor();
-    if (!root || typeof window._x_extension_createAiSweepEffect_2026_unique_ !== 'function') {
-      return null;
-    }
-    if (!aiModeSweepFrame) {
-      aiModeSweepFrame = document.createElement('div');
-      aiModeSweepFrame.id = '_x_extension_newtab_ai_mode_sweep_frame_2026_unique_';
-      aiModeSweepFrame.setAttribute('aria-hidden', 'true');
-      aiModeSweepFrame.className = 'x-nt-ai-mode-sweep-frame';
-    }
-    if (aiModeSweepFrame.parentNode !== root) {
-      root.insertBefore(aiModeSweepFrame, searchLayer || null);
-    }
-    const borderRadius = parseFloat(window.getComputedStyle(root).borderRadius) || 28;
-    aiModeSweep = window._x_extension_createAiSweepEffect_2026_unique_({
-      target: aiModeSweepFrame,
-      themeTarget: document.body || root,
-      borderRadius: borderRadius,
-      zIndex: 0,
-      duration: AI_MODE_SWEEP_DURATION_MS,
-      maxDisplacement: 24,
-      distortionSelector: '[data-ai-sweep-distort]'
-    });
-    return aiModeSweep;
-  }
-
-  function syncAiModeDecorAppearance() {
-    if (!aiModeDecor || !aiModeDecor.beam || !document.body) {
-      return;
-    }
-    const resolvedTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const strength = resolvedTheme === 'light' ? 0.64 : 0.82;
-    aiModeDecor.beam.style.setProperty('--beam-strength', String(strength), 'important');
-    aiModeDecor.setTheme(resolvedTheme);
-  }
-
-  function setAiModeDecorActive(active) {
-    const nextActive = Boolean(active);
-    const decor = ensureAiModeDecor();
-    if (decor) {
-      syncAiModeDecorAppearance();
-      decor.setActive(nextActive);
-    }
-    const sweep = ensureAiModeSweep();
-    if (sweep) {
-      sweep.setTheme('auto');
-      if (nextActive && !aiModeSweepActive) {
-        sweep.play();
-      }
-    }
-    aiModeSweepActive = nextActive;
-  }
 
   function getBaseInputPaddingLeft() {
     if (baseInputPaddingLeft === null) {
@@ -10522,7 +10420,6 @@
     if (resolvedTheme && resolvedTheme.accent) {
       searchInput.style.setProperty('caret-color', resolvedTheme.accent, 'important');
     }
-    setAiModeDecorActive(isAiSiteSearchProvider(provider));
     updateSiteSearchPrefixLayout();
   }
 
@@ -10535,7 +10432,6 @@
     siteSearchPrefix.style.setProperty('box-shadow', 'none', 'important');
     searchInput.placeholder = defaultPlaceholder;
     searchInput.style.setProperty('caret-color', defaultCaretColor, 'important');
-    setAiModeDecorActive(false);
     updateSiteSearchPrefixLayout();
   }
 
